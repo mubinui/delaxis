@@ -1,11 +1,25 @@
+import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+
+const resolveSrc = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // The studio is served at the root of the Open Agent Kit API server
-  base: '/',
+  // The studio is served at the root of the Open Agent Kit API server, but the
+  // GitHub Pages demo lives under /<repo>/ — the workflow sets VITE_BASE_PATH.
+  base: process.env.VITE_BASE_PATH ?? '/',
+  resolve: {
+    alias: {
+      // The Pages demo swaps the backend for an in-browser stub. Resolving the
+      // switch here rather than branching at runtime guarantees the stub and its
+      // fixtures are absent from the bundle the API server serves.
+      '#demo': resolveSrc(
+        process.env.VITE_DEMO_MODE === 'true' ? './src/demo/index.ts' : './src/demo/stub.ts',
+      ),
+    },
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

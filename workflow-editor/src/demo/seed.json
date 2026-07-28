@@ -1,0 +1,1541 @@
+{
+ "agents": [
+  {
+   "code_execution_config": false,
+   "description": "Routes user queries to the right specialist: web search, knowledge base, or calculator",
+   "human_input_mode": "NEVER",
+   "id": "demo_selector_agent",
+   "llm_config": {
+    "max_tokens": 800,
+    "model": "openai/gpt-oss-20b",
+    "provider_id": "openrouter",
+    "temperature": 0.7
+   },
+   "max_consecutive_auto_reply": 10,
+   "name": "DemoSelectorAgent",
+   "retrieve_config": null,
+   "system_message": null,
+   "tools": [],
+   "type": "conversable"
+  },
+  {
+   "code_execution_config": false,
+   "description": "General purpose helpful assistant for non-specialized queries",
+   "human_input_mode": "NEVER",
+   "id": "general_assistant",
+   "llm_config": {
+    "max_tokens": 800,
+    "model": "openai/gpt-oss-20b",
+    "provider_id": "openrouter",
+    "temperature": 0.7
+   },
+   "max_consecutive_auto_reply": 10,
+   "name": "GeneralAssistant",
+   "retrieve_config": null,
+   "system_message": null,
+   "tools": [],
+   "type": "conversable"
+  },
+  {
+   "code_execution_config": false,
+   "description": "Web search specialist using DuckDuckGo for current information",
+   "human_input_mode": "NEVER",
+   "id": "search_assistant",
+   "llm_config": {
+    "max_tokens": 800,
+    "model": "openai/gpt-oss-20b",
+    "provider_id": "openrouter",
+    "temperature": 0.7
+   },
+   "max_consecutive_auto_reply": 10,
+   "name": "SearchAssistant",
+   "retrieve_config": null,
+   "system_message": null,
+   "tools": [
+    "web_search"
+   ],
+   "type": "conversable"
+  },
+  {
+   "code_execution_config": false,
+   "description": "Knowledge base specialist with RAG (Retrieval-Augmented Generation) capabilities",
+   "human_input_mode": "NEVER",
+   "id": "rag_assistant",
+   "llm_config": {
+    "max_tokens": 800,
+    "model": "openai/gpt-oss-20b",
+    "provider_id": "openrouter",
+    "temperature": 0.7
+   },
+   "max_consecutive_auto_reply": 10,
+   "name": "RAGAssistant",
+   "retrieve_config": null,
+   "system_message": null,
+   "tools": [
+    "rag_query",
+    "rag_list_files",
+    "rag_get_stats"
+   ],
+   "type": "conversable"
+  },
+  {
+   "code_execution_config": false,
+   "description": "Math specialist that evaluates arithmetic expressions with the calculate tool",
+   "human_input_mode": "NEVER",
+   "id": "calculator_agent",
+   "llm_config": {
+    "max_tokens": 800,
+    "model": "openai/gpt-oss-20b",
+    "provider_id": "openrouter",
+    "temperature": 0.7
+   },
+   "max_consecutive_auto_reply": 10,
+   "name": "CalculatorAgent",
+   "retrieve_config": null,
+   "system_message": null,
+   "tools": [
+    "calculate"
+   ],
+   "type": "conversable"
+  },
+  {
+   "code_execution_config": false,
+   "description": "Searches the web and summarizes findings",
+   "human_input_mode": "NEVER",
+   "id": "e2e_researcher",
+   "llm_config": {
+    "max_tokens": 800,
+    "model": "openai/gpt-4o-mini",
+    "provider_id": "openrouter",
+    "temperature": 0.3
+   },
+   "max_consecutive_auto_reply": 5,
+   "name": "Web_Researcher",
+   "retrieve_config": null,
+   "system_message": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
+   "tools": [
+    "web_search"
+   ],
+   "type": "conversable"
+  },
+  {
+   "code_execution_config": false,
+   "description": "Writes the final guarded answer",
+   "human_input_mode": "NEVER",
+   "id": "e2e_writer",
+   "llm_config": {
+    "max_tokens": 800,
+    "model": "openai/gpt-4o-mini",
+    "provider_id": "openrouter",
+    "temperature": 0.5
+   },
+   "max_consecutive_auto_reply": 5,
+   "name": "Answer_Writer",
+   "retrieve_config": null,
+   "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
+   "tools": [],
+   "type": "conversable"
+  }
+ ],
+ "builderModels": {
+  "models": [
+   {
+    "display_name": "GPT-5 (OpenRouter)",
+    "model_id": "openai/gpt-5",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "GPT-4o (OpenRouter)",
+    "model_id": "openai/gpt-4o",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "Claude Sonnet 4.6 (OpenRouter)",
+    "model_id": "anthropic/claude-sonnet-4-6",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "Gemini 3.1 Pro Preview (OpenRouter)",
+    "model_id": "google/gemini-3.1-pro-preview",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "openai/gpt-oss-20b (OpenRouter)",
+    "model_id": "openai/gpt-oss-20b",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "google/gemini-3.1-flash-lite (OpenRouter)",
+    "model_id": "google/gemini-3.1-flash-lite",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "google/gemini-3.1-flash (OpenRouter)",
+    "model_id": "google/gemini-3.1-flash",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "openai/gpt-oss-20b (vLLM (Self-hosted))",
+    "model_id": "openai/gpt-oss-20b",
+    "provider_id": "vllm",
+    "provider_name": "vLLM (Self-hosted)"
+   }
+  ]
+ },
+ "deployments": [
+  {
+   "api_url": "",
+   "auth_mode": "public",
+   "created_at": "2026-07-13T06:06:47.270678+00:00",
+   "error": null,
+   "greeting": "Hi, I am ready.",
+   "id": "e2e-search-demo",
+   "model_id": "google/gemini-3.1-pro-preview",
+   "name": "e2e_search_demo",
+   "path": "data/deployments/e2e-search-demo",
+   "provider_id": "openrouter",
+   "status": "active",
+   "theme": "midnight",
+   "title": "E2E Search Demo",
+   "trigger_id": null,
+   "updated_at": "2026-07-13T06:06:47.270678+00:00",
+   "url": "/d/e2e-search-demo/",
+   "workflow_id": "e2e_search_demo"
+  },
+  {
+   "api_url": "",
+   "auth_mode": "public",
+   "created_at": "2026-07-20T09:12:00+00:00",
+   "error": null,
+   "greeting": "Hi! Ask me about search, your knowledge base, or maths.",
+   "id": "support-chat",
+   "model_id": "openai/gpt-oss-20b",
+   "name": "demo_multi_agent",
+   "path": "data/deployments/support-chat",
+   "provider_id": "openrouter",
+   "status": "active",
+   "theme": "aurora",
+   "title": "Support Assistant",
+   "trigger_id": "trg_chat_demo",
+   "updated_at": "2026-07-20T09:12:00+00:00",
+   "url": "/d/support-chat/",
+   "workflow_id": "demo_multi_agent"
+  }
+ ],
+ "functionSources": {
+  "fx_convert": "RATES = {\"USD\": 1.0, \"EUR\": 0.92, \"GBP\": 0.79, \"BDT\": 121.5}\n\n\ndef fx_convert(amount: float, source: str, target: str) -> dict:\n    \"\"\"Convert an amount between two currencies at a fixed demo rate.\"\"\"\n    if source not in RATES or target not in RATES:\n        raise ValueError(f\"Unsupported currency pair {source}->{target}\")\n    converted = amount / RATES[source] * RATES[target]\n    return {\"amount\": round(converted, 2), \"currency\": target, \"rate\": RATES[target] / RATES[source]}\n",
+  "sentiment_score": "def sentiment_score(text: str) -> float:\n    \"\"\"Score text sentiment from -1 (negative) to 1 (positive).\"\"\"\n    positive = {\"good\", \"great\", \"love\", \"excellent\", \"happy\"}\n    negative = {\"bad\", \"terrible\", \"hate\", \"awful\", \"sad\"}\n    words = [w.strip(\".,!?\").lower() for w in text.split()]\n    score = sum(w in positive for w in words) - sum(w in negative for w in words)\n    return max(-1.0, min(1.0, score / max(len(words), 1) * 5))\n",
+  "slugify_title": "import re\n\n\ndef slugify_title(title: str) -> str:\n    \"\"\"Convert a headline into a URL-safe slug.\"\"\"\n    slug = re.sub(r\"[^a-z0-9]+\", \"-\", title.lower())\n    return slug.strip(\"-\")\n"
+ },
+ "functions": {
+  "functions": [
+   {
+    "description": "Score text sentiment from -1 (negative) to 1 (positive).",
+    "enabled": true,
+    "entrypoint": "sentiment_score",
+    "file_path": "data/functions/sentiment_score.py",
+    "id": "sentiment_score",
+    "name": "sentiment_score"
+   },
+   {
+    "description": "Convert a headline into a URL-safe slug.",
+    "enabled": true,
+    "entrypoint": "slugify_title",
+    "file_path": "data/functions/slugify_title.py",
+    "id": "slugify_title",
+    "name": "slugify_title"
+   },
+   {
+    "description": "Convert an amount between two currencies at a fixed demo rate.",
+    "enabled": true,
+    "entrypoint": "fx_convert",
+    "file_path": "data/functions/fx_convert.py",
+    "id": "fx_convert",
+    "name": "fx_convert"
+   }
+  ],
+  "total": 3
+ },
+ "gmailStatus": {
+  "accounts": [],
+  "configured": false,
+  "connected": false,
+  "provider": "gmail"
+ },
+ "health": {
+  "mode": "demo",
+  "service": "open-agent-kit",
+  "status": "healthy",
+  "version": "0.1.0"
+ },
+ "metrics": {
+  "active_sessions": 3,
+  "avg_response_time": 1.84,
+  "cache_hit_rate": 0.72,
+  "error_rate": 0.012,
+  "llm_provider": {
+   "model": "google/gemma-3-27b-it",
+   "openrouter_presets": {
+    "enabled": true
+   },
+   "provider": "openrouter"
+  },
+  "total_agents": 7,
+  "total_messages": 1284,
+  "total_tools": 9,
+  "total_workflows": 8
+ },
+ "prompts": [
+  {
+   "category": null,
+   "description": "Primary system directive for the response agent.",
+   "etag": null,
+   "id": "default_system",
+   "last_updated": null,
+   "name": "default_system",
+   "template": "You are a helpful AI assistant. Provide clear, accurate, and safe responses. Use the conversation history and context to give relevant answers.",
+   "variables": [],
+   "version": null
+  },
+  {
+   "category": null,
+   "description": "Instructions for summarizing web search results into structured facts.",
+   "etag": null,
+   "id": "knowledge_summary",
+   "last_updated": null,
+   "name": "knowledge_summary",
+   "template": "Summarize the retrieved search results into concise bullet points that capture the most relevant facts. Mention each source briefly.",
+   "variables": [],
+   "version": null
+  }
+ ],
+ "providers": [
+  {
+   "api_key_masked": "sk-demo-****************************",
+   "base_url": "https://openrouter.ai/api/v1",
+   "config": {},
+   "description": "Primary LLM provider via OpenRouter for GPT-OSS-20B.",
+   "enabled": true,
+   "etag": null,
+   "id": "openrouter",
+   "last_updated": null,
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 131072,
+     "default": true,
+     "litellm_string": "openrouter/openai/gpt-oss-20b",
+     "max_output_tokens": 131072,
+     "name": "openai/gpt-oss-20b",
+     "pricing": {
+      "currency": "USD",
+      "input_per_million_tokens": 0.02,
+      "note": "Cost-effective open-weight model with proven function calling",
+      "output_per_million_tokens": 0.1
+     },
+     "recommended_for": [
+      "production",
+      "function_calling",
+      "agentic_tasks"
+     ]
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "default": false,
+     "litellm_string": "openrouter/google/gemini-3.1-flash-lite",
+     "max_output_tokens": 65536,
+     "name": "google/gemini-3.1-flash-lite",
+     "pricing": {
+      "currency": "USD",
+      "input_per_million_tokens": 0.1,
+      "note": "Lightweight Gemini option for fast, lower-cost chatbot messaging and UI generation",
+      "output_per_million_tokens": 0.4
+     },
+     "recommended_for": [
+      "lightweight",
+      "chatbot_messaging",
+      "low_latency"
+     ]
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "default": false,
+     "litellm_string": "openrouter/google/gemini-3.1-flash",
+     "max_output_tokens": 65536,
+     "name": "google/gemini-3.1-flash",
+     "pricing": {
+      "currency": "USD",
+      "input_per_million_tokens": 0.3,
+      "note": "Fast Gemini model for responsive chatbot messaging and multimodal prompts",
+      "output_per_million_tokens": 2.5
+     },
+     "recommended_for": [
+      "lightweight",
+      "chatbot_messaging",
+      "multimodal"
+     ]
+    }
+   ],
+   "name": "OpenRouter",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_masked": null,
+   "base_url": null,
+   "config": {},
+   "description": "Self-hosted vLLM server for Gemma 3 12B with function calling.",
+   "enabled": true,
+   "etag": null,
+   "id": "vllm",
+   "last_updated": null,
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning"
+     ],
+     "default": true,
+     "deployment_flags": [
+      "--enable-auto-tool-choice",
+      "--tool-call-parser hermes",
+      "--max-model-len 131072"
+     ],
+     "docker_image": "vllm/vllm-openai:latest",
+     "gpu_requirements": "24GB+ VRAM (single A10/A100 or 2xRTX4090)",
+     "litellm_string": "hosted_vllm/openai/gpt-oss-20b",
+     "name": "openai/gpt-oss-20b",
+     "notes": "Function calling requires --enable-auto-tool-choice flag"
+    }
+   ],
+   "name": "vLLM (Self-hosted)",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_masked": null,
+   "base_url": null,
+   "config": {},
+   "description": "DuckDuckGo Search API wrapper for real-time web search.",
+   "enabled": true,
+   "etag": null,
+   "id": "duckduckgo",
+   "last_updated": null,
+   "models": null,
+   "name": "DuckDuckGo Search",
+   "type": "tool",
+   "version": null
+  }
+ ],
+ "ragCollections": {
+  "collections": [
+   "rongdhonu_documents",
+   "brac_hrm_documents",
+   "multimodal",
+   "hrm_documents",
+   "brac_procurement_guideline",
+   "brac_global",
+   "rongdhonu_hrm_documents",
+   "Brac Procurement Guideline",
+   "semantic_cache",
+   "brac_table_of_authority",
+   "rongdhanu_knowledge_base",
+   "documents",
+   "Test01",
+   "brac_technology_knowledge",
+   "test_kb1",
+   "test",
+   "file_test",
+   "products",
+   "toa"
+  ],
+  "total": 19
+ },
+ "ragService": {
+  "base_url": "http://10.42.65.199:8000",
+  "default_collection": "knowledge_base",
+  "description": "Remote RAG Pipeline service",
+  "enabled": true,
+  "health_details": null,
+  "health_status": "unreachable",
+  "id": "rag_service",
+  "timeout": 60,
+  "type": "rag_pipeline"
+ },
+ "studioState": {
+  "capabilities": {
+   "canvas": true,
+   "deployment_center": true,
+   "drag_drop_nodes": true,
+   "dry_run": true,
+   "guardrails": true,
+   "knowledge": true,
+   "live_llm_testing": true,
+   "memory": true,
+   "streaming_execution": true,
+   "workflow_save_load": true
+  },
+  "counts": {
+   "agents": 7,
+   "deployments": 1,
+   "providers": 3,
+   "tools": 9,
+   "workflows": 8
+  },
+  "node_catalog": [
+   {
+    "accent": "trigger",
+    "label": "Manual Trigger",
+    "type": "trigger"
+   },
+   {
+    "accent": "trigger",
+    "label": "Chat Trigger",
+    "type": "trigger"
+   },
+   {
+    "accent": "agent",
+    "label": "CrewAI Agent",
+    "type": "agent"
+   },
+   {
+    "accent": "flow",
+    "label": "Flow Router",
+    "type": "router"
+   },
+   {
+    "accent": "tool",
+    "label": "Tool/API Action",
+    "type": "tool"
+   },
+   {
+    "accent": "memory",
+    "label": "Memory Store",
+    "type": "tool"
+   },
+   {
+    "accent": "knowledge",
+    "label": "Knowledge Source",
+    "type": "tool"
+   },
+   {
+    "accent": "guardrail",
+    "label": "Guardrail",
+    "type": "router"
+   },
+   {
+    "accent": "output",
+    "label": "Output",
+    "type": "output"
+   }
+  ],
+  "product": "Open Agent Kit",
+  "runtime": "crewai"
+ },
+ "tools": [
+  {
+   "description": "Search the web using DuckDuckGo and return formatted results with titles, descriptions, and URLs. Useful for finding current information, facts, and resources.",
+   "enabled": true,
+   "entrypoint": "src.tools.web_search:search_web",
+   "id": "web_search",
+   "name": "search_web",
+   "settings": {
+    "max_results": 5
+   }
+  },
+  {
+   "description": "Ingest a file (PDF or text) into the RAG pipeline for a specific collection. Parameters: collection (string), file_path (string).",
+   "enabled": true,
+   "entrypoint": "src.tools.rag_pipeline:ingest_file",
+   "id": "rag_ingest_file",
+   "name": "rag_ingest_file",
+   "settings": {}
+  },
+  {
+   "description": "Query the RAG pipeline to retrieve relevant documents and generate answers. Parameters: collection (string), query (string), top_k (integer, default 5), rerank (boolean, default true).",
+   "enabled": true,
+   "entrypoint": "src.tools.rag_pipeline:query_rag",
+   "id": "rag_query",
+   "name": "rag_query",
+   "settings": {}
+  },
+  {
+   "description": "List all files in a RAG collection. Parameters: collection (string).",
+   "enabled": true,
+   "entrypoint": "src.tools.rag_pipeline:list_files",
+   "id": "rag_list_files",
+   "name": "rag_list_files",
+   "settings": {}
+  },
+  {
+   "description": "Delete a file and all its chunks from a RAG collection. Parameters: collection (string), filename (string).",
+   "enabled": true,
+   "entrypoint": "src.tools.rag_pipeline:delete_file",
+   "id": "rag_delete_file",
+   "name": "rag_delete_file",
+   "settings": {}
+  },
+  {
+   "description": "Get detailed statistics about a RAG collection. Parameters: collection (string).",
+   "enabled": true,
+   "entrypoint": "src.tools.rag_pipeline:get_stats",
+   "id": "rag_get_stats",
+   "name": "rag_get_stats",
+   "settings": {}
+  },
+  {
+   "description": "Get the current logged-in user's information from the JWT token. Returns the student ID (from preferred_username field), full name, email address, and user roles. Students can use this to get their own information without manually providing it.",
+   "enabled": true,
+   "entrypoint": "src.tools.user_context:get_current_user_info",
+   "id": "get_current_user_info",
+   "name": "get_current_user_info",
+   "settings": {}
+  },
+  {
+   "description": "Safely evaluate an arithmetic expression and return the numeric result. Supports +, -, *, /, //, %, ** and parentheses.\n\nParameters:\n  - expression (required): The arithmetic expression to evaluate, e.g. '2 * (3 + 4)'",
+   "enabled": true,
+   "entrypoint": "src.tools.calculator:calculate",
+   "id": "calculate",
+   "name": "calculate",
+   "settings": {}
+  },
+  {
+   "description": "Get the current weather for a location using the free Open-Meteo API (no API key required).\n\nParameters:\n  - latitude (required): Latitude of the location, e.g. 52.52\n  - longitude (required): Longitude of the location, e.g. 13.41\n  - current_weather (required): Pass true to include current conditions",
+   "enabled": true,
+   "entrypoint": "src.tools.api_tool_executor:execute_api_tool",
+   "id": "get_weather",
+   "name": "get_weather",
+   "settings": {
+    "api_url": "https://api.open-meteo.com/v1/forecast",
+    "auth_type": "none",
+    "forward_user_context": false,
+    "http_method": "GET",
+    "timeout": 30,
+    "type": "api"
+   }
+  }
+ ],
+ "triggers": [
+  {
+   "allowed_origins": [
+    "https://example.com"
+   ],
+   "auth_mode": "public",
+   "created_at": "2026-07-20T09:12:00+00:00",
+   "enabled": true,
+   "greeting": "Hi! Ask me about search, your knowledge base, or maths.",
+   "id": "trg_chat_demo",
+   "input_mapping": {
+    "message": "$.message"
+   },
+   "metadata": {},
+   "model_id": "openai/gpt-oss-20b",
+   "name": "Support chat widget",
+   "provider_id": "openrouter",
+   "public_slug": "support-chat",
+   "response_mapping": {
+    "reply": "$.response"
+   },
+   "secret": null,
+   "type": "chat",
+   "updated_at": "2026-07-20T09:12:00+00:00",
+   "workflow_id": "demo_multi_agent"
+  },
+  {
+   "allowed_origins": [],
+   "auth_mode": "api_key",
+   "created_at": "2026-07-20T09:12:00+00:00",
+   "enabled": true,
+   "greeting": "",
+   "id": "trg_webhook_ingest",
+   "input_mapping": {
+    "message": "$.body.text"
+   },
+   "metadata": {},
+   "model_id": "openai/gpt-oss-20b",
+   "name": "Docs ingest webhook",
+   "provider_id": "openrouter",
+   "public_slug": "docs-ingest",
+   "response_mapping": {
+    "status": "$.status"
+   },
+   "secret": "whsec_demo_****",
+   "type": "webhook",
+   "updated_at": "2026-07-20T09:12:00+00:00",
+   "workflow_id": "rag_assistant"
+  },
+  {
+   "allowed_origins": [],
+   "auth_mode": "jwt",
+   "created_at": "2026-07-20T09:12:00+00:00",
+   "enabled": false,
+   "greeting": "",
+   "id": "trg_manual_nightly",
+   "input_mapping": {},
+   "metadata": {},
+   "model_id": "google/gemini-3.1-flash-lite",
+   "name": "Nightly research run",
+   "provider_id": "openrouter",
+   "public_slug": null,
+   "response_mapping": {},
+   "secret": null,
+   "type": "manual",
+   "updated_at": "2026-07-20T09:12:00+00:00",
+   "workflow_id": "e2e_search_demo"
+  }
+ ],
+ "workflows": [
+  {
+   "deployment_auth_mode": null,
+   "description": "Multi-agent assistant that routes to web search, knowledge base, or calculator specialists",
+   "enabled": true,
+   "event_listeners": null,
+   "execution_strategy": null,
+   "guardrails": null,
+   "id": "demo_multi_agent",
+   "knowledge": null,
+   "last_updated": null,
+   "mcp_servers": null,
+   "memory": null,
+   "metadata": null,
+   "name": "Demo Multi-Agent Assistant",
+   "output_schema": null,
+   "persistence": "postgres",
+   "process": null,
+   "runtime": null,
+   "tasks": null,
+   "topology": {
+    "domain_agents": [
+     {
+      "domain": "web_search",
+      "id": "search_assistant",
+      "name": "SearchAssistant"
+     },
+     {
+      "domain": "knowledge_base",
+      "id": "rag_assistant",
+      "name": "RAGAssistant"
+     },
+     {
+      "domain": "math",
+      "id": "calculator_agent",
+      "name": "CalculatorAgent"
+     }
+    ],
+    "edges": [],
+    "entry_node": "demo_selector_agent",
+    "nodes": [
+     {
+      "agent_id": "demo_selector_agent",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": []
+      },
+      "description": "Routes to specialists",
+      "id": "demo_selector_agent"
+     },
+     {
+      "agent_id": "search_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "web_search"
+       ]
+      },
+      "description": "Web search specialist",
+      "id": "search_assistant"
+     },
+     {
+      "agent_id": "rag_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "rag_query",
+        "rag_list_files",
+        "rag_get_stats"
+       ]
+      },
+      "description": "Knowledge base specialist",
+      "id": "rag_assistant"
+     },
+     {
+      "agent_id": "calculator_agent",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "calculate"
+       ]
+      },
+      "description": "Math specialist",
+      "id": "calculator_agent"
+     }
+    ],
+    "routing_method": "llm",
+    "type": "graph"
+   },
+   "tracing": null,
+   "version": null,
+   "workflow_type": "chatbot"
+  },
+  {
+   "deployment_auth_mode": null,
+   "description": "Single agent for web search",
+   "enabled": true,
+   "event_listeners": null,
+   "execution_strategy": null,
+   "guardrails": null,
+   "id": "simple_search",
+   "knowledge": null,
+   "last_updated": null,
+   "mcp_servers": null,
+   "memory": null,
+   "metadata": null,
+   "name": "Simple Search Assistant",
+   "output_schema": null,
+   "persistence": "postgres",
+   "process": null,
+   "runtime": null,
+   "tasks": null,
+   "topology": {
+    "entry_node": "search_assistant",
+    "nodes": [
+     {
+      "agent_id": "search_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "web_search"
+       ]
+      },
+      "description": "Web search agent",
+      "id": "search_assistant"
+     }
+    ],
+    "type": "single"
+   },
+   "tracing": null,
+   "version": null,
+   "workflow_type": "chatbot"
+  },
+  {
+   "deployment_auth_mode": null,
+   "description": "Single agent with RAG capabilities",
+   "enabled": true,
+   "event_listeners": null,
+   "execution_strategy": null,
+   "guardrails": null,
+   "id": "rag_assistant",
+   "knowledge": null,
+   "last_updated": null,
+   "mcp_servers": null,
+   "memory": null,
+   "metadata": null,
+   "name": "RAG Knowledge Assistant",
+   "output_schema": null,
+   "persistence": "postgres",
+   "process": null,
+   "runtime": null,
+   "tasks": null,
+   "topology": {
+    "entry_node": "rag_assistant",
+    "nodes": [
+     {
+      "agent_id": "rag_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "rag_query",
+        "rag_list_files",
+        "rag_get_stats"
+       ]
+      },
+      "description": "RAG assistant",
+      "id": "rag_assistant"
+     }
+    ],
+    "type": "single"
+   },
+   "tracing": null,
+   "version": null,
+   "workflow_type": "chatbot"
+  },
+  {
+   "deployment_auth_mode": null,
+   "description": "Example of sequential agent execution",
+   "enabled": false,
+   "event_listeners": null,
+   "execution_strategy": null,
+   "guardrails": null,
+   "id": "pipeline_example",
+   "knowledge": null,
+   "last_updated": null,
+   "mcp_servers": null,
+   "memory": null,
+   "metadata": null,
+   "name": "Sequential Pipeline Example",
+   "output_schema": null,
+   "persistence": "postgres",
+   "process": null,
+   "runtime": null,
+   "tasks": null,
+   "topology": {
+    "entry_node": "search_assistant",
+    "nodes": [
+     {
+      "agent_id": "search_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "web_search"
+       ]
+      },
+      "description": "Search step",
+      "id": "search_assistant"
+     },
+     {
+      "agent_id": "general_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": []
+      },
+      "description": "Summary step",
+      "id": "general_assistant"
+     }
+    ],
+    "pipeline": [
+     {
+      "agent_id": "search_assistant",
+      "output_key": "search_results"
+     },
+     {
+      "agent_id": "general_assistant",
+      "instruction_override": "Summarize the search results: {search_results}"
+     }
+    ],
+    "type": "sequential"
+   },
+   "tracing": null,
+   "version": null,
+   "workflow_type": "sequential"
+  },
+  {
+   "deployment_auth_mode": null,
+   "description": "Example of parallel agent execution",
+   "enabled": false,
+   "event_listeners": null,
+   "execution_strategy": null,
+   "guardrails": null,
+   "id": "parallel_example",
+   "knowledge": null,
+   "last_updated": null,
+   "mcp_servers": null,
+   "memory": null,
+   "metadata": null,
+   "name": "Parallel Execution Example",
+   "output_schema": null,
+   "persistence": "postgres",
+   "process": null,
+   "runtime": null,
+   "tasks": null,
+   "topology": {
+    "concurrent_agents": [
+     {
+      "agent_id": "search_assistant",
+      "output_key": "web_results"
+     },
+     {
+      "agent_id": "rag_assistant",
+      "output_key": "kb_results"
+     }
+    ],
+    "entry_node": "general_assistant",
+    "nodes": [
+     {
+      "agent_id": "search_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "web_search"
+       ]
+      },
+      "description": "Search agent",
+      "id": "search_assistant"
+     },
+     {
+      "agent_id": "rag_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "rag_query",
+        "rag_list_files",
+        "rag_get_stats"
+       ]
+      },
+      "description": "RAG agent",
+      "id": "rag_assistant"
+     },
+     {
+      "agent_id": "general_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": []
+      },
+      "description": "Synthesis agent",
+      "id": "general_assistant"
+     }
+    ],
+    "synthesizer": {
+     "agent_id": "general_assistant",
+     "instruction_override": "Combine results from web ({web_results}) and knowledge base ({kb_results})."
+    },
+    "type": "graph"
+   },
+   "tracing": null,
+   "version": null,
+   "workflow_type": "custom"
+  },
+  {
+   "deployment_auth_mode": null,
+   "description": "Simple workflow for testing - echoes back user input",
+   "enabled": true,
+   "event_listeners": null,
+   "execution_strategy": null,
+   "guardrails": null,
+   "id": "echo_test",
+   "knowledge": null,
+   "last_updated": null,
+   "mcp_servers": null,
+   "memory": null,
+   "metadata": null,
+   "name": "Echo Test Workflow",
+   "output_schema": null,
+   "persistence": "postgres",
+   "process": null,
+   "runtime": null,
+   "tasks": null,
+   "topology": {
+    "entry_node": "general_assistant",
+    "nodes": [
+     {
+      "agent_id": "general_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": []
+      },
+      "description": "Echo test agent",
+      "id": "general_assistant"
+     }
+    ],
+    "type": "single"
+   },
+   "tracing": null,
+   "version": null,
+   "workflow_type": "chatbot"
+  },
+  {
+   "deployment_auth_mode": null,
+   "description": "Test workflow verifying tool calling functionality",
+   "enabled": true,
+   "event_listeners": null,
+   "execution_strategy": null,
+   "guardrails": null,
+   "id": "tool_test",
+   "knowledge": null,
+   "last_updated": null,
+   "mcp_servers": null,
+   "memory": null,
+   "metadata": null,
+   "name": "Tool Test Workflow",
+   "output_schema": null,
+   "persistence": "postgres",
+   "process": null,
+   "runtime": null,
+   "tasks": null,
+   "topology": {
+    "entry_node": "search_assistant",
+    "nodes": [
+     {
+      "agent_id": "search_assistant",
+      "config": {
+       "model_config": {
+        "max_tokens": 800,
+        "model": "openai/gpt-oss-20b",
+        "provider_id": "openrouter",
+        "temperature": 0.7
+       },
+       "system_message": "You are a helpful assistant.",
+       "tools": [
+        "web_search"
+       ]
+      },
+      "description": "Tool test agent",
+      "id": "search_assistant"
+     }
+    ],
+    "type": "single"
+   },
+   "tracing": null,
+   "version": null,
+   "workflow_type": "chatbot"
+  },
+  {
+   "deployment_auth_mode": "private",
+   "description": "Workflow with 4 nodes and 3 edges",
+   "enabled": true,
+   "event_listeners": [],
+   "execution_strategy": "sequential",
+   "guardrails": {
+    "enabled": true,
+    "human_review": false,
+    "output_schema": "text"
+   },
+   "id": "e2e_search_demo",
+   "knowledge": {
+    "collections": [],
+    "enabled": false,
+    "top_k": 5
+   },
+   "last_updated": null,
+   "mcp_servers": [],
+   "memory": {
+    "enabled": false,
+    "retention": "session"
+   },
+   "metadata": {
+    "visual_canvas": {
+     "edges": [
+      {
+       "context_strategy": "full",
+       "from_node": "undefined-1783922360387-qut2v",
+       "id": "e-1784053008581-fzlpe",
+       "selected": false,
+       "source": "undefined-1784053008580-r10xf",
+       "target": "undefined-1784053008581-l5cyf",
+       "to_node": "undefined-1783922360388-gjsp6"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__trigger-1784053019767-undefined-1784053008580-r10xf",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "selected": false,
+       "source": "trigger-1784053019767",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "undefined-1784053008580-r10xf",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__tool-1784053049463attach-undefined-1784053008581-l5cyftools",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "tool-1784053049463",
+       "sourceHandle": "attach",
+       "style": {
+        "stroke": "#94a3b8",
+        "strokeDasharray": "6 4",
+        "strokeWidth": 1.5
+       },
+       "target": "undefined-1784053008581-l5cyf",
+       "targetHandle": "tools",
+       "type": "straight"
+      }
+     ],
+     "nodes": [
+      {
+       "agent_id": "e2e_researcher",
+       "config": {
+        "code_execution_config": false,
+        "human_input_mode": "NEVER",
+        "id": "e2e_researcher",
+        "instruction": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
+        "max_consecutive_auto_reply": 5,
+        "model_config": {
+         "base_url": "",
+         "max_tokens": 800,
+         "model": "openai/gpt-4o-mini",
+         "provider_id": "openrouter",
+         "temperature": 0.3
+        },
+        "name": "Web_Researcher",
+        "retrieve_config": null,
+        "system_message": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
+        "tools": [
+         "search_web"
+        ],
+        "type": "conversable"
+       },
+       "data": {
+        "agent_id": "e2e_researcher",
+        "config": {
+         "code_execution_config": false,
+         "human_input_mode": "NEVER",
+         "id": "e2e_researcher",
+         "instruction": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
+         "max_consecutive_auto_reply": 5,
+         "model_config": {
+          "base_url": "",
+          "max_tokens": 800,
+          "model": "openai/gpt-4o-mini",
+          "provider_id": "openrouter",
+          "temperature": 0.3
+         },
+         "name": "Web_Researcher",
+         "retrieve_config": null,
+         "system_message": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
+         "tools": [
+          "search_web"
+         ],
+         "type": "conversable"
+        },
+        "label": "Web_Researcher",
+        "library_agent_name": "Web_Researcher"
+       },
+       "description": "",
+       "id": "undefined-1784053008580-r10xf",
+       "measured": {
+        "height": 105,
+        "width": 239
+       },
+       "position": {
+        "x": 458.0879610963291,
+        "y": 298.0320004977594
+       },
+       "selected": false,
+       "tools": [],
+       "type": "agent"
+      },
+      {
+       "agent_id": "e2e_writer",
+       "config": {
+        "code_execution_config": false,
+        "human_input_mode": "NEVER",
+        "id": "e2e_writer",
+        "instruction": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
+        "max_consecutive_auto_reply": 5,
+        "model_config": {
+         "base_url": "",
+         "max_tokens": 800,
+         "model": "openai/gpt-4o-mini",
+         "provider_id": "openrouter",
+         "temperature": 0.5
+        },
+        "name": "Answer_Writer",
+        "retrieve_config": null,
+        "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
+        "tools": [],
+        "type": "conversable"
+       },
+       "data": {
+        "agent_id": "e2e_writer",
+        "config": {
+         "code_execution_config": false,
+         "human_input_mode": "NEVER",
+         "id": "e2e_writer",
+         "instruction": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
+         "max_consecutive_auto_reply": 5,
+         "model_config": {
+          "base_url": "",
+          "max_tokens": 800,
+          "model": "openai/gpt-4o-mini",
+          "provider_id": "openrouter",
+          "temperature": 0.5
+         },
+         "name": "Answer_Writer",
+         "retrieve_config": null,
+         "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
+         "tools": [],
+         "type": "conversable"
+        },
+        "label": "Answer_Writer",
+        "library_agent_name": "Answer_Writer"
+       },
+       "description": "",
+       "id": "undefined-1784053008581-l5cyf",
+       "measured": {
+        "height": 105,
+        "width": 224
+       },
+       "position": {
+        "x": 851.9234067015224,
+        "y": 297.9793673000922
+       },
+       "selected": false,
+       "tools": [
+        "web_search"
+       ],
+       "type": "agent"
+      },
+      {
+       "data": {
+        "config": {
+         "label": "On Chat",
+         "trigger_type": "chat"
+        },
+        "label": "Chat Trigger"
+       },
+       "dragging": false,
+       "id": "trigger-1784053019767",
+       "measured": {
+        "height": 56,
+        "width": 56
+       },
+       "position": {
+        "x": 253.53659885826488,
+        "y": 302.1067087656901
+       },
+       "selected": false,
+       "type": "trigger"
+      },
+      {
+       "data": {
+        "config": {
+         "description": "Search the web using DuckDuckGo and return formatted results with titles, descriptions, and URLs. Useful for finding current information, facts, and resources.",
+         "enabled": true,
+         "entrypoint": "src.tools.web_search:search_web",
+         "id": "web_search",
+         "max_results": 5,
+         "name": "search_web"
+        },
+        "label": "search_web"
+       },
+       "dragging": false,
+       "id": "tool-1784053049463",
+       "measured": {
+        "height": 76,
+        "width": 193
+       },
+       "position": {
+        "x": 825.6245931648273,
+        "y": 508.60624262220244
+       },
+       "selected": false,
+       "type": "tool"
+      }
+     ],
+     "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+     }
+    }
+   },
+   "name": "E2E Search Demo",
+   "output_schema": "text",
+   "persistence": "postgres",
+   "process": "sequential",
+   "runtime": "crewai",
+   "tasks": [
+    {
+     "agent_id": "e2e_researcher",
+     "description": "Run Web_Researcher as CrewAI task 1.",
+     "expected_output": "A structured, useful result for the next node or final response.",
+     "id": "undefined-1784053008580-r10xf_task",
+     "node_id": "undefined-1784053008580-r10xf"
+    },
+    {
+     "agent_id": "e2e_writer",
+     "description": "Run Answer_Writer as CrewAI task 2.",
+     "expected_output": "A structured, useful result for the next node or final response.",
+     "id": "undefined-1784053008581-l5cyf_task",
+     "node_id": "undefined-1784053008581-l5cyf"
+    }
+   ],
+   "topology": {
+    "edges": [
+     {
+      "context_strategy": "full",
+      "from_node": "undefined-1784053008580-r10xf",
+      "source": "undefined-1784053008580-r10xf",
+      "target": "undefined-1784053008581-l5cyf",
+      "to_node": "undefined-1784053008581-l5cyf"
+     }
+    ],
+    "entry_node": "undefined-1784053008580-r10xf",
+    "nodes": [
+     {
+      "agent_id": "e2e_researcher",
+      "config": {
+       "code_execution_config": false,
+       "human_input_mode": "NEVER",
+       "id": "e2e_researcher",
+       "instruction": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
+       "max_consecutive_auto_reply": 5,
+       "model_config": {
+        "base_url": "",
+        "max_tokens": 800,
+        "model": "openai/gpt-4o-mini",
+        "provider_id": "openrouter",
+        "temperature": 0.3
+       },
+       "name": "Web_Researcher",
+       "retrieve_config": null,
+       "system_message": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
+       "tools": [
+        "search_web"
+       ],
+       "type": "conversable"
+      },
+      "description": "",
+      "id": "undefined-1784053008580-r10xf",
+      "position": {
+       "x": 458.0879610963291,
+       "y": 298.0320004977594
+      },
+      "tools": []
+     },
+     {
+      "agent_id": "e2e_writer",
+      "config": {
+       "code_execution_config": false,
+       "human_input_mode": "NEVER",
+       "id": "e2e_writer",
+       "instruction": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
+       "max_consecutive_auto_reply": 5,
+       "model_config": {
+        "base_url": "",
+        "max_tokens": 800,
+        "model": "openai/gpt-4o-mini",
+        "provider_id": "openrouter",
+        "temperature": 0.5
+       },
+       "name": "Answer_Writer",
+       "retrieve_config": null,
+       "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
+       "tools": [],
+       "type": "conversable"
+      },
+      "description": "",
+      "id": "undefined-1784053008581-l5cyf",
+      "position": {
+       "x": 851.9234067015224,
+       "y": 297.9793673000922
+      },
+      "tools": [
+       "web_search"
+      ]
+     }
+    ],
+    "type": "sequential"
+   },
+   "tracing": {
+    "amp_enabled": false,
+    "enabled": true,
+    "event_listeners": [
+     "crew",
+     "agent",
+     "task",
+     "tool",
+     "llm",
+     "memory",
+     "knowledge"
+    ]
+   },
+   "version": null,
+   "workflow_type": "sequential"
+  }
+ ]
+}

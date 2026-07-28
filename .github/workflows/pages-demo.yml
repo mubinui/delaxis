@@ -1,0 +1,77 @@
+name: Deploy Studio Demo to GitHub Pages
+
+# The Studio is a static SPA; the Pages build swaps the FastAPI backend for an
+# in-browser stub (workflow-editor/src/demo) so the whole UI is explorable
+# without a server. Only the demo branch publishes.
+on:
+  push:
+    branches: [demo]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let an in-flight deploy finish rather than leaving Pages half-updated.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workflow-editor
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workflow-editor/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build demo
+        # base_path is /<repo> for a project site and empty for a user site;
+        # Vite needs a trailing slash either way.
+        env:
+          VITE_DEMO_MODE: "true"
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+        run: npm run build:demo
+
+      - name: Fail if the bundle contains a credential
+        run: |
+          if grep -rEq 'sk-(or|proj|ant)-[A-Za-z0-9]{12,}|gh[pousr]_[A-Za-z0-9]{16,}|AIza[A-Za-z0-9_-]{20,}' dist-demo; then
+            echo "::error::A credential-shaped string reached the demo bundle. Refusing to publish."
+            exit 1
+          fi
+          echo "No credentials found in dist-demo."
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: workflow-editor/dist-demo
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

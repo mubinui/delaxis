@@ -7,9 +7,13 @@
     "module": "ESNext",
     "types": ["vite/client"],
     "skipLibCheck": true,
+    "resolveJsonModule": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    // Vite swaps this alias for src/demo/stub.ts in non-demo builds; typecheck
+    // against the real module so the demo code is never left unchecked.
+    "paths": { "#demo": ["./src/demo/index.ts"] },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",

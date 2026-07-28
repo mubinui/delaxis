@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Open Agent Kit — Deployed Chat</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0e16;
+      --surface: #111827;
+      --border: rgba(255, 255, 255, .08);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 640px;
+      height: min(760px, calc(100vh - 32px));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    header p {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .msg {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .bot {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, .05);
+      border: 1px solid var(--border);
+    }
+
+    form {
+      display: flex;
+      gap: 8px;
+      padding: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    input {
+      flex: 1;
+      padding: 11px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, .04);
+      color: var(--text);
+      font: inherit;
+    }
+
+    input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -1px;
+    }
+
+    button {
+      padding: 11px 18px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    footer {
+      padding: 10px 20px 14px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    footer a {
+      color: #60a5fa;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <h1 id="title">Deployed Chat</h1>
+      <p id="subtitle"></p>
+    </header>
+    <div id="log" aria-live="polite"></div>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Send a message…" aria-label="Message" />
+      <button type="submit">Send</button>
+    </form>
+    <footer>
+      Scripted demo — no model is called.
+      <a href="https://github.com/mubinui/open-agent-kit">Run Open Agent Kit for real →</a>
+    </footer>
+  </main>
+
+  <script>
+    // Deployment metadata is inlined at build time by scripts/emit-demo-pages.mjs.
+    const DEPLOYMENTS = /*__DEPLOYMENTS__*/{};
+    const STUDIO_URL = /*__STUDIO_URL__*/'/';
+
+    // A page for a workflow that was flash-deployed inside the demo session has no
+    // build-time entry, so fall back to a generic identity derived from the path.
+    const id = (location.pathname.match(/\/d\/([^/]+)/) || [])[1] || '';
+    const deployment = DEPLOYMENTS[id] || {
+      title: id ? id.replace(/[-_]/g, ' ') : 'Deployed Chat',
+      greeting: 'Hi! This chat page was published from the Studio.',
+      workflow_id: 'demo_multi_agent',
+      model_id: 'openai/gpt-oss-20b',
+    };
+
+    document.title = deployment.title + ' — Open Agent Kit';
+    document.getElementById('title').textContent = deployment.title;
+    document.getElementById('subtitle').textContent =
+      'workflow ' + deployment.workflow_id + ' · ' + deployment.model_id;
+
+    const log = document.getElementById('log');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+
+    const say = (text, who) => {
+      const el = document.createElement('div');
+      el.className = 'msg ' + who;
+      el.textContent = text;
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    };
+
+    /** Mirrors the calculator specialist in src/demo/runtime.ts — real arithmetic, no eval. */
+    const evaluate = (expression) => {
+      const tokens = expression.match(/\d+\.?\d*|[+\-*/()^]/g);
+      if (!tokens) return null;
+      const precedence = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 3 };
+      const output = [], operators = [];
+      for (const token of tokens) {
+        if (/^\d/.test(token)) output.push(Number(token));
+        else if (token === '(') operators.push(token);
+        else if (token === ')') {
+          while (operators.length && operators[operators.length - 1] !== '(') output.push(operators.pop());
+          if (operators.pop() !== '(') return null;
+        } else {
+          while (operators.length && operators[operators.length - 1] !== '(' &&
+            precedence[operators[operators.length - 1]] >= precedence[token]) output.push(operators.pop());
+          operators.push(token);
+        }
+      }
+      while (operators.length) {
+        const operator = operators.pop();
+        if (operator === '(') return null;
+        output.push(operator);
+      }
+      const stack = [];
+      for (const token of output) {
+        if (typeof token === 'number') { stack.push(token); continue; }
+        const right = stack.pop(), left = stack.pop();
+        if (left === undefined || right === undefined) return null;
+        if (token === '+') stack.push(left + right);
+        else if (token === '-') stack.push(left - right);
+        else if (token === '*') stack.push(left * right);
+        else if (token === '/') stack.push(right === 0 ? NaN : left / right);
+        else if (token === '^') stack.push(left ** right);
+      }
+      const result = stack.pop();
+      return stack.length === 0 && Number.isFinite(result) ? result : null;
+    };
+
+    const reply = (message) => {
+      if (/\d\s*[+\-*/^]\s*\d|calculat|how much is/i.test(message)) {
+        const value = evaluate(message);
+        if (value !== null) {
+          return 'The calculator specialist computed that for real: ' + value +
+            '\n\nIn a full install this routes through CrewAI to the `calculate` tool.';
+        }
+      }
+      if (/document|knowledge base|policy|handbook|internal|onboarding/i.test(message)) {
+        return 'The knowledge-base specialist would query your RAG collection here and cite the ' +
+          'matching documents.\n\nThis demo page ships without a vector store, so the answer is scripted.';
+      }
+      return 'The search specialist would call the web_search tool for "' + message +
+        '" and summarise the results.\n\nThis page is a static demo, so no model or network call happens. ' +
+        'Try a maths question like (12 + 8) * 3 — that one is computed for real.';
+    };
+
+    say(deployment.greeting, 'bot');
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = '';
+      say(message, 'user');
+      const pending = say('…', 'bot');
+      setTimeout(() => { pending.textContent = reply(message); log.scrollTop = log.scrollHeight; }, 550);
+    });
+
+    document.querySelector('footer a').insertAdjacentHTML(
+      'beforebegin', '<a href="' + STUDIO_URL + '" style="margin-right:10px">← Back to the Studio</a>');
+  </script>
+</body>
+
+</html>
