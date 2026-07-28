@@ -79,7 +79,7 @@ class OpenAIProviderConfig:
         
         return cls(
             provider=provider,
-            model_name=os.getenv("LLM_MODEL", "google/gemma-3-27b-it"),
+            model_name=os.getenv("LLM_MODEL", "google/gemini-3.5-flash-lite"),
             api_key=api_key,
             base_url=base_url,
             openrouter_site_url=os.getenv("OR_SITE_URL"),

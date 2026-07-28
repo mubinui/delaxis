@@ -6,10 +6,10 @@
    "human_input_mode": "NEVER",
    "id": "demo_selector_agent",
    "llm_config": {
-    "max_tokens": 800,
-    "model": "openai/gpt-oss-20b",
+    "max_tokens": 2000,
+    "model": "google/gemini-3.5-flash-lite",
     "provider_id": "openrouter",
-    "temperature": 0.7
+    "temperature": 0.4
    },
    "max_consecutive_auto_reply": 10,
    "name": "DemoSelectorAgent",
@@ -24,8 +24,8 @@
    "human_input_mode": "NEVER",
    "id": "general_assistant",
    "llm_config": {
-    "max_tokens": 800,
-    "model": "openai/gpt-oss-20b",
+    "max_tokens": 2000,
+    "model": "google/gemini-3.5-flash-lite",
     "provider_id": "openrouter",
     "temperature": 0.7
    },
@@ -42,8 +42,8 @@
    "human_input_mode": "NEVER",
    "id": "search_assistant",
    "llm_config": {
-    "max_tokens": 800,
-    "model": "openai/gpt-oss-20b",
+    "max_tokens": 1500,
+    "model": "google/gemini-3.5-flash-lite",
     "provider_id": "openrouter",
     "temperature": 0.7
    },
@@ -62,8 +62,8 @@
    "human_input_mode": "NEVER",
    "id": "rag_assistant",
    "llm_config": {
-    "max_tokens": 800,
-    "model": "openai/gpt-oss-20b",
+    "max_tokens": 1500,
+    "model": "google/gemini-3.5-flash-lite",
     "provider_id": "openrouter",
     "temperature": 0.7
    },
@@ -84,10 +84,10 @@
    "human_input_mode": "NEVER",
    "id": "calculator_agent",
    "llm_config": {
-    "max_tokens": 800,
-    "model": "openai/gpt-oss-20b",
+    "max_tokens": 1000,
+    "model": "google/gemini-3.5-flash-lite",
     "provider_id": "openrouter",
-    "temperature": 0.7
+    "temperature": 0.2
    },
    "max_consecutive_auto_reply": 10,
    "name": "CalculatorAgent",
@@ -105,7 +105,7 @@
    "id": "e2e_researcher",
    "llm_config": {
     "max_tokens": 800,
-    "model": "openai/gpt-4o-mini",
+    "model": "google/gemini-3.5-flash-lite",
     "provider_id": "openrouter",
     "temperature": 0.3
    },
@@ -125,7 +125,7 @@
    "id": "e2e_writer",
    "llm_config": {
     "max_tokens": 800,
-    "model": "openai/gpt-4o-mini",
+    "model": "google/gemini-3.5-flash-lite",
     "provider_id": "openrouter",
     "temperature": 0.5
    },
@@ -467,7 +467,7 @@
   "cache_hit_rate": 0.72,
   "error_rate": 0.012,
   "llm_provider": {
-   "model": "google/gemma-3-27b-it",
+   "model": "google/gemini-3.5-flash-lite",
    "openrouter_presets": {
     "enabled": true
    },
@@ -1538,10 +1538,10 @@
          "instruction": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
          "is_selector": true,
          "model_config": {
-          "max_tokens": 800,
-          "model": "openai/gpt-oss-20b",
+          "max_tokens": 2000,
+          "model": "google/gemini-3.5-flash-lite",
           "provider_id": "openrouter",
-          "temperature": 0.7
+          "temperature": 0.4
          },
          "name": "DemoSelectorAgent",
          "system_message": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
@@ -1567,8 +1567,8 @@
          "instruction": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
          "is_selector": false,
          "model_config": {
-          "max_tokens": 800,
-          "model": "openai/gpt-oss-20b",
+          "max_tokens": 1500,
+          "model": "google/gemini-3.5-flash-lite",
           "provider_id": "openrouter",
           "temperature": 0.7
          },
@@ -1598,8 +1598,8 @@
          "instruction": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
          "is_selector": false,
          "model_config": {
-          "max_tokens": 800,
-          "model": "openai/gpt-oss-20b",
+          "max_tokens": 1500,
+          "model": "google/gemini-3.5-flash-lite",
           "provider_id": "openrouter",
           "temperature": 0.7
          },
@@ -1631,10 +1631,10 @@
          "instruction": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
          "is_selector": false,
          "model_config": {
-          "max_tokens": 800,
-          "model": "openai/gpt-oss-20b",
+          "max_tokens": 1000,
+          "model": "google/gemini-3.5-flash-lite",
           "provider_id": "openrouter",
-          "temperature": 0.7
+          "temperature": 0.2
          },
          "name": "CalculatorAgent",
          "system_message": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
@@ -1793,10 +1793,10 @@
       "agent_id": "demo_selector_agent",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 2000,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
-        "temperature": 0.7
+        "temperature": 0.4
        },
        "system_message": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
        "tools": []
@@ -1808,8 +1808,8 @@
       "agent_id": "search_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -1825,8 +1825,8 @@
       "agent_id": "rag_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -1844,10 +1844,10 @@
       "agent_id": "calculator_agent",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1000,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
-        "temperature": 0.7
+        "temperature": 0.2
        },
        "system_message": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
        "tools": [
@@ -1891,8 +1891,8 @@
       "agent_id": "search_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -1937,8 +1937,8 @@
       "agent_id": "rag_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -1985,8 +1985,8 @@
       "agent_id": "search_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -2002,8 +2002,8 @@
       "agent_id": "general_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 2000,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -2066,8 +2066,8 @@
       "agent_id": "search_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -2083,8 +2083,8 @@
       "agent_id": "rag_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -2102,8 +2102,8 @@
       "agent_id": "general_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 2000,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -2150,8 +2150,8 @@
       "agent_id": "general_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 2000,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },
@@ -2194,8 +2194,8 @@
       "agent_id": "search_assistant",
       "config": {
        "model_config": {
-        "max_tokens": 800,
-        "model": "openai/gpt-oss-20b",
+        "max_tokens": 1500,
+        "model": "google/gemini-3.5-flash-lite",
         "provider_id": "openrouter",
         "temperature": 0.7
        },

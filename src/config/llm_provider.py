@@ -108,7 +108,7 @@ class ProviderConfig:
         return cls(
             provider=provider,
             fallback_provider=fallback_provider,
-            model_name=os.getenv("LLM_MODEL", "google/gemma-3-27b-it"),
+            model_name=os.getenv("LLM_MODEL", "google/gemini-3.5-flash-lite"),
             
             # OpenRouter
             openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),

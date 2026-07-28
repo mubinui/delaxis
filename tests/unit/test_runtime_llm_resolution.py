@@ -99,9 +99,20 @@ def test_no_provider_id_keeps_legacy_prefixing(runtime, monkeypatch):
 
 
 def test_no_provider_and_no_model_uses_env_default(runtime, monkeypatch):
+    from src.crewai_runtime.runtime import DEFAULT_FALLBACK_MODEL
+
     monkeypatch.delenv("LLM_MODEL", raising=False)
     result = runtime._resolve_llm_model({})
-    assert result == "openrouter/google/gemma-3-27b-it"
+    assert result == DEFAULT_FALLBACK_MODEL
+
+
+def test_fallback_model_is_tool_capable(runtime):
+    """The hierarchical manager delegates via tool calls, so a fallback that
+    cannot call tools makes it emit the call as plain text instead."""
+    from src.config.model_capabilities import infer_model_capabilities
+    from src.crewai_runtime.runtime import DEFAULT_FALLBACK_MODEL
+
+    assert infer_model_capabilities(DEFAULT_FALLBACK_MODEL).tool_calling is True
 
 
 def test_unknown_provider_falls_back_to_legacy_without_crashing(runtime, monkeypatch):

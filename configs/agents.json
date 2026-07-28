@@ -18,12 +18,14 @@
       "description": "Routes user queries to the right specialist: web search, knowledge base, or calculator",
       "is_selector": true,
       "instruction": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
-      "model_config": {
+      "tools": [],
+      "output_key": "selector_result",
+      "llm_config": {
+        "provider_id": "openrouter",
+        "model": "google/gemini-3.5-flash-lite",
         "temperature": 0.4,
         "max_tokens": 2000
-      },
-      "tools": [],
-      "output_key": "selector_result"
+      }
     },
     {
       "id": "general_assistant",
@@ -31,12 +33,14 @@
       "name": "GeneralAssistant",
       "description": "General purpose helpful assistant for non-specialized queries",
       "instruction": "You are a helpful AI assistant. Answer questions clearly, concisely, and accurately. Be friendly and professional in all interactions.",
-      "model_config": {
+      "tools": [],
+      "output_key": "general_result",
+      "llm_config": {
+        "provider_id": "openrouter",
+        "model": "google/gemini-3.5-flash-lite",
         "temperature": 0.7,
         "max_tokens": 2000
-      },
-      "tools": [],
-      "output_key": "general_result"
+      }
     },
     {
       "id": "search_assistant",
@@ -44,14 +48,16 @@
       "name": "SearchAssistant",
       "description": "Web search specialist using DuckDuckGo for current information",
       "instruction": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
-      "model_config": {
-        "temperature": 0.7,
-        "max_tokens": 1500
-      },
       "tools": [
         "web_search"
       ],
-      "output_key": "search_result"
+      "output_key": "search_result",
+      "llm_config": {
+        "provider_id": "openrouter",
+        "model": "google/gemini-3.5-flash-lite",
+        "temperature": 0.7,
+        "max_tokens": 1500
+      }
     },
     {
       "id": "rag_assistant",
@@ -59,16 +65,18 @@
       "name": "RAGAssistant",
       "description": "Knowledge base specialist with RAG (Retrieval-Augmented Generation) capabilities",
       "instruction": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
-      "model_config": {
-        "temperature": 0.7,
-        "max_tokens": 1500
-      },
       "tools": [
         "rag_query",
         "rag_list_files",
         "rag_get_stats"
       ],
-      "output_key": "rag_result"
+      "output_key": "rag_result",
+      "llm_config": {
+        "provider_id": "openrouter",
+        "model": "google/gemini-3.5-flash-lite",
+        "temperature": 0.7,
+        "max_tokens": 1500
+      }
     },
     {
       "id": "calculator_agent",
@@ -76,14 +84,16 @@
       "name": "CalculatorAgent",
       "description": "Math specialist that evaluates arithmetic expressions with the calculate tool",
       "instruction": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
-      "model_config": {
-        "temperature": 0.2,
-        "max_tokens": 1000
-      },
       "tools": [
         "calculate"
       ],
-      "output_key": "calculation_result"
+      "output_key": "calculation_result",
+      "llm_config": {
+        "provider_id": "openrouter",
+        "model": "google/gemini-3.5-flash-lite",
+        "temperature": 0.2,
+        "max_tokens": 1000
+      }
     },
     {
       "id": "e2e_researcher",
@@ -92,7 +102,7 @@
       "system_message": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
       "llm_config": {
         "provider_id": "openrouter",
-        "model": "openai/gpt-4o-mini",
+        "model": "google/gemini-3.5-flash-lite",
         "temperature": 0.3,
         "max_tokens": 800
       },
@@ -112,7 +122,7 @@
       "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
       "llm_config": {
         "provider_id": "openrouter",
-        "model": "openai/gpt-4o-mini",
+        "model": "google/gemini-3.5-flash-lite",
         "temperature": 0.5,
         "max_tokens": 800
       },

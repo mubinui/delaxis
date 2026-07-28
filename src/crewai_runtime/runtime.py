@@ -26,6 +26,11 @@ from src.crewai_runtime.execution_events import EventSink, ExecutionEventEmitter
 
 logger = structlog.get_logger(__name__)
 
+# Used when an agent (or the hierarchical manager) has no model configured.
+# Must handle tool calling reliably: the manager delegates via tool calls, and a
+# model that cannot do that emits the call as plain text instead of running it.
+DEFAULT_FALLBACK_MODEL = "openrouter/google/gemini-3.5-flash-lite"
+
 
 @dataclass
 class CrewAIRuntimeResult:
@@ -406,7 +411,7 @@ class CrewAIWorkflowRuntime:
         """Pre-registry behavior for agents without a provider_id: glue the
         LLM_PROVIDER prefix onto bare model ids (defaults to openrouter)."""
         if not model:
-            return os.getenv("LLM_MODEL", "openrouter/google/gemma-3-27b-it")
+            return os.getenv("LLM_MODEL", DEFAULT_FALLBACK_MODEL)
         model = str(model)
         if "/" in model and not model.startswith(("openrouter/", "ollama/", "azure/", "gemini/")):
             provider = os.getenv("LLM_PROVIDER", "openrouter")

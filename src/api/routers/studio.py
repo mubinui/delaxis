@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/studio", tags=["studio"])
 class LiveLlmTestRequest(BaseModel):
     """Payload for executing instant live LLM evaluations."""
     provider: str = "openrouter"
-    model: str = "google/gemma-3-27b-it"
+    model: str = "google/gemini-3.5-flash-lite"
     api_key: str | None = None
     system_prompt: str = "You are a helpful AI assistant."
     user_prompt: str = "Hello"
