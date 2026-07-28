@@ -51,3 +51,31 @@ def test_unknown_model_defaults_are_conservative() -> None:
     assert capabilities.vision is False
     assert capabilities.reasoning_trace is False
     assert capabilities.max_context == 8192
+
+def test_current_generation_models_support_tool_calling():
+    """Family-level markers must keep working as providers ship version bumps —
+    a version-specific list silently disables tools on every new release."""
+    for model in [
+        "gpt-5.6-sol",
+        "gpt-5.5",
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "gemini-3.6-flash",
+        "deepseek-v4-pro",
+        "qwen3.7-plus",
+        "glm-5.2",
+        "kimi-k3",
+        "llama3.3",
+    ]:
+        assert infer_model_capabilities(model).tool_calling is True, model
+
+
+def test_current_generation_context_windows_are_not_the_8k_default():
+    for model in ["gpt-5.6-sol", "gemini-3.6-flash", "claude-opus-5", "glm-5.2", "kimi-k3"]:
+        assert infer_model_capabilities(model).max_context > 100_000, model
+
+
+def test_unknown_local_model_stays_conservative():
+    capabilities = infer_model_capabilities("local/custom-small-model")
+    assert capabilities.tool_calling is False
+    assert capabilities.max_context == 8192

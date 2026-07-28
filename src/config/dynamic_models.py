@@ -33,6 +33,7 @@ class AuthConfig(BaseModel):
     scheme: AuthScheme
     env_var: str | None = Field(None, description="Environment variable containing credentials")
     header_name: str | None = Field(None, description="Custom header name for API key")
+    required: bool = Field(True, description="Whether the provider refuses unauthenticated requests")
 
 
 class ModelCapability(str, Enum):
@@ -63,6 +64,9 @@ class ModelConfig(BaseModel):
     pricing: ModelPricing | None = None
     max_tokens: int | None = Field(None, ge=1)
     temperature: float | None = Field(None, ge=0, le=2)
+    litellm_string: str | None = Field(None, description="Exact LiteLLM model string, overrides prefixing")
+    context_window: int | None = Field(None, ge=1)
+    max_output_tokens: int | None = Field(None, ge=1)
 
 
 class RequestDefaults(BaseModel):
@@ -76,7 +80,7 @@ class RequestDefaults(BaseModel):
 class ProviderConfig(BaseModel):
     """Configuration for an API provider."""
 
-    id: str = Field(pattern=r"^[a-z0-9_]+$")
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
     name: str = Field(min_length=1)
     type: ProviderType
     description: str = Field(default="")
@@ -84,6 +88,15 @@ class ProviderConfig(BaseModel):
 
     # LLM-specific fields
     base_url: str | None = None
+    base_url_env: str | None = Field(None, description="Env var that overrides base_url")
+    default_base_url: str | None = Field(None, description="Fallback base URL when env is unset")
+    litellm_prefix: str | None = Field(
+        None, description="Native LiteLLM route prefix (e.g. 'openai', 'gemini', 'ollama'); unset = OpenAI-compatible via base_url"
+    )
+    litellm_base_url: str | None = Field(
+        None, description="api_base handed to LiteLLM in native-prefix mode (self-hosted providers)"
+    )
+    api_key: str | None = Field(None, description="Inline API key; wins over auth.env_var")
     auth: AuthConfig | None = None
     models: list[ModelConfig] = Field(default_factory=list)
     request_defaults: RequestDefaults | None = None

@@ -22,61 +22,73 @@ def infer_model_capabilities(model_name: str, provider: str | None = None) -> Mo
     model_lower = model_name.lower()
     provider = provider or "openrouter"
 
+    # Marker lists are family-level on purpose: matching "gpt-", "claude-" or
+    # "glm-" keeps new releases working without an edit here every time a
+    # provider ships a version bump.
     tool_calling_markers = (
-        "gpt-4",
-        "gpt-4o",
+        "gpt-",
         "gpt-oss",
-        "o1",
-        "o3",
-        "o4",
-        "claude-3",
-        "claude-3.5",
-        "claude-3-5",
-        "claude-3.7",
-        "claude-3-7",
+        "o1-",
+        "o3-",
+        "o4-",
+        "claude-",
         "gemini",
+        "gemma",
         "mistral",
         "mixtral",
+        "ministral",
+        "devstral",
         "deepseek",
         "qwen",
-        "llama-3.1",
-        "llama-3.2",
-        "llama-3.3",
+        "glm-",
+        "kimi",
+        "moonshot",
+        "minimax",
+        "baichuan",
+        "llama-3",
+        "llama3",
+        "llama-4",
+        "llama4",
     )
     vision_markers = (
-        "gpt-4o",
         "vision",
-        "claude-3",
+        "vl",
+        "-image",
+        "claude-",
         "gemini",
-        "qwen-vl",
-        "qwen2-vl",
+        "gpt-4o",
+        "gpt-5",
         "llava",
         "pixtral",
         "mllama",
-        "llama-3.2-vision",
+        "glm-5v",
+        "glm-4v",
     )
     audio_markers = ("audio", "realtime", "speech", "gemini-live", "live")
     reasoning_markers = (
-        "o1",
-        "o3",
-        "o4",
+        "o1-",
+        "o3-",
+        "o4-",
         "deepseek-r1",
+        "reasoner",
         "qwq",
         "qwen-qwq",
         "reasoning",
+        "thinking",
     )
     json_schema_markers = (
-        "gpt-4",
-        "gpt-4o",
+        "gpt-",
         "gpt-oss",
-        "o1",
-        "o3",
-        "o4",
+        "o1-",
+        "o3-",
+        "o4-",
         "gemini",
-        "claude-3",
+        "claude-",
         "mistral",
         "deepseek",
         "qwen",
+        "glm-",
+        "kimi",
     )
 
     return ModelCapabilities(
@@ -116,14 +128,15 @@ def _infer_max_context(model_lower: str) -> int:
             max_context = context_size
             break
 
-    if _contains_any(model_lower, ("gemini-1.5", "gemini-2", "gemini-pro")):
-        return max(max_context, 1_000_000)
+    # Million-token-class families
     if _contains_any(
         model_lower,
-        ("claude-3", "claude-3.5", "claude-3-5", "claude-3.7", "claude-3-7"),
+        ("gemini-1.5", "gemini-2", "gemini-3", "gemini-pro", "gpt-5", "qwen3", "deepseek-v4", "kimi-k3", "glm-5.2"),
     ):
+        return max(max_context, 1_000_000)
+    if _contains_any(model_lower, ("claude-", "glm-5", "glm-4.7", "kimi-k2")):
         return max(max_context, 200_000)
-    if _contains_any(model_lower, ("gpt-4o", "gpt-oss", "o1", "o3", "o4")):
+    if _contains_any(model_lower, ("gpt-4o", "gpt-4.1", "gpt-oss", "o1-", "o3-", "o4-", "deepseek-v3")):
         return max(max_context, 128_000)
 
     return max_context

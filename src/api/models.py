@@ -585,12 +585,19 @@ class ConfigHistoryResponse(BaseModel):
 class APIProviderCreateRequest(BaseModel):
     """Request to create an API provider."""
 
-    id: str = Field(pattern=r"^[a-z0-9_]+$", description="Unique provider identifier")
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$", description="Unique provider identifier")
     name: str = Field(description="Provider display name")
     type: str = Field(description="Provider type (llm, tool, api)")
     description: str = Field(description="Provider description")
     base_url: Optional[str] = Field(default=None, description="Base URL for API")
     api_key: Optional[str] = Field(default=None, description="API key for authentication")
+    api_key_env: Optional[str] = Field(default=None, description="Env var holding the API key (stored as auth.env_var)")
+    litellm_prefix: Optional[str] = Field(
+        default=None, description="Native provider route prefix; leave unset for OpenAI-compatible endpoints"
+    )
+    models: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="Model entries, e.g. [{\"name\": \"qwen-plus\"}]"
+    )
     enabled: bool = Field(default=True, description="Whether provider is enabled")
     config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
 
@@ -603,6 +610,9 @@ class APIProviderUpdateRequest(BaseModel):
     description: Optional[str] = None
     base_url: Optional[str] = None
     api_key: Optional[str] = None
+    api_key_env: Optional[str] = None
+    litellm_prefix: Optional[str] = None
+    models: Optional[List[Dict[str, Any]]] = None
     enabled: Optional[bool] = None
     config: Optional[Dict[str, Any]] = None
 
@@ -616,6 +626,8 @@ class APIProviderResponse(BaseModel):
     description: str
     base_url: Optional[str] = None
     api_key_masked: Optional[str] = None
+    api_key_env: Optional[str] = None
+    litellm_prefix: Optional[str] = None
     enabled: bool
     config: Dict[str, Any] = {}
     models: Optional[List[Dict[str, Any]]] = None

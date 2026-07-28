@@ -1,18 +1,11 @@
 {
   "version": "2.0",
-  "last_updated": "2026-01-08T00:00:00Z",
+  "last_updated": "2026-07-28T00:00:00Z",
   "_comment": "CrewAI 1.14.4 with LiteLLM provider configuration",
   "_model_info": {
-    "primary_model": "openai/gpt-oss-20b",
-    "release_date": "2025-08-07",
-    "features": [
-      "Function calling support",
-      "131K context window",
-      "Efficient MoE architecture",
-      "Apache 2.0 license",
-      "Structured outputs"
-    ],
-    "notes": "GPT-OSS-20B - proven reliable model for function calling and agentic tasks."
+    "note": "Seeded model lists are a starting point and an offline fallback. The studio calls GET /api/v1/api-providers/{id}/models to read each provider's live catalogue, so new releases appear without editing this file.",
+    "verified_against": "openrouter.ai/api/v1/models",
+    "verified_on": "2026-07-28"
   },
   "providers": [
     {
@@ -21,6 +14,8 @@
       "type": "llm",
       "description": "Primary LLM provider via OpenRouter for GPT-OSS-20B.",
       "base_url": "https://openrouter.ai/api/v1",
+      "litellm_prefix": "openrouter",
+      "litellm_base_url": "https://openrouter.ai/api/v1",
       "enabled": true,
       "priority": 1,
       "auth": {
@@ -40,75 +35,112 @@
       },
       "models": [
         {
-          "name": "openai/gpt-oss-20b",
+          "name": "openai/gpt-5.6-sol",
           "default": true,
-          "litellm_string": "openrouter/openai/gpt-oss-20b",
-          "capabilities": [
-            "chat",
-            "function_calling",
-            "reasoning",
-            "structured_outputs"
-          ],
-          "context_window": 131072,
-          "max_output_tokens": 131072,
-          "pricing": {
-            "input_per_million_tokens": 0.02,
-            "output_per_million_tokens": 0.1,
-            "currency": "USD",
-            "note": "Cost-effective open-weight model with proven function calling"
-          },
-          "recommended_for": [
-            "production",
-            "function_calling",
-            "agentic_tasks"
-          ]
-        },
-        {
-          "name": "google/gemini-3.1-flash-lite",
-          "default": false,
-          "litellm_string": "openrouter/google/gemini-3.1-flash-lite",
-          "capabilities": [
-            "chat",
-            "function_calling",
-            "structured_outputs"
-          ],
-          "context_window": 1048576,
-          "max_output_tokens": 65536,
-          "pricing": {
-            "input_per_million_tokens": 0.1,
-            "output_per_million_tokens": 0.4,
-            "currency": "USD",
-            "note": "Lightweight Gemini option for fast, lower-cost chatbot messaging and UI generation"
-          },
-          "recommended_for": [
-            "lightweight",
-            "chatbot_messaging",
-            "low_latency"
-          ]
-        },
-        {
-          "name": "google/gemini-3.1-flash",
-          "default": false,
-          "litellm_string": "openrouter/google/gemini-3.1-flash",
+          "litellm_string": "openrouter/openai/gpt-5.6-sol",
           "capabilities": [
             "chat",
             "function_calling",
             "vision",
             "structured_outputs"
           ],
-          "context_window": 1048576,
-          "max_output_tokens": 65536,
-          "pricing": {
-            "input_per_million_tokens": 0.3,
-            "output_per_million_tokens": 2.5,
-            "currency": "USD",
-            "note": "Fast Gemini model for responsive chatbot messaging and multimodal prompts"
-          },
-          "recommended_for": [
-            "lightweight",
-            "chatbot_messaging",
-            "multimodal"
-          ]
+          "context_window": 1050000
+        },
+        {
+          "name": "google/gemini-3.6-flash",
+          "litellm_string": "openrouter/google/gemini-3.6-flash",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "google/gemini-3.5-flash",
+          "litellm_string": "openrouter/google/gemini-3.5-flash",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "anthropic/claude-opus-5",
+          "litellm_string": "openrouter/anthropic/claude-opus-5",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ],
+          "context_window": 200000
+        },
+        {
+          "name": "anthropic/claude-sonnet-5",
+          "litellm_string": "openrouter/anthropic/claude-sonnet-5",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ],
+          "context_window": 200000
+        },
+        {
+          "name": "deepseek/deepseek-v4-pro",
+          "litellm_string": "openrouter/deepseek/deepseek-v4-pro",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "qwen/qwen3.7-plus",
+          "litellm_string": "openrouter/qwen/qwen3.7-plus",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1000000
+        },
+        {
+          "name": "z-ai/glm-5.2",
+          "litellm_string": "openrouter/z-ai/glm-5.2",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "moonshotai/kimi-k3",
+          "litellm_string": "openrouter/moonshotai/kimi-k3",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "openai/gpt-oss-20b",
+          "litellm_string": "openrouter/openai/gpt-oss-20b",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning"
+          ],
+          "context_window": 131072
         }
       ],
       "request_defaults": {
@@ -122,7 +154,9 @@
       "type": "llm",
       "description": "Self-hosted vLLM server for Gemma 3 12B with function calling.",
       "base_url_env": "VLLM_API_BASE",
-      "default_base_url": "http://localhost:8000",
+      "default_base_url": "http://localhost:8000/v1",
+      "litellm_prefix": "hosted_vllm",
+      "litellm_base_url": "http://localhost:8000/v1",
       "enabled": true,
       "priority": 2,
       "auth": {
@@ -155,6 +189,382 @@
         "timeout_seconds": 180,
         "max_retries": 2
       }
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "type": "llm",
+      "description": "OpenAI platform (api.openai.com).",
+      "base_url": "https://api.openai.com/v1",
+      "litellm_prefix": "openai",
+      "litellm_base_url": "https://api.openai.com/v1",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "OPENAI_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "gpt-5.6-sol",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1050000
+        },
+        {
+          "name": "gpt-5.6-terra",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1050000
+        },
+        {
+          "name": "gpt-5.6-luna",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1050000
+        },
+        {
+          "name": "gpt-5.5",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1050000
+        },
+        {
+          "name": "gpt-5.4-mini",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 400000
+        },
+        {
+          "name": "gpt-5.4-nano",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 400000
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "name": "Google Gemini",
+      "type": "llm",
+      "description": "Google AI Studio Gemini API. Uses the native provider when crewai[google-genai] is installed, otherwise the OpenAI-compatible endpoint below.",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "litellm_prefix": "gemini",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "GEMINI_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "gemini-3.6-flash",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "gemini-3.5-flash",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "gemini-3.5-flash-lite",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "gemini-3.1-pro-preview",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        }
+      ]
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama (Local)",
+      "type": "llm",
+      "description": "Local Ollama server. Override the host with OLLAMA_API_BASE.",
+      "base_url": "http://localhost:11434/v1",
+      "base_url_env": "OLLAMA_API_BASE",
+      "litellm_prefix": "ollama",
+      "litellm_base_url": "http://localhost:11434/v1",
+      "enabled": true,
+      "models": [
+        {
+          "name": "llama3.3",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling"
+          ]
+        },
+        {
+          "name": "qwen3",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning"
+          ]
+        },
+        {
+          "name": "gpt-oss",
+          "capabilities": [
+            "chat",
+            "function_calling"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lm-studio",
+      "name": "LM Studio (Local)",
+      "type": "llm",
+      "description": "Local LM Studio OpenAI-compatible server. Use the model id shown in LM Studio; override the host with LM_STUDIO_API_BASE.",
+      "base_url": "http://localhost:1234/v1",
+      "base_url_env": "LM_STUDIO_API_BASE",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "LM_STUDIO_API_KEY",
+        "required": false
+      },
+      "models": []
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "type": "llm",
+      "description": "DeepSeek platform (api.deepseek.com).",
+      "base_url": "https://api.deepseek.com/v1",
+      "litellm_prefix": "deepseek",
+      "litellm_base_url": "https://api.deepseek.com/v1",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "DEEPSEEK_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "deepseek-v4-pro",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "deepseek-v4-flash",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "deepseek-chat",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "notes": "Stable alias for the current chat model"
+        },
+        {
+          "name": "deepseek-reasoner",
+          "capabilities": [
+            "chat",
+            "reasoning"
+          ],
+          "notes": "Stable alias for the current reasoning model"
+        }
+      ]
+    },
+    {
+      "id": "dashscope",
+      "name": "Qwen (DashScope)",
+      "type": "llm",
+      "description": "Alibaba Cloud DashScope OpenAI-compatible endpoint for Qwen models. International accounts: set base_url to https://dashscope-intl.aliyuncs.com/compatible-mode/v1.",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "DASHSCOPE_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "qwen3.7-plus",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1000000
+        },
+        {
+          "name": "qwen3.7-max",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1000000
+        },
+        {
+          "name": "qwen3.7-flash",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1000000
+        },
+        {
+          "name": "qwen3.6-plus",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1000000
+        }
+      ]
+    },
+    {
+      "id": "zhipu",
+      "name": "Zhipu GLM",
+      "type": "llm",
+      "description": "Zhipu AI (bigmodel.cn) OpenAI-compatible endpoint for GLM models.",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "ZHIPUAI_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "glm-5.2",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "glm-5.1",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 204800
+        },
+        {
+          "name": "glm-5-turbo",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 202752
+        }
+      ]
+    },
+    {
+      "id": "moonshot",
+      "name": "Moonshot Kimi",
+      "type": "llm",
+      "description": "Moonshot AI (Kimi) OpenAI-compatible endpoint. International accounts: set base_url to https://api.moonshot.ai/v1.",
+      "base_url": "https://api.moonshot.cn/v1",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "MOONSHOT_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "kimi-k3",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
+          "name": "kimi-k2.7-code",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 262144
+        },
+        {
+          "name": "kimi-k2.6",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 262144
+        }
+      ]
     },
     {
       "id": "duckduckgo",

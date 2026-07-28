@@ -76,12 +76,20 @@ export interface ApiProvider {
     description: string;
     base_url?: string | null;
     api_key_masked?: string | null;
+    api_key_env?: string | null;
+    litellm_prefix?: string | null;
     enabled: boolean;
     config: Record<string, any>;
     models?: Array<Record<string, any>>;
     version?: number;
     etag?: string;
     last_updated?: string;
+}
+
+export interface ThemePreset {
+    id: string;
+    label: string;
+    vars: Record<string, string>;
 }
 
 export interface TriggerConfig {

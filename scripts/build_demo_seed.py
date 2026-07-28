@@ -445,7 +445,7 @@ def enrich(data: dict[str, Any]) -> dict[str, Any]:
                 "api_url": "",
                 "trigger_id": "trg_chat_demo",
                 "title": "Support Assistant",
-                "theme": "aurora",
+                "theme": "ocean",
                 "greeting": "Hi! Ask me about search, your knowledge base, or maths.",
                 "provider_id": "openrouter",
                 "model_id": "openai/gpt-oss-20b",

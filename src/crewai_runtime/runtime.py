@@ -401,30 +401,49 @@ class CrewAIWorkflowRuntime:
 
         return agent_cls(**agent_kwargs)
 
-    def _resolve_llm_model(self, model_config: dict[str, Any]) -> Any:
-        model = model_config.get("model")
+    @staticmethod
+    def _legacy_prefix_model(model: Any) -> str:
+        """Pre-registry behavior for agents without a provider_id: glue the
+        LLM_PROVIDER prefix onto bare model ids (defaults to openrouter)."""
         if not model:
-            model = os.getenv("LLM_MODEL", "openrouter/google/gemma-3-27b-it")
-        elif "/" in model and not model.startswith(("openrouter/", "ollama/", "azure/", "gemini/")):
+            return os.getenv("LLM_MODEL", "openrouter/google/gemma-3-27b-it")
+        model = str(model)
+        if "/" in model and not model.startswith(("openrouter/", "ollama/", "azure/", "gemini/")):
             provider = os.getenv("LLM_PROVIDER", "openrouter")
             if provider == "openrouter":
                 model = f"openrouter/{model}"
-        model = str(model)
+        return model
 
-        # When the studio config carries actual sampling/limit parameters, build a
-        # full LLM object so they're honored; a bare model string otherwise keeps
-        # existing behavior byte-for-byte.
-        llm_params = {
+    @staticmethod
+    def _sampling_params(model_config: dict[str, Any]) -> dict[str, Any]:
+        params = {
             "temperature": model_config.get("temperature"),
             "max_tokens": model_config.get("max_tokens"),
-            "base_url": model_config.get("base_url") or None,
             "timeout": model_config.get("timeout"),
             "top_p": model_config.get("top_p"),
         }
+        return {k: v for k, v in params.items() if v is not None}
+
+    def _resolve_llm_model(self, model_config: dict[str, Any]) -> Any:
+        model = model_config.get("model")
+        provider_id = model_config.get("provider_id")
+        if provider_id:
+            llm = self._resolve_registered_provider(str(provider_id), model, model_config)
+            if llm is not None:
+                return llm
+
+        model = self._legacy_prefix_model(model)
+        # When the studio config carries actual sampling/limit parameters, build a
+        # full LLM object so they're honored; a bare model string otherwise keeps
+        # existing behavior byte-for-byte.
+        llm_params = self._sampling_params(model_config)
+        if model_config.get("base_url"):
+            llm_params["base_url"] = model_config["base_url"]
         api_key_env = model_config.get("api_key_env")
         if api_key_env:
-            llm_params["api_key"] = os.environ.get(str(api_key_env))
-        llm_params = {k: v for k, v in llm_params.items() if v is not None}
+            api_key = os.environ.get(str(api_key_env))
+            if api_key:
+                llm_params["api_key"] = api_key
         if not llm_params:
             return model
 
@@ -435,6 +454,69 @@ class CrewAIWorkflowRuntime:
         except Exception as e:
             logger.warning("crewai_llm_params_ignored", error=str(e), model=model)
             return model
+
+    def _resolve_registered_provider(
+        self, provider_id: str, model: Any, model_config: dict[str, Any]
+    ) -> Any | None:
+        """Build an LLM from the provider registry, or None to use legacy routing.
+
+        CrewAI is handed an explicit ``provider`` so any model name is accepted.
+        A native provider whose SDK is missing (Gemini without
+        ``crewai[google-genai]``) retries against the provider's
+        OpenAI-compatible endpoint before giving up.
+        """
+        try:
+            from src.config.provider_registry import ProviderResolutionError, compat_fallback, resolve_llm
+        except ImportError:
+            return None
+
+        try:
+            resolved = resolve_llm(provider_id, str(model or ""))
+        except ProviderResolutionError as e:
+            logger.warning("provider_resolution_failed_using_legacy", provider_id=provider_id, error=str(e))
+            return None
+
+        try:
+            from crewai import LLM
+        except ImportError:
+            return None
+
+        attempts = [resolved]
+        fallback = compat_fallback(resolved)
+        if fallback is not None:
+            attempts.append(fallback)
+
+        last_error: Exception | None = None
+        for attempt in attempts:
+            llm_params = self._sampling_params(model_config)
+            # Agent-level overrides always win over the provider defaults
+            base_url = model_config.get("base_url") or attempt.base_url
+            if base_url:
+                llm_params["base_url"] = base_url
+            api_key = attempt.api_key
+            api_key_env = model_config.get("api_key_env")
+            if api_key_env:
+                api_key = os.environ.get(str(api_key_env)) or api_key
+            if api_key:
+                llm_params["api_key"] = api_key
+            try:
+                return LLM(model=attempt.model, provider=attempt.crewai_provider, **llm_params)
+            except Exception as e:
+                last_error = e
+                logger.warning(
+                    "crewai_llm_provider_unavailable",
+                    provider_id=provider_id,
+                    crewai_provider=attempt.crewai_provider,
+                    model=attempt.model,
+                    error=str(e),
+                )
+
+        logger.warning(
+            "provider_llm_construction_failed_using_legacy",
+            provider_id=provider_id,
+            error=str(last_error) if last_error else None,
+        )
+        return None
 
     def _get_crewai_tools(
         self,

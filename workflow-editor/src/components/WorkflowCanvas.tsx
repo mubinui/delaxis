@@ -197,7 +197,10 @@ const WorkflowCanvasContent = () => {
                 const idMap = new Map<string, string>();
 
                 const newNodes = workflowNodes.map((n: any) => {
-                    const newId = `${n.type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                    // Library nodes carry agent_id instead of a top-level type; without
+                    // this fallback the id comes out as "undefined-<timestamp>-<rand>".
+                    const idPrefix = n.type || (n.agent_id ? 'agent' : 'node');
+                    const newId = `${idPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                     idMap.set(n.id, newId);
 
                     // Position relative to the center of the workflow, applied to the mouse position

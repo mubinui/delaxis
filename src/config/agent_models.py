@@ -35,13 +35,19 @@ class LLMConfig(BaseModel):
     provider_id: str = Field(description="ID of the LLM provider from provider registry")
     model: str = Field(description="Model name to use (e.g., 'google/gemma-3-27b-it' or '@preset/my-preset')")
     preset: Optional[str] = Field(
-        default=None, 
+        default=None,
         description="OpenRouter preset name (e.g., 'my-preset'). Can also use 'model@preset/name' syntax."
     )
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     max_tokens: Optional[int] = Field(default=None, ge=1, description="Maximum tokens in response")
     cache_seed: Optional[int] = Field(default=None, description="Seed for caching (None disables CrewAI cache)")
     timeout: int = Field(default=120, ge=1, description="Request timeout in seconds")
+    base_url: Optional[str] = Field(
+        default=None, description="Custom API base URL (Ollama, LM Studio, vLLM, any OpenAI-compatible endpoint)"
+    )
+    api_key_env: Optional[str] = Field(
+        default=None, description="Environment variable holding the API key for this agent's provider"
+    )
 
 
 class ModelClientConfig(BaseModel):
@@ -99,6 +105,10 @@ class ModelClientConfig(BaseModel):
     api_key: Optional[str] = Field(
         default=None,
         description="API key for authentication (optional, can be from env)"
+    )
+    api_key_env: Optional[str] = Field(
+        default=None,
+        description="Environment variable holding the API key"
     )
 
 
@@ -350,6 +360,8 @@ class AgentConfig(BaseModel):
                 timeout=self.llm_config.timeout,
                 max_tokens=self.llm_config.max_tokens,
                 seed=self.llm_config.cache_seed,
+                base_url=self.llm_config.base_url,
+                api_key_env=self.llm_config.api_key_env,
             )
         
         return None

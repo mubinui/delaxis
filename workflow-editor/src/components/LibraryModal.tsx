@@ -14,15 +14,6 @@ const AGENT_TYPES = [
     { id: 'conversable', name: 'Conversable Agent (Legacy)' }
 ];
 
-const PROVIDERS = [
-    { id: 'openrouter', name: 'OpenRouter' },
-    { id: 'vllm', name: 'vLLM (Self-Hosted)' },
-    { id: 'ollama', name: 'Ollama (Local)' },
-    { id: 'openai', name: 'OpenAI' },
-    { id: 'anthropic', name: 'Anthropic' },
-    { id: 'google', name: 'Google Gemini' },
-];
-
 const HUMAN_INPUT_MODES = [
     { id: 'NEVER', name: 'Never' },
     { id: 'ALWAYS', name: 'Always' },
@@ -188,6 +179,9 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
         description: '',
         base_url: '',
         api_key: '',
+        api_key_env: '',
+        litellm_prefix: '',
+        models: '',
         config: '{}',
     });
 
@@ -235,6 +229,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
         provider: string;
         temperature: number;
         base_url: string;
+        api_key_env: string;
         max_tokens: number;
         output_key: string;
         is_selector: boolean;
@@ -248,6 +243,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
         provider: 'openai',
         temperature: 0.7,
         base_url: '',
+        api_key_env: '',
         max_tokens: 2048,
         output_key: '',
         is_selector: false,
@@ -263,6 +259,20 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
         }
     }, [isOpen]);
 
+    // Providers come from the backend registry so the studio and the runtime
+    // always agree on which providers exist.
+    const llmProviders = providers.filter(p => p.type === 'llm' && p.enabled !== false);
+    const selectedAgentProvider = llmProviders.find(p => p.id === agentConfig.provider);
+    const selectedAgentProviderModels = (selectedAgentProvider?.models ?? [])
+        .map(m => String(m.name ?? ''))
+        .filter(Boolean);
+    const llmProviderOptions = [
+        ...llmProviders.map(p => ({ value: p.id, label: p.name })),
+        ...(agentConfig.provider && !selectedAgentProvider
+            ? [{ value: agentConfig.provider, label: agentConfig.provider }]
+            : []),
+    ];
+
     const resetForm = () => {
         setFormData({ name: '', description: '', type: 'function', config: {} });
         setToolConfig({
@@ -273,7 +283,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
         });
         setAgentConfig({
             agentType: 'LlmAgent', instruction: '', model: 'gpt-4o', provider: 'openai', temperature: 0.7,
-            base_url: '', max_tokens: 2048, output_key: '', is_selector: false, human_input_mode: 'NEVER', max_loops: 5, tools: []
+            base_url: '', api_key_env: '', max_tokens: 2048, output_key: '', is_selector: false, human_input_mode: 'NEVER', max_loops: 5, tools: []
         });
         setEditingItem(null);
     };
@@ -322,6 +332,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                 provider: modelConfig.provider_id || 'openai',
                 temperature: modelConfig.temperature ?? 0.7,
                 base_url: modelConfig.base_url || '',
+                api_key_env: modelConfig.api_key_env || '',
                 max_tokens: modelConfig.max_tokens ?? 2048,
                 output_key: config.output_key || '',
                 is_selector: config.is_selector || false,
@@ -410,6 +421,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                     model: agentConfig.model,
                     temperature: agentConfig.temperature,
                     base_url: agentConfig.base_url,
+                    api_key_env: agentConfig.api_key_env,
                     max_tokens: agentConfig.max_tokens,
                 },
 
@@ -494,10 +506,17 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                 description: providerForm.description,
                 base_url: providerForm.base_url || null,
                 api_key: providerForm.api_key || undefined,
+                api_key_env: providerForm.api_key_env || undefined,
+                litellm_prefix: providerForm.litellm_prefix || undefined,
+                models: providerForm.models
+                    .split(/[\n,]/)
+                    .map((m) => m.trim())
+                    .filter(Boolean)
+                    .map((name) => ({ name })),
                 config: JSON.parse(providerForm.config || '{}'),
                 enabled: true,
             });
-            setProviderForm({ id: '', name: '', type: 'llm', description: '', base_url: '', api_key: '', config: '{}' });
+            setProviderForm({ id: '', name: '', type: 'llm', description: '', base_url: '', api_key: '', api_key_env: '', litellm_prefix: '', models: '', config: '{}' });
             alert('Provider saved.');
         } catch (e) {
             alert('Failed to save provider: ' + (e as Error).message);
@@ -704,7 +723,39 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                             <FormInput label="Base Uniform Resource Locator" value={providerForm.base_url} onChange={(v) => setProviderForm({ ...providerForm, base_url: v })} mono />
                                         </div>
                                         <FormInput label="Scope Documentation" value={providerForm.description} onChange={(v) => setProviderForm({ ...providerForm, description: v })} rows={2} />
-                                        <FormInput label="Private Auth Cipher Token" value={providerForm.api_key} onChange={(v) => setProviderForm({ ...providerForm, api_key: v })} type="password" />
+                                        <div className="grid grid-cols-2 gap-5">
+                                            <FormInput
+                                                label="Private Auth Cipher Token"
+                                                value={providerForm.api_key}
+                                                onChange={(v) => setProviderForm({ ...providerForm, api_key: v })}
+                                                type="password"
+                                                helpText="Stored in the config file. Prefer an env var below for shared deployments."
+                                            />
+                                            <FormInput
+                                                label="API Key Env Var"
+                                                value={providerForm.api_key_env}
+                                                onChange={(v) => setProviderForm({ ...providerForm, api_key_env: v })}
+                                                mono
+                                                placeholder="MY_PROVIDER_API_KEY"
+                                            />
+                                        </div>
+                                        <FormInput
+                                            label="Native Route Prefix"
+                                            value={providerForm.litellm_prefix}
+                                            onChange={(v) => setProviderForm({ ...providerForm, litellm_prefix: v })}
+                                            mono
+                                            placeholder="openrouter, ollama, deepseek…"
+                                            helpText="Leave blank for any OpenAI-compatible endpoint (LM Studio, Qwen, GLM, Kimi, vLLM, custom gateways)."
+                                        />
+                                        <FormInput
+                                            label="Available Models"
+                                            value={providerForm.models}
+                                            onChange={(v) => setProviderForm({ ...providerForm, models: v })}
+                                            rows={3}
+                                            mono
+                                            placeholder={'qwen-plus\nqwen-max'}
+                                            helpText="One per line (or comma separated). These become suggestions in the agent model picker."
+                                        />
                                         <FormInput label="Metadata Headers Structure (JSON)" value={providerForm.config} onChange={(v) => setProviderForm({ ...providerForm, config: v })} rows={4} mono />
                                         <button onClick={handleCreateProvider} disabled={isLoading} type="button" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
                                             Register Handshake Gateway
@@ -1081,26 +1132,34 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                                                     label="Target Backend Provider"
                                                                     value={agentConfig.provider}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, provider: v })}
-                                                                    options={PROVIDERS.map(p => ({ value: p.id, label: p.name }))}
+                                                                    options={llmProviderOptions}
                                                                 />
                                                                 <FormInput
                                                                     label="Model String Slug"
-                                                                    placeholder="gpt-4o"
+                                                                    placeholder={selectedAgentProviderModels[0] || 'gpt-4o'}
                                                                     value={agentConfig.model}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, model: v })}
                                                                     mono
+                                                                    helpText={selectedAgentProviderModels.length ? `Suggested: ${selectedAgentProviderModels.slice(0, 4).join(', ')}` : undefined}
                                                                 />
                                                             </div>
 
-                                                            {(agentConfig.provider === 'vllm' || agentConfig.provider === 'ollama') && (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <FormInput
                                                                     label="Provider Network URL override"
-                                                                    placeholder={agentConfig.provider === 'ollama' ? 'http://localhost:11434' : 'https://api.vllm.ai/v1'}
+                                                                    placeholder={selectedAgentProvider?.base_url || 'Leave blank for the provider default'}
                                                                     value={agentConfig.base_url}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, base_url: v })}
                                                                     mono
                                                                 />
-                                                            )}
+                                                                <FormInput
+                                                                    label="API Key Env Var"
+                                                                    placeholder={selectedAgentProvider?.api_key_env || 'Leave blank for the provider key'}
+                                                                    value={agentConfig.api_key_env}
+                                                                    onChange={(v) => setAgentConfig({ ...agentConfig, api_key_env: v })}
+                                                                    mono
+                                                                />
+                                                            </div>
 
                                                             <div className="space-y-2">
                                                                 <div className="flex justify-between items-center">

@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { Play, Sparkles, Cpu, DollarSign, Clock, RefreshCw, X } from 'lucide-react';
+import { useLibraryStore } from '../stores/libraryStore';
 
 interface LiveLlmTesterProps {
     onClose: () => void;
 }
 
 export const LiveLlmTester: React.FC<LiveLlmTesterProps> = ({ onClose }) => {
+    const providers = useLibraryStore((s) => s.providers);
+    const llmProviders = providers.filter((p) => p.type === 'llm' && p.enabled !== false);
     const [provider, setProvider] = useState('openrouter');
     const [model, setModel] = useState('google/gemma-3-27b-it');
     const [apiKey, setApiKey] = useState('');
@@ -107,10 +110,10 @@ export const LiveLlmTester: React.FC<LiveLlmTesterProps> = ({ onClose }) => {
                                 onChange={(e) => setProvider(e.target.value)}
                                 className="w-full p-2 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
                             >
-                                <option value="openrouter">OpenRouter API</option>
-                                <option value="gemini">Google Gemini Native</option>
-                                <option value="openai">OpenAI Platform</option>
-                                <option value="azure">Azure OpenAI</option>
+                                {llmProviders.map((p) => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                                {llmProviders.length === 0 && <option value="openrouter">OpenRouter API</option>}
                             </select>
                         </div>
                         <div>

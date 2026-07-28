@@ -13,88 +13,20 @@ from pydantic import BaseModel, Field
 
 from src.api.auth import require_user, CurrentUser
 from src.api.builder_prompts import get_builder_prompt
+from src.api.chatbot_page import (
+    MARKDOWN_STYLE,
+    MARKDOWN_SCRIPT,
+    ensure_config_contract,
+    ensure_markdown_support,
+    safe_json,
+)
 from src.config.config_loader import get_config_loader
+from src.config.provider_registry import ProviderResolutionError, resolve_openai_endpoint
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/builder", tags=["builder"])
 
 BuilderType = Literal["agent", "tool", "function", "workflow"]
-
-MARKDOWN_STYLE = """
-        .md-content p { margin: 0 0 8px; }
-        .md-content p:last-child { margin-bottom: 0; }
-        .md-content ul, .md-content ol { margin: 8px 0; padding-left: 20px; }
-        .md-content li { margin: 3px 0; }
-        .md-content code { background: rgba(15,23,42,.08); border-radius: 4px; padding: 2px 4px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .92em; }
-        .md-content pre { background: #111827; color: #f8fafc; border-radius: 8px; padding: 12px; overflow: auto; white-space: pre; }
-        .md-content pre code { background: transparent; padding: 0; color: inherit; }
-        .md-content blockquote { margin: 8px 0; border-left: 3px solid #94a3b8; padding-left: 10px; color: #475569; }
-        .md-content a { color: #2563eb; text-decoration: underline; }
-        .md-content table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-        .md-content th, .md-content td { border: 1px solid rgba(148,163,184,.45); padding: 6px 8px; text-align: left; }
-"""
-
-MARKDOWN_SCRIPT = r"""
-        function escapeHtml(value) {
-            return String(value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-        function inlineMarkdown(value) {
-            let html = escapeHtml(value);
-            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-            html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-            return html;
-        }
-        function renderMarkdown(markdown) {
-            const lines = String(markdown || '').split(/\r?\n/);
-            const blocks = [];
-            let list = null;
-            let code = [];
-            let inCode = false;
-            function closeList() {
-                if (!list) return;
-                blocks.push('<' + list.type + '>' + list.items.map(item => '<li>' + inlineMarkdown(item) + '</li>').join('') + '</' + list.type + '>');
-                list = null;
-            }
-            function closeCode() {
-                if (!inCode) return;
-                blocks.push('<pre><code>' + escapeHtml(code.join('\n')) + '</code></pre>');
-                code = [];
-                inCode = false;
-            }
-            for (const line of lines) {
-                if (line.trim().startsWith('```')) {
-                    if (inCode) closeCode(); else { closeList(); inCode = true; code = []; }
-                    continue;
-                }
-                if (inCode) { code.push(line); continue; }
-                if (!line.trim()) { closeList(); continue; }
-                const ordered = line.match(/^\s*\d+\.\s+(.+)$/);
-                const unordered = line.match(/^\s*[-*]\s+(.+)$/);
-                if (ordered || unordered) {
-                    const type = ordered ? 'ol' : 'ul';
-                    if (!list || list.type !== type) { closeList(); list = { type, items: [] }; }
-                    list.items.push((ordered || unordered)[1]);
-                    continue;
-                }
-                closeList();
-                if (line.startsWith('### ')) blocks.push('<h3>' + inlineMarkdown(line.slice(4)) + '</h3>');
-                else if (line.startsWith('## ')) blocks.push('<h2>' + inlineMarkdown(line.slice(3)) + '</h2>');
-                else if (line.startsWith('# ')) blocks.push('<h1>' + inlineMarkdown(line.slice(2)) + '</h1>');
-                else if (line.startsWith('> ')) blocks.push('<blockquote>' + inlineMarkdown(line.slice(2)) + '</blockquote>');
-                else blocks.push('<p>' + inlineMarkdown(line) + '</p>');
-            }
-            closeCode();
-            closeList();
-            return blocks.join('');
-        }
-"""
 
 
 # ---------------------------------------------------------------------------
@@ -111,14 +43,14 @@ class BuilderChatRequest(BaseModel):
     message: str = Field(description="The user's latest message")
     history: list[ChatMessage] = Field(default_factory=list, description="Previous conversation turns")
     provider_id: str = Field(default="openrouter", description="Provider ID from api-providers config")
-    model_id: str = Field(default="openai/gpt-4o", description="Model ID to use for generation")
+    model_id: str = Field(default="openai/gpt-5.6-sol", description="Model ID to use for generation")
 
 
 class BuilderGenerateRequest(BaseModel):
     builder_type: BuilderType
     history: list[ChatMessage] = Field(description="Full conversation history")
     provider_id: str = Field(default="openrouter")
-    model_id: str = Field(default="openai/gpt-4o")
+    model_id: str = Field(default="openai/gpt-5.6-sol")
 
 
 class BuilderGenerateResponse(BaseModel):
@@ -166,7 +98,7 @@ class FrontendGenerateRequest(BaseModel):
     title: str = "AI Chatbot"
     greeting: str = "Hi, how can I help?"
     provider_id: str = "openrouter"
-    model_id: str = "google/gemini-3.1-pro-preview"
+    model_id: str = "google/gemini-3.6-flash"
     history: list[FrontendChatMessage] = Field(default_factory=list)
 
 
@@ -182,26 +114,25 @@ class FrontendGenerateResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _get_provider_credentials(provider_id: str) -> tuple[str, str]:
-    """Return (base_url, api_key) for a given provider_id from configs/api_providers.json."""
+def _get_provider_credentials(provider_id: str) -> tuple[str, str, bool]:
+    """Resolve (base_url, api_key, ready) for OpenAI-compatible builder calls.
+
+    ``ready`` is False when the provider requires a key that is not configured —
+    callers with a local fallback use it; callers without one should 400.
+    Unknown or endpoint-less providers raise 400 instead of silently falling
+    back to OpenRouter.
+    """
     try:
-        loader = get_config_loader()
-        providers_config = loader.get_config("api_providers")
-    except Exception:
-        providers_config = {"providers": []}
-
-    for provider in providers_config.get("providers", []):
-        if provider.get("id") == provider_id and provider.get("enabled", True):
-            base_url = provider.get("base_url", "https://openrouter.ai/api/v1")
-            # Resolve API key from environment via the env_var pointer
-            import os
-            env_var = provider.get("auth", {}).get("env_var", "OPENROUTER_API_KEY")
-            api_key = os.environ.get(env_var, "")
-            return base_url, api_key
-
-    # Fallback to OpenRouter env vars
-    import os
-    return "https://openrouter.ai/api/v1", os.environ.get("OPENROUTER_API_KEY", "")
+        base_url, api_key, auth_required = resolve_openai_endpoint(provider_id)
+    except ProviderResolutionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if not base_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Provider '{provider_id}' has no OpenAI-compatible base_url configured",
+        )
+    ready = bool(api_key) or not auth_required
+    return base_url, api_key or "", ready
 
 
 async def _stream_llm(
@@ -340,12 +271,8 @@ def _extract_html_from_text(text: str) -> str | None:
 
 def _ensure_frontend_contract(html: str) -> str:
     """Ensure generated frontends keep runtime config and markdown support."""
-    if "__CHATBOT_CONFIG__" not in html:
-        html = html.replace("</body>", "<script>window.CHATBOT_CONFIG = __CHATBOT_CONFIG__;</script></body>")
-    if "function renderMarkdown" not in html:
-        html = html.replace("</style>", f"{MARKDOWN_STYLE}\n  </style>")
-        html = html.replace("</script>", f"\n{MARKDOWN_SCRIPT}\n  </script>", 1)
-    return html
+    html = ensure_config_contract(html)
+    return ensure_markdown_support(html)
 
 
 def _fallback_plan(prompt: str) -> dict:
@@ -393,13 +320,15 @@ def _fallback_plan(prompt: str) -> dict:
 
 def _fallback_frontend(body: FrontendGenerateRequest) -> str:
     title = escape(body.title)
-    greeting = escape(body.greeting)
+    # Greeting lands inside a JS string literal, so it needs a JS escape, not an HTML one
+    greeting_js = safe_json(body.greeting)
     prompt = escape(body.prompt)
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>window.CHATBOT_CONFIG = __CHATBOT_CONFIG__;</script>
   <title>{title}</title>
   <style>
     * {{ box-sizing: border-box; }}
@@ -446,12 +375,11 @@ def _fallback_frontend(body: FrontendGenerateRequest) -> str:
     </section>
   </main>
   <script>
-    window.CHATBOT_CONFIG = __CHATBOT_CONFIG__;
-    const cfg = window.CHATBOT_CONFIG;
+    const cfg = window.CHATBOT_CONFIG || {{}};
     const messages = document.getElementById('messages');
     const input = document.getElementById('input');
     const send = document.getElementById('send');
-    document.getElementById('workflow-label').textContent = cfg.workflow_id;
+    document.getElementById('workflow-label').textContent = cfg.workflow_id || '';
     let sessionId = null;
 {MARKDOWN_SCRIPT}
     function add(role, text) {{
@@ -478,7 +406,7 @@ def _fallback_frontend(body: FrontendGenerateRequest) -> str:
       sessionId = data.session_id;
       return sessionId;
     }}
-    add('assistant', '{greeting}');
+    add('assistant', cfg.greeting || {greeting_js});
     document.getElementById('form').addEventListener('submit', async (event) => {{
       event.preventDefault();
       const text = input.value.trim();
@@ -565,7 +493,12 @@ async def builder_chat(
     A `data: [DONE]` line signals completion.
     """
     system_prompt = get_builder_prompt(body.builder_type)
-    base_url, api_key = _get_provider_credentials(body.provider_id)
+    base_url, api_key, ready = _get_provider_credentials(body.provider_id)
+    if not ready:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"API key not configured for provider '{body.provider_id}'",
+        )
 
     messages: list[dict] = [{"role": "system", "content": system_prompt}]
     for msg in body.history:
@@ -602,7 +535,12 @@ async def builder_generate(
     then parses the response and returns the structured result.
     """
     system_prompt = get_builder_prompt(body.builder_type)
-    base_url, api_key = _get_provider_credentials(body.provider_id)
+    base_url, api_key, ready = _get_provider_credentials(body.provider_id)
+    if not ready:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"API key not configured for provider '{body.provider_id}'",
+        )
 
     finalize_instruction = (
         "Based on our conversation, produce ONLY the final complete configuration. "
@@ -668,15 +606,16 @@ async def list_builder_models(request: Request) -> AvailableModelsResponse:
                     )
                 )
 
-    # Always include a few known builder-quality models if not already listed
+    # Backstop list for a fresh checkout whose api_providers.json carries no
+    # models. Prefer the configured/discovered lists over editing this.
     known_model_ids = {m.model_id for m in models}
     defaults = [
-        ("google/gemini-3.1-flash-lite", "openrouter", "OpenRouter", "Gemini 3.1 Flash Lite (OpenRouter)"),
-        ("google/gemini-3.1-flash", "openrouter", "OpenRouter", "Gemini 3.1 Flash (OpenRouter)"),
-        ("google/gemini-3.1-pro-preview", "openrouter", "OpenRouter", "Gemini 3.1 Pro Preview (OpenRouter)"),
-        ("anthropic/claude-sonnet-4-6", "openrouter", "OpenRouter", "Claude Sonnet 4.6 (OpenRouter)"),
-        ("openai/gpt-4o", "openrouter", "OpenRouter", "GPT-4o (OpenRouter)"),
-        ("openai/gpt-5", "openrouter", "OpenRouter", "GPT-5 (OpenRouter)"),
+        ("google/gemini-3.6-flash", "openrouter", "OpenRouter", "Gemini 3.6 Flash (OpenRouter)"),
+        ("google/gemini-3.5-flash", "openrouter", "OpenRouter", "Gemini 3.5 Flash (OpenRouter)"),
+        ("anthropic/claude-opus-5", "openrouter", "OpenRouter", "Claude Opus 5 (OpenRouter)"),
+        ("anthropic/claude-sonnet-5", "openrouter", "OpenRouter", "Claude Sonnet 5 (OpenRouter)"),
+        ("openai/gpt-5.6-sol", "openrouter", "OpenRouter", "GPT-5.6 Sol (OpenRouter)"),
+        ("openai/gpt-5.5", "openrouter", "OpenRouter", "GPT-5.5 (OpenRouter)"),
     ]
     for model_id, provider_id, provider_name, display_name in defaults:
         if model_id not in known_model_ids:
@@ -696,8 +635,8 @@ async def list_builder_models(request: Request) -> AvailableModelsResponse:
 @router.post("/frontend/generate", response_model=FrontendGenerateResponse)
 async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequest) -> FrontendGenerateResponse:
     """Generate a deployable custom chatbot frontend as a single HTML file."""
-    base_url, api_key = _get_provider_credentials(body.provider_id)
-    if not api_key:
+    base_url, api_key, ready = _get_provider_credentials(body.provider_id)
+    if not ready:
         return FrontendGenerateResponse(
             html=_fallback_frontend(body),
             summary="Generated a local premium fallback frontend because the model API key is not configured.",
@@ -758,8 +697,8 @@ async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequ
 @router.post("/plan-chatbot")
 async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
     """Generate a complete chatbot build plan from a natural-language prompt."""
-    base_url, api_key = _get_provider_credentials(body.provider_id)
-    if not api_key:
+    base_url, api_key, ready = _get_provider_credentials(body.provider_id)
+    if not ready:
         return _fallback_plan(body.prompt)
 
     messages = [
@@ -785,8 +724,8 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
 @router.post("/normalize-api")
 async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> dict:
     """Turn messy API notes, curl commands, or malformed docs into a platform tool config."""
-    base_url, api_key = _get_provider_credentials(body.provider_id)
-    if not api_key:
+    base_url, api_key, ready = _get_provider_credentials(body.provider_id)
+    if not ready:
         guessed_url = re.search(r"https?://[^\s'\"`]+", body.raw_api)
         api_url = guessed_url.group(0) if guessed_url else "https://api.example.com/path"
         method_match = re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", body.raw_api, re.I)

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bot, Cable, Code2, ExternalLink, PlayCircle, Rocket, Send, Trash2, Wand2, Wrench, X } from 'lucide-react';
 import { applyBuilderPlan, generateBuilderConfig, generateFrontend, listBuilderModels, normalizeApi, planChatbot, streamBuilderChat } from '../api/builderApi';
 import type { BuilderType, ChatMessage, ModelInfo } from '../api/builderApi';
+import type { ThemePreset } from '../api/backendTypes';
+import { api } from '../api/client';
 import { useShallow } from 'zustand/react/shallow';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
@@ -10,7 +12,7 @@ type Tab = 'build' | 'api' | 'triggers' | 'frontend' | 'deploy';
 type BuildKind = BuilderType | 'chatbot' | 'api' | 'frontend';
 
 const compactJson = (value: unknown) => JSON.stringify(value, null, 2);
-const FRONTEND_MODEL_ID = 'google/gemini-3.1-pro-preview';
+const FRONTEND_MODEL_ID = 'google/gemini-3.6-flash';
 
 const GeneratingBubble = () => (
     <div className="inline-flex items-center gap-2 text-slate-500">
@@ -44,6 +46,11 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [frontendHtml, setFrontendHtml] = useState('');
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
+    const [messageIsError, setMessageIsError] = useState(false);
+    const [deployTitle, setDeployTitle] = useState('');
+    const [deployGreeting, setDeployGreeting] = useState('Hi, how can I help?');
+    const [deployTheme, setDeployTheme] = useState('midnight');
+    const [themes, setThemes] = useState<ThemePreset[]>([]);
 
     // Selector-scoped so this panel doesn't re-render on every node/edge change on the canvas.
     const { currentWorkflowId, workflowName } = useWorkflowStore(
@@ -76,8 +83,21 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 }
             })
             .catch(() => undefined);
+        api<ThemePreset[]>('/api/v1/deployments/themes')
+            .then(setThemes)
+            .catch(() => undefined);
         fetchOperationsData();
     }, []);
+
+    const reportSuccess = (text: string) => {
+        setMessageIsError(false);
+        setMessage(text);
+    };
+
+    const reportError = (text: string) => {
+        setMessageIsError(true);
+        setMessage(text);
+    };
 
     const providerModels = useMemo(
         () => models.filter((model) => model.provider_id === providerId),
@@ -332,9 +352,15 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         }
     };
 
+    const deployBranding = () => ({
+        title: deployTitle.trim() || workflowLabel,
+        greeting: deployGreeting.trim() || 'Hi, how can I help?',
+        theme: deployTheme,
+    });
+
     const runFlashDeploy = async () => {
         if (!workflowId) {
-            setMessage('Save or load a workflow first.');
+            reportError('Save or load a workflow first.');
             return;
         }
         setBusy(true);
@@ -342,15 +368,14 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
             const deployment = await flashDeploy({
                 workflow_id: workflowId,
                 name: workflowId,
-                title: workflowLabel,
-                greeting: 'Hi, I am ready.',
+                ...deployBranding(),
                 provider_id: providerId,
                 model_id: modelId,
                 auth_mode: 'public',
             });
-            setMessage(`Flash deployed at ${deployment.url}`);
+            reportSuccess(`Flash deployed at ${deployment.url}`);
         } catch (error) {
-            setMessage((error as Error).message);
+            reportError((error as Error).message);
         } finally {
             setBusy(false);
         }
@@ -358,11 +383,11 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
 
     const runGeneratedFlashDeploy = async () => {
         if (!workflowId) {
-            setMessage('Save or load a workflow first.');
+            reportError('Save or load a workflow first.');
             return;
         }
         if (!frontendHtml) {
-            setMessage('Generate a frontend first.');
+            reportError('Generate a frontend first.');
             return;
         }
         setBusy(true);
@@ -370,17 +395,16 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
             const deployment = await flashDeploy({
                 workflow_id: workflowId,
                 name: `${workflowId}-custom-frontend`,
-                title: workflowLabel,
-                greeting: 'Hi, I am ready.',
+                ...deployBranding(),
                 provider_id: providerId,
                 model_id: modelId,
                 auth_mode: 'public',
                 frontend_html: frontendHtml,
                 frontend_source: 'ai_frontend_builder',
             });
-            setMessage(`Generated frontend deployed at ${deployment.url}`);
+            reportSuccess(`Generated frontend deployed at ${deployment.url}`);
         } catch (error) {
-            setMessage((error as Error).message);
+            reportError((error as Error).message);
         } finally {
             setBusy(false);
         }
@@ -626,6 +650,45 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                             Deployments are served by this app at <span className="font-mono">/d/&lt;name&gt;/</span> — same origin, no extra ports.
                         </p>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            Chatbot title
+                            <input
+                                value={deployTitle}
+                                onChange={(event) => setDeployTitle(event.target.value)}
+                                placeholder={workflowLabel}
+                                className="mt-1 w-full border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1.5 text-sm font-normal bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                            />
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            Greeting
+                            <input
+                                value={deployGreeting}
+                                onChange={(event) => setDeployGreeting(event.target.value)}
+                                placeholder="Hi, how can I help?"
+                                className="mt-1 w-full border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1.5 text-sm font-normal bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                            />
+                        </label>
+                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            Theme
+                            <div className="mt-1.5 grid grid-cols-3 gap-2">
+                                {(themes.length ? themes : [{ id: 'midnight', label: 'Midnight', vars: {} } as ThemePreset]).map((preset) => (
+                                    <button
+                                        key={preset.id}
+                                        type="button"
+                                        onClick={() => setDeployTheme(preset.id)}
+                                        className={`rounded-md border px-2 py-1.5 text-[11px] font-semibold transition-all ${deployTheme === preset.id ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/25' : 'border-slate-200 dark:border-slate-800'}`}
+                                        style={preset.vars?.bg ? { background: preset.vars.bg, color: preset.vars.text } : undefined}
+                                    >
+                                        <span className="flex items-center gap-1.5">
+                                            {preset.vars?.accent && (
+                                                <span className="h-2.5 w-2.5 rounded-full" style={{ background: preset.vars.accent }} />
+                                            )}
+                                            {preset.label}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <button onClick={runFlashDeploy} disabled={busy} className="w-full bg-[var(--color-primary)] text-white rounded-md py-2 text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                             <PlayCircle size={16} /> Flash Deploy
                         </button>
@@ -635,9 +698,13 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                     <div>
                                         <div className="text-sm font-semibold text-slate-900 dark:text-white">{deployment.title}</div>
                                         <div className="text-xs text-slate-500 dark:text-slate-400">{deployment.status} · {deployment.workflow_id}</div>
-                                        <a href={deployment.url} target="_blank" rel="noreferrer" className="text-xs text-[var(--color-primary)] inline-flex items-center gap-1 mt-1">
-                                            {deployment.url}<ExternalLink size={11} />
-                                        </a>
+                                        {deployment.status === 'error' ? (
+                                            <div className="text-xs text-red-600 dark:text-red-400 mt-1">{deployment.error || 'Generation failed.'}</div>
+                                        ) : (
+                                            <a href={deployment.url} target="_blank" rel="noreferrer" className="text-xs text-[var(--color-primary)] inline-flex items-center gap-1 mt-1">
+                                                {deployment.url}<ExternalLink size={11} />
+                                            </a>
+                                        )}
                                     </div>
                                     <button onClick={() => deleteDeployment(deployment.id)} className="text-red-600 p-1"><Trash2 size={14} /></button>
                                 </div>
@@ -646,7 +713,13 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     </>
                 )}
 
-                {message && <div className="text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-300 rounded-md p-3 whitespace-pre-wrap">{message}</div>}
+                {message && (
+                    <div className={`text-xs rounded-md p-3 whitespace-pre-wrap border ${messageIsError
+                        ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50 text-red-900 dark:text-red-300'
+                        : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-300'}`}>
+                        {message}
+                    </div>
+                )}
             </div>
         </aside>
     );

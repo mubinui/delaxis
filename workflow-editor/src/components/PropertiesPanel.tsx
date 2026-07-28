@@ -26,15 +26,6 @@ const AGENT_TYPES = [
     { id: 'conversable', name: 'Conversable Agent (Legacy)' }
 ];
 
-const PROVIDERS = [
-    { id: 'openrouter', name: 'OpenRouter' },
-    { id: 'vllm', name: 'vLLM (Self-Hosted)' },
-    { id: 'ollama', name: 'Ollama (Local)' },
-    { id: 'openai', name: 'OpenAI' },
-    { id: 'anthropic', name: 'Anthropic' },
-    { id: 'google', name: 'Google Gemini' },
-];
-
 const HUMAN_INPUT_MODES = [
     { id: 'NEVER', name: 'Never' },
     { id: 'ALWAYS', name: 'Always' },
@@ -59,7 +50,9 @@ export const PropertiesPanel = () => {
         })),
     );
     const isNodeDragging = useWorkflowStore((state) => state.isNodeDragging);
-    const { savedTools, executeTool, saveItem, updateItem } = useLibraryStore();
+    const { savedTools, executeTool, saveItem, updateItem, providers, fetchProviderModels } = useLibraryStore();
+    const [liveModels, setLiveModels] = useState<Record<string, string[]>>({});
+    const [loadingModels, setLoadingModels] = useState(false);
 
     // Integration state (gmail tools)
     const [gmailStatus, setGmailStatus] = useState<GmailStatus | null>(null);
@@ -381,7 +374,27 @@ export const PropertiesPanel = () => {
             providerId = modelName.split('/')[0];
         }
 
-        const showBaseUrl = providerId === 'vllm' || providerId === 'ollama';
+        const llmProviders = providers.filter(p => p.type === 'llm' && p.enabled !== false);
+        const selectedProvider = llmProviders.find(p => p.id === providerId);
+        const configuredModels = (selectedProvider?.models ?? [])
+            .map(m => String(m.name ?? ''))
+            .filter(Boolean);
+        // Live catalogue wins so newly released models show up without a config edit
+        const providerModels = liveModels[providerId] ?? configuredModels;
+
+        const loadLiveModels = async () => {
+            if (!providerId) return;
+            setLoadingModels(true);
+            try {
+                const result = await fetchProviderModels(providerId);
+                const names = (result.models as Array<{ name: string }> | undefined)?.map(m => m.name) ?? [];
+                setLiveModels(prev => ({ ...prev, [providerId]: names }));
+            } catch {
+                // Keep the configured list; the picker stays free-text either way
+            } finally {
+                setLoadingModels(false);
+            }
+        };
 
         return renderSection('Inference Driver', 'model_config', (
             <div className="space-y-4">
@@ -393,33 +406,57 @@ export const PropertiesPanel = () => {
                         className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
                     >
                         <option value="">Select Gateway Base...</option>
-                        {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {llmProviders.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {providerId && !selectedProvider && <option value={providerId}>{providerId}</option>}
                     </select>
                 </div>
 
                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Model Weight String</label>
+                    <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Model Weight String</label>
+                        <button
+                            type="button"
+                            onClick={loadLiveModels}
+                            disabled={!providerId || loadingModels}
+                            className="text-[10px] font-bold text-blue-600 dark:text-blue-400 disabled:opacity-40 hover:underline"
+                        >
+                            {loadingModels ? 'Loading…' : 'Refresh models'}
+                        </button>
+                    </div>
                     <input
                         type="text"
+                        list="oak-provider-models"
                         value={modelName}
                         onChange={(e) => updateNestedConfig('model_config', 'model', e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
-                        placeholder="openai/gpt-4o, google/gemini-2.5-pro"
+                        placeholder={providerModels[0] || 'gpt-4o, qwen-plus, llama3.1'}
+                    />
+                    <datalist id="oak-provider-models">
+                        {providerModels.map(name => <option key={name} value={name} />)}
+                    </datalist>
+                </div>
+
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Base URL Override</label>
+                    <input
+                        type="text"
+                        value={config.model_config?.base_url || ''}
+                        onChange={(e) => updateNestedConfig('model_config', 'base_url', e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                        placeholder={selectedProvider?.base_url || 'Leave blank to use the provider default'}
                     />
                 </div>
 
-                {showBaseUrl && (
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Base Uniform Resource Locator</label>
-                        <input
-                            type="text"
-                            value={config.model_config?.base_url || ''}
-                            onChange={(e) => updateNestedConfig('model_config', 'base_url', e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
-                            placeholder={providerId === 'ollama' ? 'http://localhost:11434' : 'https://api.vllm.ai/v1'}
-                        />
-                    </div>
-                )}
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">API Key Env Var</label>
+                    <input
+                        type="text"
+                        value={config.model_config?.api_key_env || ''}
+                        onChange={(e) => updateNestedConfig('model_config', 'api_key_env', e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                        placeholder={selectedProvider?.api_key_env || 'Leave blank to use the provider key'}
+                    />
+                </div>
 
                 <div className="space-y-1.5 pt-1">
                     <div className="flex justify-between items-center">

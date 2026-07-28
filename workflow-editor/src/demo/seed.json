@@ -140,26 +140,62 @@
  "builderModels": {
   "models": [
    {
-    "display_name": "GPT-5 (OpenRouter)",
-    "model_id": "openai/gpt-5",
+    "display_name": "GPT-5.5 (OpenRouter)",
+    "model_id": "openai/gpt-5.5",
     "provider_id": "openrouter",
     "provider_name": "OpenRouter"
    },
    {
-    "display_name": "GPT-4o (OpenRouter)",
-    "model_id": "openai/gpt-4o",
+    "display_name": "openai/gpt-5.6-sol (OpenRouter)",
+    "model_id": "openai/gpt-5.6-sol",
     "provider_id": "openrouter",
     "provider_name": "OpenRouter"
    },
    {
-    "display_name": "Claude Sonnet 4.6 (OpenRouter)",
-    "model_id": "anthropic/claude-sonnet-4-6",
+    "display_name": "google/gemini-3.6-flash (OpenRouter)",
+    "model_id": "google/gemini-3.6-flash",
     "provider_id": "openrouter",
     "provider_name": "OpenRouter"
    },
    {
-    "display_name": "Gemini 3.1 Pro Preview (OpenRouter)",
-    "model_id": "google/gemini-3.1-pro-preview",
+    "display_name": "google/gemini-3.5-flash (OpenRouter)",
+    "model_id": "google/gemini-3.5-flash",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "anthropic/claude-opus-5 (OpenRouter)",
+    "model_id": "anthropic/claude-opus-5",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "anthropic/claude-sonnet-5 (OpenRouter)",
+    "model_id": "anthropic/claude-sonnet-5",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "deepseek/deepseek-v4-pro (OpenRouter)",
+    "model_id": "deepseek/deepseek-v4-pro",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "qwen/qwen3.7-plus (OpenRouter)",
+    "model_id": "qwen/qwen3.7-plus",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "z-ai/glm-5.2 (OpenRouter)",
+    "model_id": "z-ai/glm-5.2",
+    "provider_id": "openrouter",
+    "provider_name": "OpenRouter"
+   },
+   {
+    "display_name": "moonshotai/kimi-k3 (OpenRouter)",
+    "model_id": "moonshotai/kimi-k3",
     "provider_id": "openrouter",
     "provider_name": "OpenRouter"
    },
@@ -170,22 +206,172 @@
     "provider_name": "OpenRouter"
    },
    {
-    "display_name": "google/gemini-3.1-flash-lite (OpenRouter)",
-    "model_id": "google/gemini-3.1-flash-lite",
-    "provider_id": "openrouter",
-    "provider_name": "OpenRouter"
-   },
-   {
-    "display_name": "google/gemini-3.1-flash (OpenRouter)",
-    "model_id": "google/gemini-3.1-flash",
-    "provider_id": "openrouter",
-    "provider_name": "OpenRouter"
-   },
-   {
     "display_name": "openai/gpt-oss-20b (vLLM (Self-hosted))",
     "model_id": "openai/gpt-oss-20b",
     "provider_id": "vllm",
     "provider_name": "vLLM (Self-hosted)"
+   },
+   {
+    "display_name": "gpt-5.6-sol (OpenAI)",
+    "model_id": "gpt-5.6-sol",
+    "provider_id": "openai",
+    "provider_name": "OpenAI"
+   },
+   {
+    "display_name": "gpt-5.6-terra (OpenAI)",
+    "model_id": "gpt-5.6-terra",
+    "provider_id": "openai",
+    "provider_name": "OpenAI"
+   },
+   {
+    "display_name": "gpt-5.6-luna (OpenAI)",
+    "model_id": "gpt-5.6-luna",
+    "provider_id": "openai",
+    "provider_name": "OpenAI"
+   },
+   {
+    "display_name": "gpt-5.5 (OpenAI)",
+    "model_id": "gpt-5.5",
+    "provider_id": "openai",
+    "provider_name": "OpenAI"
+   },
+   {
+    "display_name": "gpt-5.4-mini (OpenAI)",
+    "model_id": "gpt-5.4-mini",
+    "provider_id": "openai",
+    "provider_name": "OpenAI"
+   },
+   {
+    "display_name": "gpt-5.4-nano (OpenAI)",
+    "model_id": "gpt-5.4-nano",
+    "provider_id": "openai",
+    "provider_name": "OpenAI"
+   },
+   {
+    "display_name": "gemini-3.6-flash (Google Gemini)",
+    "model_id": "gemini-3.6-flash",
+    "provider_id": "gemini",
+    "provider_name": "Google Gemini"
+   },
+   {
+    "display_name": "gemini-3.5-flash (Google Gemini)",
+    "model_id": "gemini-3.5-flash",
+    "provider_id": "gemini",
+    "provider_name": "Google Gemini"
+   },
+   {
+    "display_name": "gemini-3.5-flash-lite (Google Gemini)",
+    "model_id": "gemini-3.5-flash-lite",
+    "provider_id": "gemini",
+    "provider_name": "Google Gemini"
+   },
+   {
+    "display_name": "gemini-3.1-pro-preview (Google Gemini)",
+    "model_id": "gemini-3.1-pro-preview",
+    "provider_id": "gemini",
+    "provider_name": "Google Gemini"
+   },
+   {
+    "display_name": "llama3.3 (Ollama (Local))",
+    "model_id": "llama3.3",
+    "provider_id": "ollama",
+    "provider_name": "Ollama (Local)"
+   },
+   {
+    "display_name": "qwen3 (Ollama (Local))",
+    "model_id": "qwen3",
+    "provider_id": "ollama",
+    "provider_name": "Ollama (Local)"
+   },
+   {
+    "display_name": "gpt-oss (Ollama (Local))",
+    "model_id": "gpt-oss",
+    "provider_id": "ollama",
+    "provider_name": "Ollama (Local)"
+   },
+   {
+    "display_name": "deepseek-v4-pro (DeepSeek)",
+    "model_id": "deepseek-v4-pro",
+    "provider_id": "deepseek",
+    "provider_name": "DeepSeek"
+   },
+   {
+    "display_name": "deepseek-v4-flash (DeepSeek)",
+    "model_id": "deepseek-v4-flash",
+    "provider_id": "deepseek",
+    "provider_name": "DeepSeek"
+   },
+   {
+    "display_name": "deepseek-chat (DeepSeek)",
+    "model_id": "deepseek-chat",
+    "provider_id": "deepseek",
+    "provider_name": "DeepSeek"
+   },
+   {
+    "display_name": "deepseek-reasoner (DeepSeek)",
+    "model_id": "deepseek-reasoner",
+    "provider_id": "deepseek",
+    "provider_name": "DeepSeek"
+   },
+   {
+    "display_name": "qwen3.7-plus (Qwen (DashScope))",
+    "model_id": "qwen3.7-plus",
+    "provider_id": "dashscope",
+    "provider_name": "Qwen (DashScope)"
+   },
+   {
+    "display_name": "qwen3.7-max (Qwen (DashScope))",
+    "model_id": "qwen3.7-max",
+    "provider_id": "dashscope",
+    "provider_name": "Qwen (DashScope)"
+   },
+   {
+    "display_name": "qwen3.7-flash (Qwen (DashScope))",
+    "model_id": "qwen3.7-flash",
+    "provider_id": "dashscope",
+    "provider_name": "Qwen (DashScope)"
+   },
+   {
+    "display_name": "qwen3.6-plus (Qwen (DashScope))",
+    "model_id": "qwen3.6-plus",
+    "provider_id": "dashscope",
+    "provider_name": "Qwen (DashScope)"
+   },
+   {
+    "display_name": "glm-5.2 (Zhipu GLM)",
+    "model_id": "glm-5.2",
+    "provider_id": "zhipu",
+    "provider_name": "Zhipu GLM"
+   },
+   {
+    "display_name": "glm-5.1 (Zhipu GLM)",
+    "model_id": "glm-5.1",
+    "provider_id": "zhipu",
+    "provider_name": "Zhipu GLM"
+   },
+   {
+    "display_name": "glm-5-turbo (Zhipu GLM)",
+    "model_id": "glm-5-turbo",
+    "provider_id": "zhipu",
+    "provider_name": "Zhipu GLM"
+   },
+   {
+    "display_name": "kimi-k3 (Moonshot Kimi)",
+    "model_id": "kimi-k3",
+    "provider_id": "moonshot",
+    "provider_name": "Moonshot Kimi"
+   },
+   {
+    "display_name": "kimi-k2.7-code (Moonshot Kimi)",
+    "model_id": "kimi-k2.7-code",
+    "provider_id": "moonshot",
+    "provider_name": "Moonshot Kimi"
+   },
+   {
+    "display_name": "kimi-k2.6 (Moonshot Kimi)",
+    "model_id": "kimi-k2.6",
+    "provider_id": "moonshot",
+    "provider_name": "Moonshot Kimi"
    }
   ]
  },
@@ -221,7 +407,7 @@
    "path": "data/deployments/support-chat",
    "provider_id": "openrouter",
    "status": "active",
-   "theme": "aurora",
+   "theme": "ocean",
    "title": "Support Assistant",
    "trigger_id": "trg_chat_demo",
    "updated_at": "2026-07-20T09:12:00+00:00",
@@ -318,6 +504,7 @@
  ],
  "providers": [
   {
+   "api_key_env": "OPENROUTER_API_KEY",
    "api_key_masked": "sk-demo-****************************",
    "base_url": "https://openrouter.ai/api/v1",
    "config": {},
@@ -326,53 +513,19 @@
    "etag": null,
    "id": "openrouter",
    "last_updated": null,
+   "litellm_prefix": "openrouter",
    "models": [
     {
      "capabilities": [
       "chat",
       "function_calling",
-      "reasoning",
+      "vision",
       "structured_outputs"
      ],
-     "context_window": 131072,
+     "context_window": 1050000,
      "default": true,
-     "litellm_string": "openrouter/openai/gpt-oss-20b",
-     "max_output_tokens": 131072,
-     "name": "openai/gpt-oss-20b",
-     "pricing": {
-      "currency": "USD",
-      "input_per_million_tokens": 0.02,
-      "note": "Cost-effective open-weight model with proven function calling",
-      "output_per_million_tokens": 0.1
-     },
-     "recommended_for": [
-      "production",
-      "function_calling",
-      "agentic_tasks"
-     ]
-    },
-    {
-     "capabilities": [
-      "chat",
-      "function_calling",
-      "structured_outputs"
-     ],
-     "context_window": 1048576,
-     "default": false,
-     "litellm_string": "openrouter/google/gemini-3.1-flash-lite",
-     "max_output_tokens": 65536,
-     "name": "google/gemini-3.1-flash-lite",
-     "pricing": {
-      "currency": "USD",
-      "input_per_million_tokens": 0.1,
-      "note": "Lightweight Gemini option for fast, lower-cost chatbot messaging and UI generation",
-      "output_per_million_tokens": 0.4
-     },
-     "recommended_for": [
-      "lightweight",
-      "chatbot_messaging",
-      "low_latency"
-     ]
+     "litellm_string": "openrouter/openai/gpt-5.6-sol",
+     "name": "openai/gpt-5.6-sol"
     },
     {
      "capabilities": [
@@ -382,21 +535,93 @@
       "structured_outputs"
      ],
      "context_window": 1048576,
-     "default": false,
-     "litellm_string": "openrouter/google/gemini-3.1-flash",
-     "max_output_tokens": 65536,
-     "name": "google/gemini-3.1-flash",
-     "pricing": {
-      "currency": "USD",
-      "input_per_million_tokens": 0.3,
-      "note": "Fast Gemini model for responsive chatbot messaging and multimodal prompts",
-      "output_per_million_tokens": 2.5
-     },
-     "recommended_for": [
-      "lightweight",
-      "chatbot_messaging",
-      "multimodal"
-     ]
+     "litellm_string": "openrouter/google/gemini-3.6-flash",
+     "name": "google/gemini-3.6-flash"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "litellm_string": "openrouter/google/gemini-3.5-flash",
+     "name": "google/gemini-3.5-flash"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 200000,
+     "litellm_string": "openrouter/anthropic/claude-opus-5",
+     "name": "anthropic/claude-opus-5"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 200000,
+     "litellm_string": "openrouter/anthropic/claude-sonnet-5",
+     "name": "anthropic/claude-sonnet-5"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "litellm_string": "openrouter/deepseek/deepseek-v4-pro",
+     "name": "deepseek/deepseek-v4-pro"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1000000,
+     "litellm_string": "openrouter/qwen/qwen3.7-plus",
+     "name": "qwen/qwen3.7-plus"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "litellm_string": "openrouter/z-ai/glm-5.2",
+     "name": "z-ai/glm-5.2"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "litellm_string": "openrouter/moonshotai/kimi-k3",
+     "name": "moonshotai/kimi-k3"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning"
+     ],
+     "context_window": 131072,
+     "litellm_string": "openrouter/openai/gpt-oss-20b",
+     "name": "openai/gpt-oss-20b"
     }
    ],
    "name": "OpenRouter",
@@ -404,14 +629,16 @@
    "version": null
   },
   {
+   "api_key_env": "VLLM_API_KEY",
    "api_key_masked": null,
-   "base_url": null,
+   "base_url": "http://localhost:8000/v1",
    "config": {},
    "description": "Self-hosted vLLM server for Gemma 3 12B with function calling.",
    "enabled": true,
    "etag": null,
    "id": "vllm",
    "last_updated": null,
+   "litellm_prefix": "hosted_vllm",
    "models": [
     {
      "capabilities": [
@@ -437,6 +664,395 @@
    "version": null
   },
   {
+   "api_key_env": "OPENAI_API_KEY",
+   "api_key_masked": "sk-demo-****************************",
+   "base_url": "https://api.openai.com/v1",
+   "config": {},
+   "description": "OpenAI platform (api.openai.com).",
+   "enabled": true,
+   "etag": null,
+   "id": "openai",
+   "last_updated": null,
+   "litellm_prefix": "openai",
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1050000,
+     "default": true,
+     "name": "gpt-5.6-sol"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1050000,
+     "name": "gpt-5.6-terra"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1050000,
+     "name": "gpt-5.6-luna"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1050000,
+     "name": "gpt-5.5"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 400000,
+     "name": "gpt-5.4-mini"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 400000,
+     "name": "gpt-5.4-nano"
+    }
+   ],
+   "name": "OpenAI",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "GEMINI_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+   "config": {},
+   "description": "Google AI Studio Gemini API. Uses the native provider when crewai[google-genai] is installed, otherwise the OpenAI-compatible endpoint below.",
+   "enabled": true,
+   "etag": null,
+   "id": "gemini",
+   "last_updated": null,
+   "litellm_prefix": "gemini",
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "default": true,
+     "name": "gemini-3.6-flash"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "name": "gemini-3.5-flash"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "name": "gemini-3.5-flash-lite"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "name": "gemini-3.1-pro-preview"
+    }
+   ],
+   "name": "Google Gemini",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": null,
+   "api_key_masked": null,
+   "base_url": "http://localhost:11434/v1",
+   "config": {},
+   "description": "Local Ollama server. Override the host with OLLAMA_API_BASE.",
+   "enabled": true,
+   "etag": null,
+   "id": "ollama",
+   "last_updated": null,
+   "litellm_prefix": "ollama",
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling"
+     ],
+     "default": true,
+     "name": "llama3.3"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning"
+     ],
+     "name": "qwen3"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling"
+     ],
+     "name": "gpt-oss"
+    }
+   ],
+   "name": "Ollama (Local)",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "LM_STUDIO_API_KEY",
+   "api_key_masked": null,
+   "base_url": "http://localhost:1234/v1",
+   "config": {},
+   "description": "Local LM Studio OpenAI-compatible server. Use the model id shown in LM Studio; override the host with LM_STUDIO_API_BASE.",
+   "enabled": true,
+   "etag": null,
+   "id": "lm-studio",
+   "last_updated": null,
+   "litellm_prefix": null,
+   "models": null,
+   "name": "LM Studio (Local)",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "DEEPSEEK_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://api.deepseek.com/v1",
+   "config": {},
+   "description": "DeepSeek platform (api.deepseek.com).",
+   "enabled": true,
+   "etag": null,
+   "id": "deepseek",
+   "last_updated": null,
+   "litellm_prefix": "deepseek",
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "default": true,
+     "name": "deepseek-v4-pro"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "name": "deepseek-v4-flash"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "name": "deepseek-chat",
+     "notes": "Stable alias for the current chat model"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "reasoning"
+     ],
+     "name": "deepseek-reasoner",
+     "notes": "Stable alias for the current reasoning model"
+    }
+   ],
+   "name": "DeepSeek",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "DASHSCOPE_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+   "config": {},
+   "description": "Alibaba Cloud DashScope OpenAI-compatible endpoint for Qwen models. International accounts: set base_url to https://dashscope-intl.aliyuncs.com/compatible-mode/v1.",
+   "enabled": true,
+   "etag": null,
+   "id": "dashscope",
+   "last_updated": null,
+   "litellm_prefix": null,
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1000000,
+     "default": true,
+     "name": "qwen3.7-plus"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1000000,
+     "name": "qwen3.7-max"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1000000,
+     "name": "qwen3.7-flash"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1000000,
+     "name": "qwen3.6-plus"
+    }
+   ],
+   "name": "Qwen (DashScope)",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "ZHIPUAI_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://open.bigmodel.cn/api/paas/v4",
+   "config": {},
+   "description": "Zhipu AI (bigmodel.cn) OpenAI-compatible endpoint for GLM models.",
+   "enabled": true,
+   "etag": null,
+   "id": "zhipu",
+   "last_updated": null,
+   "litellm_prefix": null,
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "default": true,
+     "name": "glm-5.2"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 204800,
+     "name": "glm-5.1"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 202752,
+     "name": "glm-5-turbo"
+    }
+   ],
+   "name": "Zhipu GLM",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "MOONSHOT_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://api.moonshot.cn/v1",
+   "config": {},
+   "description": "Moonshot AI (Kimi) OpenAI-compatible endpoint. International accounts: set base_url to https://api.moonshot.ai/v1.",
+   "enabled": true,
+   "etag": null,
+   "id": "moonshot",
+   "last_updated": null,
+   "litellm_prefix": null,
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 1048576,
+     "default": true,
+     "name": "kimi-k3"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 262144,
+     "name": "kimi-k2.7-code"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "context_window": 262144,
+     "name": "kimi-k2.6"
+    }
+   ],
+   "name": "Moonshot Kimi",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": null,
    "api_key_masked": null,
    "base_url": null,
    "config": {},
@@ -445,6 +1061,7 @@
    "etag": null,
    "id": "duckduckgo",
    "last_updated": null,
+   "litellm_prefix": null,
    "models": null,
    "name": "DuckDuckGo Search",
    "type": "tool",
@@ -502,7 +1119,7 @@
   "counts": {
    "agents": 7,
    "deployments": 1,
-   "providers": 3,
+   "providers": 11,
    "tools": 9,
    "workflows": 8
   },

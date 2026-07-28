@@ -61,17 +61,20 @@ interface LibraryState {
     updateProvider: (providerId: string, body: Partial<ApiProvider> & { api_key?: string }) => Promise<ApiProvider>;
     deleteProvider: (providerId: string) => Promise<void>;
     testProvider: (providerId: string) => Promise<JsonObject>;
+    fetchProviderModels: (providerId: string) => Promise<JsonObject>;
 
     previewSwagger: (url: string) => Promise<JsonObject>;
     importSwagger: (url: string, selectedEndpoints: string[]) => Promise<JsonObject>;
 }
 
 const slugify = (value: string, fallback: string) => {
+    // Backend ids must match ^[a-z0-9][a-z0-9_-]*$ — hyphens are allowed
+    // (lm-studio), but not as the first character.
     const slug = value
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9_-]+/g, '_')
-        .replace(/^_+|_+$/g, '');
+        .replace(/^[_-]+|[_-]+$/g, '');
     return slug || fallback;
 };
 
@@ -149,7 +152,13 @@ const itemToAgentCreate = (item: Partial<LibraryItem>) => {
     // validation, so send null when a real model hasn't been configured. The
     // runtime then falls back to the environment default model.
     const hasModel = Boolean(modelConfig && modelConfig.provider_id && modelConfig.model);
-    const llm_config = hasModel ? modelConfig : null;
+    // Empty strings would override the provider defaults with nothing, so drop them
+    const llm_config = hasModel
+        ? Object.fromEntries(
+            Object.entries(modelConfig).filter(([key, value]) =>
+                !(['base_url', 'api_key_env'].includes(key) && !value)),
+        )
+        : null;
 
     return {
         id,
@@ -464,6 +473,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
                 description: body.description ?? '',
                 base_url: body.base_url ?? null,
                 api_key: body.api_key ?? null,
+                api_key_env: body.api_key_env ?? null,
+                litellm_prefix: body.litellm_prefix ?? null,
+                models: body.models ?? null,
                 enabled: body.enabled ?? true,
                 config: body.config ?? {},
             }),
@@ -487,6 +499,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     },
 
     testProvider: (providerId) => api<JsonObject>(`/api/v1/api-providers/${providerId}/test`, { method: 'POST' }),
+
+    // Reads the provider's live /models catalogue so pickers do not depend on
+    // the hardcoded list in api_providers.json going stale.
+    fetchProviderModels: (providerId) => api<JsonObject>(`/api/v1/api-providers/${providerId}/models`),
 
     previewSwagger: async (url) => api<JsonObject>('/api/v1/tools/import-swagger/preview', {
         method: 'POST',

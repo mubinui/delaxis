@@ -80,6 +80,147 @@ const withoutApiKey = (body: Json): Json => {
 
 type Handler = (match: RegExpMatchArray, body: Json, init: RequestInit) => Response | Promise<Response>;
 
+const DEMO_THEMES = [
+    {
+        "id": "midnight",
+        "label": "Midnight",
+        "vars": {
+            "bg": "#101820",
+            "surface": "#121d29",
+            "panel": "#0f1720",
+            "border": "#263241",
+            "text": "#e6edf3",
+            "muted": "#9fb0c2",
+            "accent": "#2f6fed",
+            "accent-text": "#ffffff",
+            "assistant-bubble": "#1b2a3a",
+            "assistant-border": "#314257",
+            "input-bg": "#111c28",
+            "input-border": "#34465c",
+            "code-bg": "#0b1220",
+            "code-text": "#f8fafc",
+            "link": "#93c5fd",
+            "ok": "#74d99f",
+            "shadow": "rgba(0,0,0,.28)"
+        }
+    },
+    {
+        "id": "daylight",
+        "label": "Daylight",
+        "vars": {
+            "bg": "#f6f7fb",
+            "surface": "#ffffff",
+            "panel": "#eef1f7",
+            "border": "#d8deea",
+            "text": "#172033",
+            "muted": "#5b6b83",
+            "accent": "#2563eb",
+            "accent-text": "#ffffff",
+            "assistant-bubble": "#eef3ff",
+            "assistant-border": "#dbe4f8",
+            "input-bg": "#ffffff",
+            "input-border": "#cbd5e1",
+            "code-bg": "#111827",
+            "code-text": "#f8fafc",
+            "link": "#2563eb",
+            "ok": "#16a34a",
+            "shadow": "rgba(15,23,42,.12)"
+        }
+    },
+    {
+        "id": "ocean",
+        "label": "Ocean",
+        "vars": {
+            "bg": "#04121b",
+            "surface": "#072433",
+            "panel": "#051a26",
+            "border": "#12405a",
+            "text": "#d8f0fa",
+            "muted": "#86b3c7",
+            "accent": "#06b6d4",
+            "accent-text": "#04222d",
+            "assistant-bubble": "#0a3346",
+            "assistant-border": "#155a77",
+            "input-bg": "#06202e",
+            "input-border": "#17506c",
+            "code-bg": "#021018",
+            "code-text": "#e0f2fe",
+            "link": "#67e8f9",
+            "ok": "#5eead4",
+            "shadow": "rgba(0,0,0,.35)"
+        }
+    },
+    {
+        "id": "forest",
+        "label": "Forest",
+        "vars": {
+            "bg": "#0c130d",
+            "surface": "#131f15",
+            "panel": "#0f1810",
+            "border": "#28402b",
+            "text": "#e7f0e7",
+            "muted": "#9bb59d",
+            "accent": "#22c55e",
+            "accent-text": "#052e13",
+            "assistant-bubble": "#1a2b1c",
+            "assistant-border": "#2f4a33",
+            "input-bg": "#122014",
+            "input-border": "#33523a",
+            "code-bg": "#081109",
+            "code-text": "#ecfdf5",
+            "link": "#86efac",
+            "ok": "#4ade80",
+            "shadow": "rgba(0,0,0,.32)"
+        }
+    },
+    {
+        "id": "sunset",
+        "label": "Sunset",
+        "vars": {
+            "bg": "#1a1023",
+            "surface": "#241531",
+            "panel": "#1e1229",
+            "border": "#3f2a52",
+            "text": "#f4e8f7",
+            "muted": "#bda3c9",
+            "accent": "#f97316",
+            "accent-text": "#331303",
+            "assistant-bubble": "#2e1c3d",
+            "assistant-border": "#4c3361",
+            "input-bg": "#251733",
+            "input-border": "#503a66",
+            "code-bg": "#140b1c",
+            "code-text": "#fdf4ff",
+            "link": "#fdba74",
+            "ok": "#86efac",
+            "shadow": "rgba(0,0,0,.35)"
+        }
+    },
+    {
+        "id": "mono",
+        "label": "Mono",
+        "vars": {
+            "bg": "#ffffff",
+            "surface": "#ffffff",
+            "panel": "#f4f4f5",
+            "border": "#d4d4d8",
+            "text": "#111111",
+            "muted": "#52525b",
+            "accent": "#111111",
+            "accent-text": "#ffffff",
+            "assistant-bubble": "#f4f4f5",
+            "assistant-border": "#d4d4d8",
+            "input-bg": "#ffffff",
+            "input-border": "#a1a1aa",
+            "code-bg": "#18181b",
+            "code-text": "#fafafa",
+            "link": "#111111",
+            "ok": "#16a34a",
+            "shadow": "rgba(0,0,0,.10)"
+        }
+    }
+];
+
 const routes: [string, RegExp, Handler][] = [
     // ---- workflows ----
     ['GET', /^\/workflows$/, () => json(state.workflows)],
@@ -282,14 +423,15 @@ const routes: [string, RegExp, Handler][] = [
 
     // ---- deployments ----
     ['GET', /^\/deployments$/, () => json(state.deployments)],
+    ['GET', /^\/deployments\/themes$/, () => json(DEMO_THEMES)],
     ['POST', /^\/deployments\/preview$/, async (_m, body) => {
         await settle(400);
+        const id = slugify(String(body.name ?? body.workflow_id ?? ''), 'deployment').replace(/_/g, '-');
         return json({
-            title: body.title ?? 'Untitled deployment',
-            greeting: body.greeting ?? 'Hello!',
-            theme: body.theme ?? 'midnight',
+            url: `/d/${id}/`,
+            path: `data/deployments/${id}`,
+            warnings: [],
             html: '<!doctype html><title>Preview</title><p>Deployment preview is generated server-side in a full install.</p>',
-            demo: true,
         });
     }],
     ['POST', /^\/deployments\/flash$/, async (_m, body) => {

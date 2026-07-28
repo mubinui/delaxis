@@ -84,8 +84,11 @@ def _provider_to_response(
         "name": provider.get("name", provider["id"]),
         "type": provider.get("type", "api"),
         "description": provider.get("description", ""),
-        "base_url": provider.get("base_url"),
+        "base_url": provider.get("base_url") or provider.get("default_base_url"),
         "api_key_masked": mask_api_key(provider.get("api_key")),
+        "api_key_env": (provider.get("auth") or {}).get("env_var"),
+        "litellm_prefix": provider.get("litellm_prefix"),
+        "models": provider.get("models") or None,
         "enabled": provider.get("enabled", True),
         "config": provider.get("config", {}),
     }
@@ -136,11 +139,7 @@ async def list_api_providers(
         responses = []
         for provider in config.get("providers", []):
             # Add models from config if present
-            provider_response = _provider_to_response(provider)
-            # Include models in the response for LLM providers
-            if provider.get("models"):
-                provider_response.models = provider.get("models")
-            responses.append(provider_response)
+            responses.append(_provider_to_response(provider))
         
         return responses
         
@@ -204,12 +203,25 @@ async def create_api_provider(
             "enabled": body.enabled,
             "config": body.config,
         }
-        
+
         if body.base_url:
             provider_dict["base_url"] = body.base_url
-        
+
         if body.api_key:
             provider_dict["api_key"] = body.api_key
+
+        if body.litellm_prefix:
+            provider_dict["litellm_prefix"] = body.litellm_prefix
+
+        if body.models:
+            provider_dict["models"] = body.models
+
+        if body.api_key_env:
+            provider_dict["auth"] = {
+                "scheme": "bearer",
+                "env_var": body.api_key_env,
+                "required": not body.api_key,
+            }
         
         # Add to config
         if "providers" not in config:
@@ -376,7 +388,14 @@ async def update_api_provider(
         # Update provider
         provider = config["providers"][provider_idx]
         update_data = body.model_dump(exclude_unset=True)
-        
+
+        # api_key_env is persisted under auth.env_var, not as a raw key
+        api_key_env = update_data.pop("api_key_env", None)
+        if api_key_env:
+            auth = provider.get("auth") or {"scheme": "bearer", "required": True}
+            auth["env_var"] = api_key_env
+            provider["auth"] = auth
+
         # Apply updates
         for key, value in update_data.items():
             if value is not None:
@@ -506,6 +525,94 @@ async def delete_api_provider(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete API provider: {str(e)}",
         )
+
+
+@router.get("/{provider_id}/models")
+async def list_provider_models(
+    request: Request,
+    provider_id: str,
+    live: bool = True,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """List a provider's models, querying its live catalogue when possible.
+
+    Hardcoded model lists go stale as providers ship new releases, so the
+    authoritative source is the provider's own OpenAI-compatible ``/models``
+    endpoint. The configured list in api_providers.json is the offline
+    fallback (and is merged in so curated entries never disappear).
+    """
+    from src.config.provider_registry import ProviderResolutionError, resolve_openai_endpoint
+
+    config = _load_api_providers_config()
+    provider = next((p for p in config.get("providers", []) if p["id"] == provider_id), None)
+    if provider is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"API provider not found: {provider_id}",
+        )
+
+    configured = [str(m.get("name")) for m in provider.get("models", []) if m.get("name")]
+    result = {
+        "provider_id": provider_id,
+        "models": [{"name": name, "source": "configured"} for name in configured],
+        "source": "configured",
+        "live": False,
+        "warning": None,
+    }
+
+    if not live:
+        return result
+
+    try:
+        base_url, api_key, auth_required = resolve_openai_endpoint(provider_id)
+    except ProviderResolutionError as exc:
+        result["warning"] = str(exc)
+        return result
+
+    if not base_url:
+        result["warning"] = "Provider has no base_url to query."
+        return result
+    if auth_required and not api_key:
+        result["warning"] = "No API key configured, showing the saved model list."
+        return result
+
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    endpoint = f"{base_url.rstrip('/')}/models"
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(endpoint, headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+    except Exception as exc:
+        logger.info("provider_models_live_fetch_failed", provider_id=provider_id, error=str(exc))
+        result["warning"] = f"Could not reach {endpoint}: {exc}"
+        return result
+
+    entries = payload.get("data") if isinstance(payload, dict) else payload
+    discovered: list[str] = []
+    if isinstance(entries, list):
+        for entry in entries:
+            name = entry.get("id") or entry.get("name") if isinstance(entry, dict) else entry
+            if isinstance(name, str) and name:
+                discovered.append(name)
+
+    if not discovered:
+        result["warning"] = f"{endpoint} returned no models."
+        return result
+
+    # Configured entries first so curated defaults stay at the top of pickers
+    merged = [{"name": name, "source": "configured"} for name in configured]
+    seen = set(configured)
+    for name in sorted(discovered):
+        if name not in seen:
+            merged.append({"name": name, "source": "live"})
+            seen.add(name)
+
+    result.update({"models": merged, "source": "live", "live": True, "count": len(discovered)})
+    return result
 
 
 @router.post("/{provider_id}/test", response_model=ConnectionTestResponse)

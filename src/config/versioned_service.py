@@ -185,7 +185,7 @@ class VersionedConfigService:
                     etag=new_etag,
                     config_data=updates,
                     created_at=datetime.utcnow(),
-                    updated_by=user_id,
+                    updated_by=str(user_id) if user_id else None,
                     change_summary=change_summary or "Initial configuration",
                 )
                 db_session.add(new_snapshot)
@@ -269,7 +269,7 @@ class VersionedConfigService:
                 etag=new_etag,
                 config_data=updates,
                 created_at=datetime.utcnow(),
-                updated_by=user_id,
+                updated_by=str(user_id) if user_id else None,
                 change_summary=change_summary,
             )
             db_session.add(new_snapshot)
@@ -398,7 +398,7 @@ class VersionedConfigService:
                 etag=new_etag,
                 config_data=target_snapshot.config_data,
                 created_at=datetime.utcnow(),
-                updated_by=user_id,
+                updated_by=str(user_id) if user_id else None,
                 change_summary=f"Rollback to version {target_version}",
             )
             db_session.add(rollback_snapshot)

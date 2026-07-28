@@ -384,25 +384,26 @@ def test_api_provider_invalid_type():
 
 def test_api_provider_invalid_id_format():
     """Test that API providers with invalid ID format are rejected."""
-    # ID with uppercase letters
-    with pytest.raises(ValidationError) as exc_info:
-        APIProviderCreateRequest(
-            id="TestProvider",
-            name="Test Provider",
-            type="llm",
-            description="Test description"
-        )
-    assert "id" in str(exc_info.value).lower()
-    
-    # ID with special characters
-    with pytest.raises(ValidationError) as exc_info:
-        APIProviderCreateRequest(
-            id="test-provider",
-            name="Test Provider",
-            type="llm",
-            description="Test description"
-        )
-    assert "id" in str(exc_info.value).lower()
+    for invalid_id in ["TestProvider", "test provider", "test.provider", "-test", "test/provider"]:
+        with pytest.raises(ValidationError) as exc_info:
+            APIProviderCreateRequest(
+                id=invalid_id,
+                name="Test Provider",
+                type="llm",
+                description="Test description"
+            )
+        assert "id" in str(exc_info.value).lower()
+
+
+def test_api_provider_hyphenated_id_is_accepted():
+    """Hyphens are needed for real provider ids like lm-studio and zhipu-ai."""
+    provider = APIProviderCreateRequest(
+        id="lm-studio",
+        name="LM Studio",
+        type="llm",
+        description="Local OpenAI-compatible server"
+    )
+    assert provider.id == "lm-studio"
 
 
 def test_validation_error_messages_are_specific():

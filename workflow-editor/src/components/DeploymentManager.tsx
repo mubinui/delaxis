@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Rocket, Code, Copy, Check, Terminal, Layers, X, ExternalLink, Trash2, RefreshCw } from 'lucide-react';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { useLibraryStore } from '../stores/libraryStore';
+import type { DeploymentConfig } from '../api/backendTypes';
 
 interface DeploymentManagerProps {
     onClose: () => void;
@@ -46,8 +47,11 @@ export const DeploymentManager: React.FC<DeploymentManagerProps> = ({ onClose })
         }
     };
 
-    const embedFor = (url: string) =>
-        `<iframe\n  src="${origin}${url}"\n  style="width: 100%; height: 640px; border: 0; border-radius: 12px;"\n  title="AI Chatbot"\n></iframe>`;
+    // Attribute values are user-controlled (deployment titles), so quote-escape them
+    const attr = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+    const embedFor = (deployment: DeploymentConfig) =>
+        `<iframe\n  src="${origin}${deployment.url}"\n  style="width: 100%; height: 640px; border: 0; border-radius: 12px;"\n  title="${attr(deployment.title || 'AI Chatbot')}"\n></iframe>`;
 
     const apiSnippet = `# 1. Create a session for the workflow
 curl -X POST ${origin}/api/v1/sessions \\
@@ -162,7 +166,7 @@ curl -X POST ${origin}/api/v1/sessions/<session_id>/messages \\
                                     </a>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
-                                    <CopyButton text={embedFor(deployment.url)} label="Copy embed" />
+                                    <CopyButton text={embedFor(deployment)} label="Copy embed" />
                                     <button
                                         onClick={() => void deleteDeployment(deployment.id)}
                                         className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
@@ -178,21 +182,29 @@ curl -X POST ${origin}/api/v1/sessions/<session_id>/messages \\
 
                 {activeTab === 'embed' && (
                     <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                                Paste this iframe into any page to embed a deployed chatbot.
-                            </span>
-                            <CopyButton
-                                text={embedFor(deployments[0]?.url ?? '/d/<deployment-name>/')}
-                                label="Copy snippet"
-                            />
-                        </div>
-                        <pre className="p-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-mono text-gray-800 dark:text-gray-200 overflow-x-auto leading-relaxed">
-                            {embedFor(deployments[0]?.url ?? '/d/<deployment-name>/')}
-                        </pre>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            The page is served by this Open Agent Kit instance — make it reachable from wherever you embed it.
-                        </p>
+                        {deployments.length === 0 ? (
+                            <div className="p-8 rounded-xl border border-dashed border-gray-300 dark:border-slate-700 text-center">
+                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">No deployments yet</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Flash Deploy a workflow first — the embed snippet appears here once a chatbot is live.
+                                </p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                        Paste this iframe into any page to embed a deployed chatbot.
+                                    </span>
+                                    <CopyButton text={embedFor(deployments[0])} label="Copy snippet" />
+                                </div>
+                                <pre className="p-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-mono text-gray-800 dark:text-gray-200 overflow-x-auto leading-relaxed">
+                                    {embedFor(deployments[0])}
+                                </pre>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    The page is served by this Open Agent Kit instance — make it reachable from wherever you embed it.
+                                </p>
+                            </>
+                        )}
                     </div>
                 )}
 
