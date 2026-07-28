@@ -9,6 +9,10 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![CrewAI](https://img.shields.io/badge/runtime-CrewAI-orange.svg)](https://crewai.com)
 
+### [▶ Try the live demo](https://mubinui.github.io/open-agent-kit/)
+
+No install, no API key — the real Studio running against an in-browser stub of the API.
+
 </div>
 
 ---
@@ -181,6 +185,27 @@ docker build -t open-agent-kit .     # full image build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### The GitHub Pages demo
+
+GitHub Pages serves static files only, so the [live demo](https://mubinui.github.io/open-agent-kit/)
+replaces the backend with an in-browser stub in `workflow-editor/src/demo/`. It answers every
+`/api/v1/*` route the Studio calls — including the SSE execution stream — from fixtures in
+`seed.json`, a scrubbed snapshot of the real API. Edits are real but in-memory and reset on reload;
+no LLM is ever called.
+
+```bash
+# Regenerate the fixtures from a running API server
+uv run uvicorn src.api.main:app --port 8000
+python scripts/build_demo_seed.py
+
+# Build the demo locally (output in workflow-editor/dist-demo)
+cd workflow-editor && npm run build:demo
+```
+
+`#demo` resolves to `src/demo/stub.ts` unless `VITE_DEMO_MODE=true`, so the stub and its fixtures
+never reach the bundle the API server ships. Pushing to the `demo` branch publishes via
+[pages-demo.yml](.github/workflows/pages-demo.yml).
 
 ## License
 
