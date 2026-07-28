@@ -14,7 +14,7 @@
    "max_consecutive_auto_reply": 10,
    "name": "DemoSelectorAgent",
    "retrieve_config": null,
-   "system_message": null,
+   "system_message": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
    "tools": [],
    "type": "conversable"
   },
@@ -32,7 +32,7 @@
    "max_consecutive_auto_reply": 10,
    "name": "GeneralAssistant",
    "retrieve_config": null,
-   "system_message": null,
+   "system_message": "You are a helpful AI assistant. Answer questions clearly, concisely, and accurately. Be friendly and professional in all interactions.",
    "tools": [],
    "type": "conversable"
   },
@@ -50,7 +50,7 @@
    "max_consecutive_auto_reply": 10,
    "name": "SearchAssistant",
    "retrieve_config": null,
-   "system_message": null,
+   "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
    "tools": [
     "web_search"
    ],
@@ -70,7 +70,7 @@
    "max_consecutive_auto_reply": 10,
    "name": "RAGAssistant",
    "retrieve_config": null,
-   "system_message": null,
+   "system_message": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
    "tools": [
     "rag_query",
     "rag_list_files",
@@ -92,7 +92,7 @@
    "max_consecutive_auto_reply": 10,
    "name": "CalculatorAgent",
    "retrieve_config": null,
-   "system_message": null,
+   "system_message": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
    "tools": [
     "calculate"
    ],
@@ -721,7 +721,430 @@
    "last_updated": null,
    "mcp_servers": null,
    "memory": null,
-   "metadata": null,
+   "metadata": {
+    "visual_canvas": {
+     "edges": [
+      {
+       "id": "xy-edge__tool-web-searchattach-search_assistanttools",
+       "source": "tool-web-search",
+       "sourceHandle": "attach",
+       "style": {
+        "stroke": "#94a3b8",
+        "strokeDasharray": "6 4",
+        "strokeWidth": 1.5
+       },
+       "target": "search_assistant",
+       "targetHandle": "tools",
+       "type": "straight"
+      },
+      {
+       "id": "xy-edge__tool-rag-queryattach-rag_assistanttools",
+       "source": "tool-rag-query",
+       "sourceHandle": "attach",
+       "style": {
+        "stroke": "#94a3b8",
+        "strokeDasharray": "6 4",
+        "strokeWidth": 1.5
+       },
+       "target": "rag_assistant",
+       "targetHandle": "tools",
+       "type": "straight"
+      },
+      {
+       "id": "xy-edge__tool-calculateattach-calculator_agenttools",
+       "source": "tool-calculate",
+       "sourceHandle": "attach",
+       "style": {
+        "stroke": "#94a3b8",
+        "strokeDasharray": "6 4",
+        "strokeWidth": 1.5
+       },
+       "target": "calculator_agent",
+       "targetHandle": "tools",
+       "type": "straight"
+      },
+      {
+       "id": "xy-edge__tool-memoryattach-demo_selector_agentmemory",
+       "source": "tool-memory",
+       "sourceHandle": "attach",
+       "style": {
+        "stroke": "#94a3b8",
+        "strokeDasharray": "6 4",
+        "strokeWidth": 1.5
+       },
+       "target": "demo_selector_agent",
+       "targetHandle": "memory",
+       "type": "straight"
+      },
+      {
+       "id": "xy-edge__tool-knowledgeattach-rag_assistantknowledge",
+       "source": "tool-knowledge",
+       "sourceHandle": "attach",
+       "style": {
+        "stroke": "#94a3b8",
+        "strokeDasharray": "6 4",
+        "strokeWidth": 1.5
+       },
+       "target": "rag_assistant",
+       "targetHandle": "knowledge",
+       "type": "straight"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__trigger-chat-demo_selector_agent",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "trigger-chat",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "demo_selector_agent",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__demo_selector_agent-search_assistant",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "demo_selector_agent",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "search_assistant",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__search_assistant-output-final",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "search_assistant",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "output-final",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__demo_selector_agent-rag_assistant",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "demo_selector_agent",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "rag_assistant",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__rag_assistant-output-final",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "rag_assistant",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "output-final",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__demo_selector_agent-calculator_agent",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "demo_selector_agent",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "calculator_agent",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__calculator_agent-output-final",
+       "markerEnd": {
+        "color": "#64748b",
+        "type": "arrowclosed"
+       },
+       "source": "calculator_agent",
+       "style": {
+        "stroke": "#64748b",
+        "strokeWidth": 2
+       },
+       "target": "output-final",
+       "type": "smoothstep"
+      }
+     ],
+     "nodes": [
+      {
+       "data": {
+        "config": {
+         "label": "On Chat",
+         "trigger_type": "chat",
+         "workflow_id": "demo_multi_agent"
+        },
+        "label": "On Chat"
+       },
+       "id": "trigger-chat",
+       "position": {
+        "x": 40,
+        "y": 322
+       },
+       "type": "trigger"
+      },
+      {
+       "data": {
+        "config": {
+         "agent_id": "demo_selector_agent",
+         "human_input_mode": "NEVER",
+         "id": "demo_selector_agent",
+         "instruction": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
+         "is_selector": true,
+         "model_config": {
+          "max_tokens": 800,
+          "model": "openai/gpt-oss-20b",
+          "provider_id": "openrouter",
+          "temperature": 0.7
+         },
+         "name": "DemoSelectorAgent",
+         "system_message": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
+         "tools": [],
+         "type": "conversable"
+        },
+        "description": "Routes user queries to the right specialist: web search, knowledge base, or calculator",
+        "label": "demo_selector_agent"
+       },
+       "id": "demo_selector_agent",
+       "position": {
+        "x": 300,
+        "y": 300
+       },
+       "type": "agent"
+      },
+      {
+       "data": {
+        "config": {
+         "agent_id": "search_assistant",
+         "human_input_mode": "NEVER",
+         "id": "search_assistant",
+         "instruction": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
+         "is_selector": false,
+         "model_config": {
+          "max_tokens": 800,
+          "model": "openai/gpt-oss-20b",
+          "provider_id": "openrouter",
+          "temperature": 0.7
+         },
+         "name": "SearchAssistant",
+         "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
+         "tools": [
+          "web_search"
+         ],
+         "type": "conversable"
+        },
+        "description": "Web search specialist using DuckDuckGo for current information",
+        "label": "search_assistant"
+       },
+       "id": "search_assistant",
+       "position": {
+        "x": 760,
+        "y": 20
+       },
+       "type": "agent"
+      },
+      {
+       "data": {
+        "config": {
+         "agent_id": "rag_assistant",
+         "human_input_mode": "NEVER",
+         "id": "rag_assistant",
+         "instruction": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
+         "is_selector": false,
+         "model_config": {
+          "max_tokens": 800,
+          "model": "openai/gpt-oss-20b",
+          "provider_id": "openrouter",
+          "temperature": 0.7
+         },
+         "name": "RAGAssistant",
+         "system_message": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
+         "tools": [
+          "rag_query",
+          "rag_list_files",
+          "rag_get_stats"
+         ],
+         "type": "conversable"
+        },
+        "description": "Knowledge base specialist with RAG (Retrieval-Augmented Generation) capabilities",
+        "label": "rag_assistant"
+       },
+       "id": "rag_assistant",
+       "position": {
+        "x": 760,
+        "y": 330
+       },
+       "type": "agent"
+      },
+      {
+       "data": {
+        "config": {
+         "agent_id": "calculator_agent",
+         "human_input_mode": "NEVER",
+         "id": "calculator_agent",
+         "instruction": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
+         "is_selector": false,
+         "model_config": {
+          "max_tokens": 800,
+          "model": "openai/gpt-oss-20b",
+          "provider_id": "openrouter",
+          "temperature": 0.7
+         },
+         "name": "CalculatorAgent",
+         "system_message": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
+         "tools": [
+          "calculate"
+         ],
+         "type": "conversable"
+        },
+        "description": "Math specialist that evaluates arithmetic expressions with the calculate tool",
+        "label": "calculator_agent"
+       },
+       "id": "calculator_agent",
+       "position": {
+        "x": 760,
+        "y": 660
+       },
+       "type": "agent"
+      },
+      {
+       "data": {
+        "config": {
+         "description": "Search the web using DuckDuckGo and return formatted results with titles, descriptions, and URLs. Useful for finding current information, facts, and resources.",
+         "enabled": true,
+         "entrypoint": "src.tools.web_search:search_web",
+         "id": "web_search",
+         "max_results": 5,
+         "name": "search_web"
+        },
+        "label": "search_web"
+       },
+       "id": "tool-web-search",
+       "position": {
+        "x": 760,
+        "y": 210
+       },
+       "type": "tool"
+      },
+      {
+       "data": {
+        "config": {
+         "description": "Query the RAG pipeline to retrieve relevant documents and generate answers. Parameters: collection (string), query (string), top_k (integer, default 5), rerank (boolean, default true).",
+         "enabled": true,
+         "entrypoint": "src.tools.rag_pipeline:query_rag",
+         "id": "rag_query",
+         "name": "rag_query"
+        },
+        "label": "rag_query"
+       },
+       "id": "tool-rag-query",
+       "position": {
+        "x": 680,
+        "y": 520
+       },
+       "type": "tool"
+      },
+      {
+       "data": {
+        "config": {
+         "description": "Safely evaluate an arithmetic expression and return the numeric result. Supports +, -, *, /, //, %, ** and parentheses.\n\nParameters:\n  - expression (required): The arithmetic expression to evaluate, e.g. '2 * (3 + 4)'",
+         "enabled": true,
+         "entrypoint": "src.tools.calculator:calculate",
+         "id": "calculate",
+         "name": "calculate"
+        },
+        "label": "calculate"
+       },
+       "id": "tool-calculate",
+       "position": {
+        "x": 760,
+        "y": 850
+       },
+       "type": "tool"
+      },
+      {
+       "data": {
+        "config": {
+         "memory_enabled": true,
+         "retention": "session",
+         "type": "memory"
+        },
+        "label": "Memory Store"
+       },
+       "id": "tool-memory",
+       "position": {
+        "x": 300,
+        "y": 490
+       },
+       "type": "tool"
+      },
+      {
+       "data": {
+        "config": {
+         "knowledge_enabled": true,
+         "top_k": 5,
+         "type": "knowledge"
+        },
+        "label": "Knowledge Source"
+       },
+       "id": "tool-knowledge",
+       "position": {
+        "x": 930,
+        "y": 520
+       },
+       "type": "tool"
+      },
+      {
+       "data": {
+        "config": {
+         "type": "output"
+        },
+        "label": "Answer"
+       },
+       "id": "output-final",
+       "position": {
+        "x": 1280,
+        "y": 352
+       },
+       "type": "output"
+      }
+     ],
+     "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 0.75
+     }
+    }
+   },
    "name": "Demo Multi-Agent Assistant",
    "output_schema": null,
    "persistence": "postgres",
@@ -758,7 +1181,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
        "tools": []
       },
       "description": "Routes to specialists",
@@ -773,7 +1196,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
        "tools": [
         "web_search"
        ]
@@ -790,7 +1213,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
        "tools": [
         "rag_query",
         "rag_list_files",
@@ -809,7 +1232,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
        "tools": [
         "calculate"
        ]
@@ -856,7 +1279,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
        "tools": [
         "web_search"
        ]
@@ -902,7 +1325,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
        "tools": [
         "rag_query",
         "rag_list_files",
@@ -950,7 +1373,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
        "tools": [
         "web_search"
        ]
@@ -967,7 +1390,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a helpful AI assistant. Answer questions clearly, concisely, and accurately. Be friendly and professional in all interactions.",
        "tools": []
       },
       "description": "Summary step",
@@ -1031,7 +1454,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
        "tools": [
         "web_search"
        ]
@@ -1048,7 +1471,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
        "tools": [
         "rag_query",
         "rag_list_files",
@@ -1067,7 +1490,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a helpful AI assistant. Answer questions clearly, concisely, and accurately. Be friendly and professional in all interactions.",
        "tools": []
       },
       "description": "Synthesis agent",
@@ -1115,7 +1538,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a helpful AI assistant. Answer questions clearly, concisely, and accurately. Be friendly and professional in all interactions.",
        "tools": []
       },
       "description": "Echo test agent",
@@ -1159,7 +1582,7 @@
         "provider_id": "openrouter",
         "temperature": 0.7
        },
-       "system_message": "You are a helpful assistant.",
+       "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
        "tools": [
         "web_search"
        ]
