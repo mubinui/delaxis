@@ -106,14 +106,55 @@ def _resolve_base_url(provider: dict[str, Any]) -> str | None:
 
 
 def _resolve_api_key(provider: dict[str, Any]) -> str | None:
+    """Key for a provider: inline (legacy) -> secret store -> environment.
+
+    Keys pasted in the studio go to the gitignored secret store rather than the
+    tracked config file. With nothing pasted, the environment variable is used —
+    which is what deployments rely on.
+    """
     inline = provider.get("api_key")
     if inline:
         return str(inline)
+
+    from src.config.provider_secrets import get_secret
+
+    stored = get_secret(str(provider.get("id") or ""))
+    if stored:
+        return stored
+
     auth = provider.get("auth") or {}
     env_var = auth.get("env_var") or provider.get("api_key_env")
     if env_var:
         return os.environ.get(str(env_var)) or None
     return None
+
+
+def resolve_api_key(provider_id: str) -> str | None:
+    """Public key lookup for a provider id."""
+    try:
+        return _resolve_api_key(_find_provider(provider_id))
+    except ProviderResolutionError:
+        return None
+
+
+def key_source(provider_id: str) -> str:
+    """Where a provider's key comes from: inline | secret_store | env | none."""
+    try:
+        provider = _find_provider(provider_id)
+    except ProviderResolutionError:
+        return "none"
+    if provider.get("api_key"):
+        return "inline"
+
+    from src.config.provider_secrets import has_secret
+
+    if has_secret(provider_id):
+        return "secret_store"
+    auth = provider.get("auth") or {}
+    env_var = auth.get("env_var") or provider.get("api_key_env")
+    if env_var and os.environ.get(str(env_var)):
+        return "env"
+    return "none"
 
 
 def _auth_required(provider: dict[str, Any]) -> bool:

@@ -17,9 +17,12 @@ from src.api.models import (
     ConfigHistoryEntry,
     ConfigHistoryResponse,
     ConnectionTestResponse,
+    ProviderCapabilitiesResponse,
 )
 from src.audit_logging import get_logger
 from src.config.api_provider_models import mask_api_key
+from src.config.provider_registry import key_source, resolve_api_key
+from src.config.provider_secrets import delete_secret, set_secret
 
 # Versioned config service is optional and requires PostgreSQL
 try:
@@ -85,21 +88,14 @@ def _provider_to_response(
         "type": provider.get("type", "api"),
         "description": provider.get("description", ""),
         "base_url": provider.get("base_url") or provider.get("default_base_url"),
-        "api_key_masked": mask_api_key(provider.get("api_key")),
+        "api_key_masked": mask_api_key(resolve_api_key(provider["id"])),
         "api_key_env": (provider.get("auth") or {}).get("env_var"),
+        "key_source": key_source(provider["id"]),
         "litellm_prefix": provider.get("litellm_prefix"),
         "models": provider.get("models") or None,
         "enabled": provider.get("enabled", True),
         "config": provider.get("config", {}),
     }
-    
-    # Handle auth field for backward compatibility
-    if "auth" in provider and "api_key" not in provider:
-        auth = provider["auth"]
-        if "env_var" in auth:
-            # Try to get API key from environment
-            api_key = os.getenv(auth["env_var"])
-            response_data["api_key_masked"] = mask_api_key(api_key)
     
     if version_info:
         response_data["version"] = version_info.version
@@ -207,8 +203,10 @@ async def create_api_provider(
         if body.base_url:
             provider_dict["base_url"] = body.base_url
 
+        # Never write the key into configs/api_providers.json — that file is
+        # tracked by git. It goes to the gitignored secret store instead.
         if body.api_key:
-            provider_dict["api_key"] = body.api_key
+            set_secret(body.id, body.api_key)
 
         if body.litellm_prefix:
             provider_dict["litellm_prefix"] = body.litellm_prefix
@@ -388,6 +386,12 @@ async def update_api_provider(
         # Update provider
         provider = config["providers"][provider_idx]
         update_data = body.model_dump(exclude_unset=True)
+
+        # Secrets never land in the tracked config file
+        new_api_key = update_data.pop("api_key", None)
+        if new_api_key:
+            set_secret(provider_id, new_api_key)
+        provider.pop("api_key", None)
 
         # api_key_env is persisted under auth.env_var, not as a raw key
         api_key_env = update_data.pop("api_key_env", None)
@@ -615,6 +619,77 @@ async def list_provider_models(
     return result
 
 
+@router.get("/{provider_id}/capabilities", response_model=ProviderCapabilitiesResponse)
+async def get_provider_capabilities(
+    request: Request,
+    provider_id: str,
+    model: str | None = None,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> ProviderCapabilitiesResponse:
+    """Report which settings this provider's route honours.
+
+    CrewAI's provider classes silently ignore unknown parameters, so the studio
+    hides fields a route would discard rather than showing controls that do
+    nothing. The effective route matters, not the declared one: a native SDK
+    that is not installed falls back to the OpenAI-compatible route, which has
+    a different parameter set and output-token spelling.
+    """
+    from src.config.provider_capabilities import AGENT_PARAMS, route_capabilities
+    from src.config.provider_registry import (
+        ProviderResolutionError,
+        compat_fallback,
+        resolve_llm,
+    )
+
+    try:
+        resolved = resolve_llm(provider_id, model or "probe-model")
+    except ProviderResolutionError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    effective = resolved
+    if resolved.native:
+        # Mirror the runtime: if the native SDK is missing we will fall back.
+        try:
+            from crewai import LLM  # noqa: F401
+
+            import importlib
+
+            importlib.import_module(
+                f"crewai.llms.providers.{resolved.crewai_provider}.completion"
+            )
+        except Exception:
+            effective = compat_fallback(resolved) or resolved
+
+    caps = route_capabilities(effective.crewai_provider)
+    return ProviderCapabilitiesResponse(
+        provider_id=provider_id,
+        crewai_provider=resolved.crewai_provider,
+        effective_provider=effective.crewai_provider,
+        native=effective.native,
+        output_token_param=caps.output_token_param,
+        supported_llm_params=list(caps.supported_llm_params),
+        agent_params=list(AGENT_PARAMS),
+        key_present=bool(resolve_api_key(provider_id)),
+        key_source=key_source(provider_id),
+        api_key_env=(_find_provider_dict(provider_id) or {}).get("auth", {}).get("env_var"),
+    )
+
+
+@router.delete("/{provider_id}/key", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_provider_key(
+    request: Request,
+    provider_id: str,
+    current_user: CurrentUser = Depends(require_admin),
+) -> None:
+    """Remove a stored key so the provider falls back to its env var."""
+    delete_secret(provider_id)
+
+
+def _find_provider_dict(provider_id: str) -> dict | None:
+    config = _load_api_providers_config()
+    return next((p for p in config.get("providers", []) if p.get("id") == provider_id), None)
+
+
 @router.post("/{provider_id}/test", response_model=ConnectionTestResponse)
 async def test_api_provider_connection(
     request: Request,
@@ -671,12 +746,7 @@ async def test_api_provider_connection(
                     details={"provider_id": provider_id, "type": provider_type}
                 )
             
-            # Check if API key is available
-            api_key = provider.get("api_key")
-            if not api_key and "auth" in provider:
-                auth = provider["auth"]
-                if "env_var" in auth:
-                    api_key = os.getenv(auth["env_var"])
+            api_key = resolve_api_key(provider_id)
             
             if not api_key:
                 return ConnectionTestResponse(

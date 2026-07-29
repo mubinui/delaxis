@@ -654,6 +654,9 @@ class APIProviderResponse(BaseModel):
     base_url: Optional[str] = None
     api_key_masked: Optional[str] = None
     api_key_env: Optional[str] = None
+    key_source: Optional[str] = Field(
+        default=None, description="Where the key comes from: inline | secret_store | env | none"
+    )
     litellm_prefix: Optional[str] = None
     enabled: bool
     config: Dict[str, Any] = {}
@@ -758,3 +761,20 @@ class WorkflowExecutionStatusResponse(BaseModel):
     max_concurrent: int
     queued_requests: int
     resource_limit_reached: bool
+
+
+class ProviderCapabilitiesResponse(BaseModel):
+    """What a provider's route actually honours, for studio field gating."""
+
+    provider_id: str
+    crewai_provider: str = Field(description="The declared route")
+    effective_provider: str = Field(
+        description="Route after native-SDK fallback; this is what the UI must gate on"
+    )
+    native: bool
+    output_token_param: Optional[str] = None
+    supported_llm_params: List[str] = Field(default_factory=list)
+    agent_params: List[str] = Field(default_factory=list)
+    key_present: bool = False
+    key_source: str = "none"
+    api_key_env: Optional[str] = None

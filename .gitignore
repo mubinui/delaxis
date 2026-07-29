@@ -68,3 +68,6 @@ configs/*.yml
 static/
 .crewai/
 tmp/
+
+# Provider API keys pasted in the studio (never commit)
+data/provider_secrets.json
