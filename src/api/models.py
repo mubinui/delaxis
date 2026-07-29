@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 class ConversationPattern(str, Enum):
@@ -201,6 +201,16 @@ class AgentConfigCreateRequest(BaseModel):
     max_consecutive_auto_reply: int = Field(default=10, ge=0)
     retrieve_config: Optional[dict[str, Any]] = None
     description: Optional[str] = None
+    is_selector: bool = Field(default=False, description="Agent routes/delegates to peer agents")
+    output_key: Optional[str] = Field(default=None, description="State key this agent writes its result to")
+    agent_settings: Optional[dict[str, Any]] = Field(
+        default=None, description="CrewAI Agent execution settings (max_iter, max_rpm, delegation, ...)"
+    )
+    model_config_override: Optional[dict[str, Any]] = Field(
+        default=None,
+        validation_alias=AliasChoices("model_config_override", "model_config"),
+        description="Untyped model settings merged last; accepts the studio's 'model_config' key",
+    )
 
 
 class AgentConfigResponse(BaseModel):
@@ -217,6 +227,16 @@ class AgentConfigResponse(BaseModel):
     max_consecutive_auto_reply: int = 10
     retrieve_config: Optional[dict[str, Any]] = None
     description: Optional[str] = None
+    is_selector: bool = Field(default=False, description="Agent routes/delegates to peer agents")
+    output_key: Optional[str] = Field(default=None, description="State key this agent writes its result to")
+    agent_settings: Optional[dict[str, Any]] = Field(
+        default=None, description="CrewAI Agent execution settings (max_iter, max_rpm, delegation, ...)"
+    )
+    model_config_override: Optional[dict[str, Any]] = Field(
+        default=None,
+        validation_alias=AliasChoices("model_config_override", "model_config"),
+        description="Untyped model settings merged last; accepts the studio's 'model_config' key",
+    )
 
 
 class AgentConfigUpdateRequest(BaseModel):
@@ -231,6 +251,13 @@ class AgentConfigUpdateRequest(BaseModel):
     max_consecutive_auto_reply: Optional[int] = None
     retrieve_config: Optional[dict[str, Any]] = None
     description: Optional[str] = None
+    is_selector: Optional[bool] = None
+    output_key: Optional[str] = None
+    agent_settings: Optional[dict[str, Any]] = None
+    model_config_override: Optional[dict[str, Any]] = Field(
+        default=None,
+        validation_alias=AliasChoices("model_config_override", "model_config"),
+    )
 
 
 # Tool Models

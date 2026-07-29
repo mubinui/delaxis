@@ -18,7 +18,8 @@ from typing import Any, Callable
 
 import structlog
 
-from src.config.agent_models import AgentConfig
+from src.config.agent_models import AgentConfig, LLMConfig
+from src.config.provider_capabilities import AGENT_PARAMS, filter_llm_params
 from src.config.loader import load_agents_config
 from src.config.tool_registry import ToolDefinition, get_tool_registry
 from src.config.workflow_models import WorkflowConfig
@@ -206,7 +207,7 @@ class CrewAIWorkflowRuntime:
             "tasks": tasks,
             "process": process,
             "memory": memory_active,
-            "verbose": False,
+            "verbose": bool(getattr(workflow, "verbose", False)),
             "cache": bool(getattr(workflow, "cache", True)),
             "task_callback": emitter.task_callback,
         }
@@ -216,13 +217,17 @@ class CrewAIWorkflowRuntime:
 
         if getattr(workflow, "planning", False):
             crew_kwargs["planning"] = True
-            crew_kwargs["planning_llm"] = self._resolve_llm_model({})
+            crew_kwargs["planning_llm"] = self._resolve_llm_model(
+                self._crew_llm_config(workflow, "planning_llm", agent_configs, workflow_agent_ids)
+            )
 
         if getattr(workflow, "max_rpm", None):
             crew_kwargs["max_rpm"] = int(workflow.max_rpm)
 
         if (process.value if hasattr(process, "value") else str(process)).lower().endswith("hierarchical"):
-            crew_kwargs["manager_llm"] = self._resolve_llm_model({})
+            crew_kwargs["manager_llm"] = self._resolve_llm_model(
+                self._crew_llm_config(workflow, "manager_llm", agent_configs, workflow_agent_ids)
+            )
             
         crew = Crew(**crew_kwargs)
 
@@ -347,6 +352,32 @@ class CrewAIWorkflowRuntime:
             
         return sources
 
+    def _crew_llm_config(
+        self,
+        workflow: Any,
+        field: str,
+        agent_configs: dict[str, Any],
+        workflow_agent_ids: list[str],
+    ) -> dict[str, Any]:
+        """Model config for a crew-level LLM (manager or planner).
+
+        An explicit workflow setting wins. Otherwise inherit the entry agent's
+        model rather than the global fallback: the hierarchical manager
+        delegates via tool calls, so a weaker model than the crew itself
+        produces delegations emitted as plain text.
+        """
+        explicit = getattr(workflow, field, None)
+        if isinstance(explicit, dict) and explicit:
+            return dict(explicit)
+        for agent_id in workflow_agent_ids:
+            config = agent_configs.get(agent_id)
+            if config is None:
+                continue
+            model_config = self._effective_model_config(config)
+            if model_config.get("model"):
+                return model_config
+        return {}
+
     def _effective_model_config(self, config: AgentConfig) -> dict[str, Any]:
         """Merge every place the studio/API can express an agent's model settings.
 
@@ -357,12 +388,23 @@ class CrewAIWorkflowRuntime:
         Priority: model_config_override > llm_config/model_client_config.
         """
         merged: dict[str, Any] = {}
-        try:
-            effective = config.get_effective_model_config()
-        except Exception:
-            effective = None
-        if effective is not None:
-            merged.update({k: v for k, v in effective.model_dump().items() if v is not None})
+        # get_effective_model_config() re-projects onto ModelClientConfig field
+        # by field, which drops every sampling parameter that model doesn't
+        # declare. Dump the source config instead so new fields survive.
+        llm_config = config.llm_config if isinstance(config.llm_config, LLMConfig) else None
+        if llm_config is not None:
+            merged.update(llm_config.model_dump(exclude_none=True))
+        elif config.model_client_config is not None:
+            merged.update(config.model_client_config.model_dump(exclude_none=True))
+        else:
+            try:
+                effective = config.get_effective_model_config()
+            except Exception:
+                effective = None
+            if effective is not None:
+                merged.update({k: v for k, v in effective.model_dump().items() if v is not None})
+        if config.agent_settings is not None:
+            merged.update(config.agent_settings.model_dump(exclude_none=True))
         override = config.model_config_override or {}
         merged.update({k: v for k, v in override.items() if v is not None})
         return merged
@@ -391,20 +433,49 @@ class CrewAIWorkflowRuntime:
             "backstory": config.system_message or config.description or "You are a highly capable enterprise AI assistant.",
             "llm": self._resolve_llm_model(model_config),
             "tools": tools,
-            "allow_delegation": bool(config.is_selector),
-            "max_iter": int(model_config.get("max_iter") or 20),
-            "verbose": False,
         }
+        agent_kwargs.update(self._agent_params(config, model_config))
         if memory_attached:
             agent_kwargs["memory"] = True
         if knowledge_sources:
             agent_kwargs["knowledge_sources"] = knowledge_sources
-        if model_config.get("max_rpm"):
-            agent_kwargs["max_rpm"] = int(model_config["max_rpm"])
-        if model_config.get("max_execution_time"):
-            agent_kwargs["max_execution_time"] = int(model_config["max_execution_time"])
 
         return agent_cls(**agent_kwargs)
+
+    @staticmethod
+    def _agent_params(config: AgentConfig, model_config: dict[str, Any]) -> dict[str, Any]:
+        """CrewAI Agent constructor settings, from agent_settings or model_config.
+
+        max_iter/max_rpm/max_execution_time historically travelled inside
+        model_config (the untyped override), so both sources are honoured.
+        """
+        _INT_PARAMS = {"max_iter", "max_rpm", "max_execution_time", "max_retry_limit"}
+        _BOOL_PARAMS = {
+            "allow_delegation",
+            "respect_context_window",
+            "cache",
+            "verbose",
+            "inject_date",
+            "use_system_prompt",
+        }
+
+        params: dict[str, Any] = {
+            # Selector agents delegate by default; an explicit setting wins below.
+            "allow_delegation": bool(config.is_selector),
+            "max_iter": 20,
+            "verbose": False,
+        }
+        for key in AGENT_PARAMS:
+            value = model_config.get(key)
+            if value is None:
+                continue
+            if key in _INT_PARAMS:
+                params[key] = int(value)
+            elif key in _BOOL_PARAMS:
+                params[key] = bool(value)
+            else:
+                params[key] = value
+        return params
 
     @staticmethod
     def _legacy_prefix_model(model: Any) -> str:
@@ -420,14 +491,43 @@ class CrewAIWorkflowRuntime:
         return model
 
     @staticmethod
-    def _sampling_params(model_config: dict[str, Any]) -> dict[str, Any]:
-        params = {
-            "temperature": model_config.get("temperature"),
-            "max_tokens": model_config.get("max_tokens"),
-            "timeout": model_config.get("timeout"),
-            "top_p": model_config.get("top_p"),
-        }
-        return {k: v for k, v in params.items() if v is not None}
+    def _sampling_params(
+        model_config: dict[str, Any], crewai_provider: str | None = None
+    ) -> dict[str, Any]:
+        """Sampling/limit parameters for the LLM constructor.
+
+        When a route is given, parameters it does not honour are dropped rather
+        than passed through — CrewAI's provider classes ignore unknown kwargs
+        silently, so an unsupported setting would look applied but do nothing.
+        `crewai_provider=None` keeps the unfiltered legacy behaviour.
+        """
+        candidates = (
+            "temperature",
+            "max_tokens",
+            "max_completion_tokens",
+            "max_output_tokens",
+            "timeout",
+            "top_p",
+            "top_k",
+            "presence_penalty",
+            "frequency_penalty",
+            "seed",
+            "reasoning_effort",
+            "stop",
+            "response_format",
+        )
+        params = {key: model_config.get(key) for key in candidates}
+        params = {k: v for k, v in params.items() if v is not None}
+        if crewai_provider is None:
+            return params
+        kept, dropped = filter_llm_params(crewai_provider, params)
+        if dropped:
+            logger.info(
+                "llm_params_unsupported_by_route",
+                crewai_provider=crewai_provider,
+                dropped=dropped,
+            )
+        return kept
 
     def _resolve_llm_model(self, model_config: dict[str, Any]) -> Any:
         model = model_config.get("model")
@@ -493,7 +593,10 @@ class CrewAIWorkflowRuntime:
 
         last_error: Exception | None = None
         for attempt in attempts:
-            llm_params = self._sampling_params(model_config)
+            # Keyed on the route actually being attempted: compat_fallback can
+            # recast a native provider as openai-compatible, which has a
+            # different parameter set and a different output-token spelling.
+            llm_params = self._sampling_params(model_config, attempt.crewai_provider)
             # Agent-level overrides always win over the provider defaults
             base_url = model_config.get("base_url") or attempt.base_url
             if base_url:

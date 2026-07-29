@@ -599,6 +599,21 @@ class WorkflowConfig(BaseModel):
         ge=1,
         description="Crew-wide requests-per-minute cap for LLM calls",
     )
+    verbose: bool = Field(
+        default=False,
+        description="Verbose crew execution logging",
+    )
+    manager_llm: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Model config for the hierarchical manager that delegates between agents. "
+            "Defaults to the entry agent's model; a weak manager emits delegations as plain text."
+        ),
+    )
+    planning_llm: dict[str, Any] | None = Field(
+        default=None,
+        description="Model config for the planning step. Defaults to the entry agent's model.",
+    )
     tracing: CrewAITracingConfig = Field(default_factory=CrewAITracingConfig)
     event_listeners: list[dict[str, Any]] = Field(default_factory=list)
     mcp_servers: list[dict[str, Any]] = Field(default_factory=list)

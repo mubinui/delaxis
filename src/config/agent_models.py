@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, Field, model_validator
 
@@ -47,6 +47,53 @@ class LLMConfig(BaseModel):
     )
     api_key_env: Optional[str] = Field(
         default=None, description="Environment variable holding the API key for this agent's provider"
+    )
+
+    # Sampling / limit parameters. Which of these reach the provider depends on
+    # the route — see src/config/provider_capabilities.py.
+    top_p: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Nucleus sampling cutoff")
+    top_k: Optional[int] = Field(default=None, ge=1, description="Top-k sampling (Gemini native route only)")
+    max_completion_tokens: Optional[int] = Field(default=None, ge=1, description="Output cap (OpenAI o-series spelling)")
+    max_output_tokens: Optional[int] = Field(default=None, ge=1, description="Output cap (Gemini spelling)")
+    presence_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
+    frequency_penalty: Optional[float] = Field(default=None, ge=-2.0, le=2.0)
+    seed: Optional[int] = Field(default=None, description="Sampling seed for reproducible output")
+    reasoning_effort: Optional[Literal["none", "low", "medium", "high"]] = Field(default=None)
+    stop: Optional[List[str]] = Field(default=None, description="Stop sequences")
+    response_format: Optional[dict] = Field(default=None, description='e.g. {"type": "json_object"}')
+
+
+class AgentRuntimeSettings(BaseModel):
+    """CrewAI Agent constructor settings exposed in the studio.
+
+    Every field was verified present and non-deprecated in crewai 1.14.4.
+    Agent-level `max_tokens` is deliberately absent: the field exists on
+    BaseAgent but is never read, so offering it would be dead config. Output
+    token limits belong on LLMConfig. CrewAI has no input-token cap —
+    `respect_context_window` is the only lever, and it works by summarising.
+    """
+
+    max_iter: Optional[int] = Field(
+        default=None, ge=1, le=100, description="Maximum reasoning iterations per task (CrewAI default 25)"
+    )
+    max_rpm: Optional[int] = Field(default=None, ge=1, description="Requests-per-minute cap for this agent")
+    max_execution_time: Optional[int] = Field(
+        default=None, ge=1, description="Wall-clock seconds before the agent's task is abandoned"
+    )
+    max_retry_limit: Optional[int] = Field(
+        default=None, ge=0, le=10, description="Retries when the agent errors (CrewAI default 2)"
+    )
+    allow_delegation: Optional[bool] = Field(
+        default=None, description="Allow delegating to peer agents. Defaults to the agent's is_selector flag."
+    )
+    respect_context_window: Optional[bool] = Field(
+        default=None, description="Summarise history to stay inside the model's context window (default true)"
+    )
+    cache: Optional[bool] = Field(default=None, description="Cache tool results across the run (default true)")
+    verbose: Optional[bool] = Field(default=None, description="Verbose agent execution logging")
+    inject_date: Optional[bool] = Field(default=None, description="Inject the current date into task prompts")
+    use_system_prompt: Optional[bool] = Field(
+        default=None, description="Send a system prompt; disable for models that do not support one"
     )
 
 
@@ -198,6 +245,11 @@ class AgentConfig(BaseModel):
         description="Model configuration overrides (temperature, max_tokens, etc.)"
     )
     # v0.2 LLM configuration (kept for backward compatibility)
+    agent_settings: Optional[AgentRuntimeSettings] = Field(
+        default=None,
+        validation_alias=AliasChoices("agent_settings", "crew_settings"),
+        description="CrewAI Agent execution settings (iterations, rate limits, delegation)",
+    )
     llm_config: Optional[LLMConfig | bool] = Field(
         default=None,
         description="LLM configuration (v0.2 format), None for default, or False to disable LLM"
