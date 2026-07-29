@@ -2,16 +2,18 @@
 
 import json
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Any, List, Optional, Set
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from src.api.models import (
     WorkflowCreateRequest,
     WorkflowResponse,
     WorkflowUpdateRequest,
+    WorkflowValidationError,
     WorkflowValidationResponse,
 )
 from src.api.test_models import (
@@ -25,6 +27,7 @@ from src.api.test_models import (
     WorkflowTestRunResponse,
     TestRunRequest,
 )
+from src.api.workflow_diagnostics import Diagnostic, diagnose_graph
 from src.api.workflow_validation import validate_workflow
 from src.audit_logging import get_logger
 from src.config.dependency_validation import DependencyError, get_validator
@@ -507,6 +510,94 @@ async def stream_workflow_execution(
     )
 
 
+class GraphValidateRequest(BaseModel):
+    """A canvas graph, saved or not.
+
+    Deliberately loose: a node being built may have no agent assigned yet, and
+    that is one of the things worth reporting rather than a reason to reject
+    the request.
+    """
+
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    connections: list[dict[str, Any]] = Field(default_factory=list)
+    entry_node: str | None = None
+    topology: dict[str, Any] | None = None
+    probe_imports: bool = False
+
+
+class GraphValidateResponse(BaseModel):
+    valid: bool
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+def _library_snapshot() -> tuple[list[dict], list[dict], list[dict]]:
+    """Agents, tools and providers as plain dicts for the diagnostics engine."""
+    from src.config.config_loader import get_config_loader
+
+    loader = get_config_loader()
+    try:
+        agents = loader.get_agents()
+    except Exception:
+        agents = []
+    try:
+        tools = loader.get_tools()
+    except Exception:
+        tools = []
+    try:
+        providers = loader.get_api_providers()
+    except Exception:
+        providers = []
+    return agents, tools, providers
+
+
+def _diagnose_saved_workflow(workflow_id: str, probe_imports: bool = False) -> list[Diagnostic]:
+    """Diagnostics for a workflow already on disk."""
+    from src.config.config_loader import get_config_loader
+
+    try:
+        workflow = get_config_loader().get_workflow_by_id(workflow_id)
+    except Exception:
+        workflow = None
+    if not workflow:
+        return []
+    topology = workflow.get("topology") or {}
+    agents, tools, providers = _library_snapshot()
+    return diagnose_graph(
+        topology.get("nodes") or [],
+        topology.get("connections") or topology.get("edges") or [],
+        agents=agents,
+        tools=tools,
+        providers=providers,
+        entry_node=topology.get("entry_node"),
+        topology=topology,
+        probe_imports=probe_imports,
+    )
+
+
+@router.post("/validate-graph", response_model=GraphValidateResponse)
+async def validate_graph(request: Request, body: GraphValidateRequest) -> GraphValidateResponse:
+    """Diagnose a graph that has not been saved yet.
+
+    The per-workflow endpoint only works on persisted workflows, so the canvas
+    had no way to check work in progress.
+    """
+    agents, tools, providers = _library_snapshot()
+    diagnostics = diagnose_graph(
+        body.nodes,
+        body.connections,
+        agents=agents,
+        tools=tools,
+        providers=providers,
+        entry_node=body.entry_node,
+        topology=body.topology,
+        probe_imports=body.probe_imports,
+    )
+    return GraphValidateResponse(
+        valid=not any(d.severity == "error" for d in diagnostics),
+        diagnostics=diagnostics,
+    )
+
+
 @router.post("/{workflow_id}/validate", response_model=WorkflowValidationResponse)
 async def validate_workflow_config(
     request: Request,
@@ -541,11 +632,35 @@ async def validate_workflow_config(
     try:
         test_runner = get_test_runner()
         is_valid, error = test_runner.validate_workflow(workflow_id)
-        
+
+        # validate_workflow returns a plain string; the response model expects
+        # structured errors. Feeding the raw string in raised inside Pydantic
+        # and surfaced as a 500 for every invalid workflow.
+        errors = (
+            [WorkflowValidationError(field="workflow", message=error, error_type="validation_error")]
+            if error
+            else []
+        )
+        warnings = [
+            d.message
+            for d in _diagnose_saved_workflow(workflow_id)
+            if d.severity in {"warning", "info"}
+        ]
+        blocking = [
+            WorkflowValidationError(
+                field=d.field or "workflow", message=d.message, error_type=d.code
+            )
+            for d in _diagnose_saved_workflow(workflow_id)
+            if d.severity == "error"
+        ]
+        for extra in blocking:
+            if all(e.message != extra.message for e in errors):
+                errors.append(extra)
+
         return WorkflowValidationResponse(
-            valid=is_valid,
-            errors=[error] if error else [],
-            warnings=[],
+            valid=is_valid and not errors,
+            errors=errors,
+            warnings=warnings,
         )
         
     except Exception as e:
@@ -558,7 +673,11 @@ async def validate_workflow_config(
         )
         return WorkflowValidationResponse(
             valid=False,
-            errors=[str(e)],
+            errors=[
+                WorkflowValidationError(
+                    field="workflow", message=str(e), error_type="validation_error"
+                )
+            ],
             warnings=[],
         )
 

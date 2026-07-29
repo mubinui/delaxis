@@ -20,14 +20,7 @@ from src.config.topology_models import (
     TopologyType,
 )
 
-# Legacy CrewAI stub - CrewAI workflows use workflow configs directly
-class WorkflowGraph:
-    """Stub for legacy CrewAI workflow graph - not used in CrewAI."""
-    def __init__(self, config):
-        self.config = config
-    
-    def validate(self):
-        return True
+from src.api.workflow_diagnostics import structural_checks_applicable
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/topologies", tags=["topologies"])
@@ -236,23 +229,38 @@ async def validate_topology(
             termination_conditions=termination_conditions,
         )
         
-        # Validate topology
-        workflow_graph = WorkflowGraph(topology_config)
-        validation = workflow_graph.validate()
-        
+        # Reachability and edge-count rules assume an explicit edge graph. Most
+        # shipped workflows declare no edges at all — selectors route via an LLM
+        # at run time, other crews run nodes in declaration order — so applying
+        # those rules there reports every non-entry node as unreachable.
+        raw_topology = {
+            "edges": [edge.model_dump() for edge in body.edges],
+            "routing_method": getattr(body, "routing_method", None),
+            "domain_agents": getattr(body, "domain_agents", None),
+        }
+        errors: list[str] = []
+        warnings: list[str] = []
+        if structural_checks_applicable(raw_topology):
+            errors = topology_config.validate_topology()
+        else:
+            warnings.append(
+                "No explicit edges: nodes run in declaration order, or routing is "
+                "decided by the selector at run time. Structural checks skipped."
+            )
+
         logger.info(
             "Validated topology",
             request_id=request_id,
             workflow_id=body.workflow_id,
-            is_valid=validation.is_valid,
-            error_count=len(validation.errors),
-            warning_count=len(validation.warnings),
+            is_valid=not errors,
+            error_count=len(errors),
+            warning_count=len(warnings),
         )
-        
+
         return TopologyValidationResponse(
-            is_valid=validation.is_valid,
-            errors=validation.errors,
-            warnings=validation.warnings,
+            is_valid=not errors,
+            errors=errors,
+            warnings=warnings,
         )
         
     except ValueError as e:
