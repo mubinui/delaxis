@@ -153,8 +153,104 @@ class TestValidatePage:
         assert len(warnings) >= 4
 
     def test_clean_page_passes(self):
+        # A page has to actually be a chatbot: config, an input, a handler, and
+        # calls to both session endpoints. Structure alone is not enough.
+        html = (
+            "<!doctype html><html><head><script>window.CHATBOT_CONFIG = {};"
+            "function renderMarkdown(x){}</script></head><body>"
+            "<textarea id='q'></textarea><button id='s'>Send</button>"
+            "<script>document.getElementById('s').addEventListener('click', async () => {"
+            "  const r = await fetch('/api/v1/sessions', {method:'POST'});"
+            "  await fetch('/api/v1/sessions/' + (await r.json()).session_id + '/messages', {method:'POST'});"
+            "});</script></body></html>"
+        )
+        assert validate_page(html) == []
+
+    def test_a_page_that_looks_right_but_does_nothing_is_flagged(self):
+        """Structurally valid, no way to send a message — what generation produced."""
         html = (
             "<!doctype html><html><head><script>window.CHATBOT_CONFIG = {};"
             "function renderMarkdown(x){}</script></head><body></body></html>"
         )
-        assert validate_page(html) == []
+        warnings = validate_page(html)
+        assert any("no conversation is ever created" in w.lower() or "/api/v1/sessions" in w for w in warnings)
+        assert any("no text input" in w.lower() for w in warnings)
+
+
+class TestContrastGuard:
+    """A generated palette that looks fine in the abstract regularly fails in
+    practice, so contrast is measured rather than trusted."""
+
+    def test_contrast_ratio_matches_wcag_reference_values(self):
+        from src.api.chatbot_page import contrast_ratio
+
+        assert round(contrast_ratio("#000000", "#ffffff"), 1) == 21.0
+        assert round(contrast_ratio("#ffffff", "#ffffff"), 1) == 1.0
+        assert contrast_ratio("not-a-colour", "#fff") == 0.0
+
+    def test_shorthand_hex_and_rgb_are_understood(self):
+        from src.api.chatbot_page import contrast_ratio
+
+        assert round(contrast_ratio("#000", "#fff"), 1) == 21.0
+        assert round(contrast_ratio("rgb(0, 0, 0)", "rgb(255,255,255)"), 1) == 21.0
+
+    def test_unreadable_body_text_is_corrected_and_the_background_kept(self):
+        from src.api.chatbot_page import contrast_ratio, harmonize_brand
+
+        # Pale grey text on a near-white background: legal CSS, unreadable page
+        brand, notes = harmonize_brand("daylight", {"text": "#d8d4cc", "bg": "#f9f6f1"})
+        assert brand["bg"] == "#f9f6f1", "the background carries the design's intent"
+        assert brand["text"] != "#d8d4cc"
+        assert contrast_ratio(brand["text"], brand["bg"]) >= 4.5
+        assert notes
+
+    def test_a_readable_palette_survives_untouched(self):
+        from src.api.chatbot_page import harmonize_brand
+
+        brand, notes = harmonize_brand(
+            "daylight", {"text": "#1a1a1a", "bg": "#fffdf8", "accent": "#8a3b12", "accent-text": "#ffffff"}
+        )
+        assert brand["text"] == "#1a1a1a"
+        assert brand["accent"] == "#8a3b12"
+        assert notes == []
+
+    def test_button_text_that_vanishes_on_its_own_accent_is_corrected(self):
+        from src.api.chatbot_page import contrast_ratio, harmonize_brand
+
+        brand, notes = harmonize_brand("midnight", {"accent": "#ffe08a", "accent-text": "#fff6d5"})
+        assert brand["accent"] == "#ffe08a"
+        assert contrast_ratio(brand["accent-text"], brand["accent"]) >= 4.5
+        assert any("accent-text" in note for note in notes)
+
+    def test_a_light_background_on_a_dark_theme_gets_dark_text(self):
+        """The theme's own text colour is unusable here, so black/white is picked."""
+        from src.api.chatbot_page import contrast_ratio, harmonize_brand
+
+        brand, _ = harmonize_brand("midnight", {"bg": "#fafafa"})
+        assert brand["bg"] == "#fafafa"
+        assert contrast_ratio(brand["text"], "#fafafa") >= 4.5
+
+    def test_panels_follow_a_new_page_background(self):
+        """A cream page must not keep the theme's midnight panels bolted on."""
+        from src.api.chatbot_page import _relative_luminance, _parse_color, harmonize_brand
+
+        brand, _ = harmonize_brand("midnight", {"bg": "#f9f6f1"})
+        for name in ("surface", "panel", "assistant-bubble", "input-bg"):
+            luminance = _relative_luminance(_parse_color(brand[name]))
+            assert luminance > 0.5, f"{name} stayed dark on a light background"
+
+    def test_explicit_surfaces_are_not_overwritten(self):
+        from src.api.chatbot_page import harmonize_brand
+
+        brand, _ = harmonize_brand("midnight", {"bg": "#f9f6f1", "surface": "#ffffff"})
+        assert brand["surface"] == "#ffffff"
+
+    def test_every_pair_is_readable_after_harmonizing_a_hostile_palette(self):
+        from src.api.chatbot_page import CONTRAST_PAIRS, THEMES, contrast_ratio, harmonize_brand
+
+        hostile = {"bg": "#f9f6f1", "text": "#f2efe8", "muted": "#f0ece4", "accent": "#efe9dd", "accent-text": "#f5f2ec"}
+        brand, notes = harmonize_brand("sunset", hostile)
+        assert notes
+        merged = {**THEMES["sunset"], **brand}
+        for foreground, background, minimum in CONTRAST_PAIRS:
+            assert contrast_ratio(merged[foreground], merged[background]) >= minimum, f"{foreground} on {background}"

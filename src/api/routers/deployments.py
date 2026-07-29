@@ -14,12 +14,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, RedirectResponse
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from src.api.chatbot_page import (
     default_chatbot_html,
+    embed_script,
     ensure_config_contract,
     ensure_markdown_support,
     inject_runtime_config,
@@ -51,6 +52,8 @@ class DeploymentCreateRequest(BaseModel):
     title: str = "AI Chatbot"
     theme: str = "midnight"
     greeting: str = "Hi, how can I help?"
+    # Starter prompts offered on an empty conversation.
+    suggestions: list[str] = Field(default_factory=list)
     provider_id: str = "openrouter"
     model_id: str = "openai/gpt-oss-20b"
     auth_mode: str = "public"
@@ -62,6 +65,11 @@ class DeploymentCreateRequest(BaseModel):
     def _normalize_theme(cls, value: str) -> str:
         return normalize_theme(value)
 
+    @field_validator("suggestions")
+    @classmethod
+    def _trim_suggestions(cls, value: list[str]) -> list[str]:
+        return [item.strip() for item in value if item and item.strip()][:4]
+
 
 class DeploymentResponse(BaseModel):
     id: str
@@ -72,6 +80,7 @@ class DeploymentResponse(BaseModel):
     title: str
     theme: str
     greeting: str
+    suggestions: list[str] = Field(default_factory=list)
     provider_id: str
     model_id: str
     auth_mode: str
@@ -248,6 +257,80 @@ async def delete_deployment(deployment_id: str) -> None:
     ]
     _save_config(config)
     _delete_deployment_path(record.get("path"))
+
+
+def _deployment_record(deployment_id: str) -> dict[str, Any]:
+    try:
+        config = _load_config()
+    except (OSError, json.JSONDecodeError):
+        config = {"deployments": []}
+    record = next((d for d in config.get("deployments", []) if d.get("id") == deployment_id), None)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Deployment not found: {deployment_id}")
+    return record
+
+
+@router.get("/{deployment_id}/integration")
+async def deployment_integration(deployment_id: str, request: Request) -> dict[str, Any]:
+    """Ready-to-paste snippets for putting this chatbot into another product.
+
+    The origin is taken from the request so the snippets are correct behind a
+    proxy or a custom domain, instead of hardcoding localhost.
+    """
+    record = _deployment_record(deployment_id)
+    origin = str(request.base_url).rstrip("/")
+    page_url = f"{origin}/d/{deployment_id}/"
+    return {
+        "id": deployment_id,
+        "url": page_url,
+        "embed_script_url": f"{page_url}embed.js",
+        "workflow_id": record.get("workflow_id"),
+        "auth_mode": record.get("auth_mode", "public"),
+        "snippets": {
+            "widget": f'<script src="{page_url}embed.js" defer></script>',
+            "widget_options": (
+                f'<script src="{page_url}embed.js" defer\n'
+                '        data-position="right"\n'
+                f'        data-label="{record.get("title", "Chat")}"\n'
+                '        data-width="400" data-height="620"></script>'
+            ),
+            "iframe": (
+                f'<iframe src="{page_url}" title="{record.get("title", "Chatbot")}"\n'
+                '        style="width:100%;height:640px;border:0;border-radius:12px"\n'
+                '        allow="clipboard-write"></iframe>'
+            ),
+            "link": page_url,
+            "curl": (
+                f"# 1. open a session\n"
+                f'SESSION=$(curl -s -X POST {origin}/api/v1/sessions \\\n'
+                f"  -H \"Content-Type: application/json\" \\\n"
+                f"  -d '{{\"workflow_id\": \"{record.get('workflow_id')}\", \"user_id\": \"alice\"}}' \\\n"
+                f"  | python -c \"import sys,json; print(json.load(sys.stdin)['session_id'])\")\n\n"
+                f"# 2. send a message (repeat for each turn)\n"
+                f'curl -s -X POST {origin}/api/v1/sessions/$SESSION/messages \\\n'
+                f"  -H \"Content-Type: application/json\" \\\n"
+                f"  -d '{{\"message\": \"Hello\"}}'"
+            ),
+        },
+    }
+
+
+@pages_router.get("/d/{deployment_id}/embed.js", include_in_schema=False)
+async def serve_embed_script(deployment_id: str, request: Request) -> Response:
+    """The floating-launcher widget for this deployment."""
+    record = _deployment_record(deployment_id)
+    script = embed_script(
+        deployment_id=deployment_id,
+        title=str(record.get("title") or "Chat"),
+        theme=str(record.get("theme") or "midnight"),
+        origin=str(request.base_url).rstrip("/"),
+    )
+    return Response(
+        content=script,
+        media_type="application/javascript",
+        # Embedded on third-party pages by design, so it must be cross-origin readable.
+        headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"},
+    )
 
 
 @pages_router.get("/d/{deployment_id}", include_in_schema=False)

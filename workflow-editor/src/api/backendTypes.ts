@@ -121,6 +121,8 @@ export interface DeploymentConfig {
     title: string;
     theme: string;
     greeting: string;
+    /** Starter prompts shown as chips on an empty conversation (max four). */
+    suggestions?: string[];
     provider_id: string;
     model_id: string;
     auth_mode: string;
