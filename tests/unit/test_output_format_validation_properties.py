@@ -302,9 +302,12 @@ class TestOutputFormatValidation:
         For any output that doesn't contain a required pattern,
         validation should fail.
         """
-        # Create output without the required pattern
+        # Create output without the required pattern. The validator matches
+        # patterns case-insensitively, so a case-sensitive assumption lets
+        # through inputs like output="required" / pattern="REQUIRED", where
+        # the pattern really is present as far as validation is concerned.
         output = f"{prefix}{suffix}"
-        assume(required not in output)
+        assume(required.lower() not in output.lower())
         
         # Create behavior config with required pattern
         behavior = AgentBehaviorConfig(

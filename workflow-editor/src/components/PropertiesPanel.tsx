@@ -9,6 +9,8 @@ import { StatusBadge } from './studio/StatusBadge';
 import { DataPreview } from './studio/DataPreview';
 import { getAgentSummary, getToolSummary } from '../utils/studioDerivedState';
 import { api } from '../api/client';
+import type { FieldSpec } from '../constants/agentOptions';
+import { AGENT_SETTING_FIELDS, AGENT_TYPES, HUMAN_INPUT_MODES, LLM_PARAM_FIELDS, fieldsForProvider, unsupportedFields } from '../constants/agentOptions';
 
 interface GmailStatus {
     configured: boolean;
@@ -17,21 +19,6 @@ interface GmailStatus {
 }
 
 // CrewAI & Model Definitions
-const AGENT_TYPES = [
-    { id: 'LlmAgent', name: 'LLM Agent (Chat/Reasoning)' },
-    { id: 'RecursiveAgent', name: 'Recursive Selector Agent' },
-    { id: 'SequentialAgent', name: 'Sequential Agent' },
-    { id: 'ParallelAgent', name: 'Parallel Agent' },
-    { id: 'LoopAgent', name: 'Loop Agent' },
-    { id: 'conversable', name: 'Conversable Agent (Legacy)' }
-];
-
-const HUMAN_INPUT_MODES = [
-    { id: 'NEVER', name: 'Never' },
-    { id: 'ALWAYS', name: 'Always' },
-    { id: 'TERMINATE', name: 'Terminate' },
-];
-
 export const PropertiesPanel = () => {
     // Custom equality (not just useShallow) because a node being *dragged* gets a new
     // object reference every frame via applyNodeChanges (position updates), even while
@@ -52,6 +39,7 @@ export const PropertiesPanel = () => {
     const isNodeDragging = useWorkflowStore((state) => state.isNodeDragging);
     const { savedTools, executeTool, saveItem, updateItem, providers, fetchProviderModels } = useLibraryStore();
     const [liveModels, setLiveModels] = useState<Record<string, string[]>>({});
+    const [capabilities, setCapabilities] = useState<Record<string, any>>({});
     const [loadingModels, setLoadingModels] = useState(false);
 
     // Integration state (gmail tools)
@@ -104,6 +92,22 @@ export const PropertiesPanel = () => {
             }
         }
     }, [selectedNode?.id]);
+
+    // Which sampling fields are worth showing depends on the route that will
+    // actually run. Must sit above the early return — hooks cannot be conditional.
+    const activeProviderId = config.model_config?.provider_id || config.llm_config?.provider_id || '';
+    useEffect(() => {
+        if (!activeProviderId || capabilities[activeProviderId]) return;
+        let cancelled = false;
+        api<any>(`/api/v1/api-providers/${activeProviderId}/capabilities`)
+            .then((caps) => {
+                if (!cancelled) setCapabilities((prev) => ({ ...prev, [activeProviderId]: caps }));
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [activeProviderId, capabilities]);
 
     // Stay out of the way while a node is mid-drag: the inspector only appears once the
     // drag is released, so moving a component never opens or resizes UI around it.
@@ -366,6 +370,9 @@ export const PropertiesPanel = () => {
         </div>
     );
 
+    const fieldCls = 'w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9';
+    const labelCls = 'text-[10px] font-extrabold text-slate-500 uppercase tracking-wider';
+
     const renderModelConfig = () => {
         let providerId = config.model_config?.provider_id || config.llm_config?.provider_id || '';
         const modelName = config.model_config?.model || config.llm_config?.model || '';
@@ -379,8 +386,16 @@ export const PropertiesPanel = () => {
         const configuredModels = (selectedProvider?.models ?? [])
             .map(m => String(m.name ?? ''))
             .filter(Boolean);
-        // Live catalogue wins so newly released models show up without a config edit
         const providerModels = liveModels[providerId] ?? configuredModels;
+        const caps = capabilities[providerId];
+        // Gate on the route that will actually run: a native SDK that isn't
+        // installed falls back to the OpenAI-compatible route, which accepts a
+        // different parameter set.
+        const effectiveRoute = caps?.effective_provider;
+        const samplingFields = fieldsForProvider(LLM_PARAM_FIELDS, effectiveRoute);
+        const droppedFields = unsupportedFields(LLM_PARAM_FIELDS, effectiveRoute);
+        const keyPresent = Boolean(selectedProvider?.api_key_masked);
+        const keySource = String((selectedProvider as any)?.key_source ?? 'none');
 
         const loadLiveModels = async () => {
             if (!providerId) return;
@@ -390,103 +405,188 @@ export const PropertiesPanel = () => {
                 const names = (result.models as Array<{ name: string }> | undefined)?.map(m => m.name) ?? [];
                 setLiveModels(prev => ({ ...prev, [providerId]: names }));
             } catch {
-                // Keep the configured list; the picker stays free-text either way
+                // Keep the configured list; the field stays free text either way
             } finally {
                 setLoadingModels(false);
             }
         };
 
-        return renderSection('Inference Driver', 'model_config', (
-            <div className="space-y-4">
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Gateway Provider</label>
-                    <select
-                        value={providerId}
-                        onChange={(e) => updateNestedConfig('model_config', 'provider_id', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
-                    >
-                        <option value="">Select Gateway Base...</option>
-                        {llmProviders.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        {providerId && !selectedProvider && <option value={providerId}>{providerId}</option>}
-                    </select>
-                </div>
+        const numberValue = (key: string) => {
+            const raw = config.model_config?.[key];
+            return raw === undefined || raw === null ? '' : String(raw);
+        };
+        const writeNumber = (key: string, raw: string) => {
+            if (raw === '') { updateNestedConfig('model_config', key, undefined); return; }
+            const parsed = Number(raw);
+            if (!Number.isNaN(parsed)) updateNestedConfig('model_config', key, parsed);
+        };
 
-                <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Model Weight String</label>
-                        <button
-                            type="button"
-                            onClick={loadLiveModels}
-                            disabled={!providerId || loadingModels}
-                            className="text-[10px] font-bold text-blue-600 dark:text-blue-400 disabled:opacity-40 hover:underline"
-                        >
-                            {loadingModels ? 'Loading…' : 'Refresh models'}
-                        </button>
-                    </div>
-                    <input
-                        type="text"
-                        list="oak-provider-models"
-                        value={modelName}
-                        onChange={(e) => updateNestedConfig('model_config', 'model', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
-                        placeholder={providerModels[0] || 'gpt-4o, qwen-plus, llama3.1'}
-                    />
-                    <datalist id="oak-provider-models">
-                        {providerModels.map(name => <option key={name} value={name} />)}
-                    </datalist>
-                </div>
-
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Base URL Override</label>
-                    <input
-                        type="text"
-                        value={config.model_config?.base_url || ''}
-                        onChange={(e) => updateNestedConfig('model_config', 'base_url', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
-                        placeholder={selectedProvider?.base_url || 'Leave blank to use the provider default'}
-                    />
-                </div>
-
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">API Key Env Var</label>
-                    <input
-                        type="text"
-                        value={config.model_config?.api_key_env || ''}
-                        onChange={(e) => updateNestedConfig('model_config', 'api_key_env', e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
-                        placeholder={selectedProvider?.api_key_env || 'Leave blank to use the provider key'}
-                    />
-                </div>
-
-                <div className="space-y-1.5 pt-1">
-                    <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Sampling Entropy (Temperature)</label>
-                        <span className="text-[11px] font-mono font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-sky-400 px-1.5 py-0.2 rounded border border-blue-100 dark:border-blue-900/40">
-                            {config.model_config?.temperature ?? config.llm_config?.temperature ?? 0.7}
+        const renderField = (spec: FieldSpec) => {
+            if (spec.kind === 'toggle') {
+                const checked = Boolean(config.model_config?.[spec.key]);
+                return (
+                    <label key={spec.key} className="flex items-start gap-2.5 cursor-pointer py-1">
+                        <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => updateNestedConfig('model_config', spec.key, e.target.checked)}
+                            className="mt-0.5 w-3.5 h-3.5 accent-blue-600"
+                        />
+                        <span className="min-w-0">
+                            <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-200">{spec.label}</span>
+                            <span className="block text-[9px] text-slate-400 font-medium leading-relaxed">{spec.help}</span>
                         </span>
+                    </label>
+                );
+            }
+            if (spec.kind === 'slider') {
+                const value = config.model_config?.[spec.key] ?? config.llm_config?.[spec.key];
+                return (
+                    <div key={spec.key} className="space-y-1.5 pt-1">
+                        <div className="flex justify-between items-center">
+                            <label className={labelCls}>{spec.label}</label>
+                            <span className="text-[11px] font-mono font-bold bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-sky-400 px-1.5 rounded border border-blue-100 dark:border-blue-900/40">
+                                {value ?? '—'}
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min={spec.min} max={spec.max} step={spec.step}
+                            value={value ?? spec.min ?? 0}
+                            onChange={(e) => updateNestedConfig('model_config', spec.key, parseFloat(e.target.value))}
+                            className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                        <p className="text-[9px] text-slate-400 font-medium">{spec.help}</p>
                     </div>
-                    <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.05"
-                        value={config.model_config?.temperature ?? config.llm_config?.temperature ?? 0.7}
-                        onChange={(e) => updateNestedConfig('model_config', 'temperature', parseFloat(e.target.value))}
-                        className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                    />
-                </div>
-
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Context Limit Capacity</label>
+                );
+            }
+            return (
+                <div key={spec.key} className="space-y-1.5">
+                    <label className={labelCls}>{spec.label}</label>
                     <input
                         type="number"
-                        value={config.model_config?.max_tokens || config.llm_config?.max_tokens || 2048}
-                        onChange={(e) => updateNestedConfig('model_config', 'max_tokens', parseInt(e.target.value) || 2048)}
-                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                        min={spec.min} max={spec.max}
+                        value={numberValue(spec.key)}
+                        onChange={(e) => writeNumber(spec.key, e.target.value)}
+                        placeholder={spec.placeholder}
+                        className={fieldCls}
                     />
+                    <p className="text-[9px] text-slate-400 font-medium">{spec.help}</p>
                 </div>
-            </div>
-        ));
+            );
+        };
+
+        return (
+            <>
+                {renderSection('Model', 'model_config', (
+                    <div className="space-y-4">
+                        <div className="space-y-1.5">
+                            <label className={labelCls}>Provider</label>
+                            <select
+                                value={providerId}
+                                onChange={(e) => updateNestedConfig('model_config', 'provider_id', e.target.value)}
+                                className={fieldCls}
+                            >
+                                <option value="">Select a provider...</option>
+                                {llmProviders.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {providerId && !selectedProvider && <option value={providerId}>{providerId}</option>}
+                            </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className={labelCls}>Model</label>
+                                <button
+                                    type="button"
+                                    onClick={loadLiveModels}
+                                    disabled={!providerId || loadingModels}
+                                    className="text-[10px] font-bold text-blue-600 dark:text-blue-400 disabled:opacity-40 hover:underline"
+                                >
+                                    {loadingModels ? 'Loading…' : 'Refresh models'}
+                                </button>
+                            </div>
+                            <input
+                                type="text"
+                                list="oak-provider-models"
+                                value={modelName}
+                                onChange={(e) => updateNestedConfig('model_config', 'model', e.target.value)}
+                                className={fieldCls}
+                                placeholder={providerModels[0] || 'model id'}
+                            />
+                            <datalist id="oak-provider-models">
+                                {providerModels.map(name => <option key={name} value={name} />)}
+                            </datalist>
+                        </div>
+
+                        {/* Key status. Paste goes to the gitignored secret store,
+                            never to the tracked provider config. */}
+                        {providerId && (
+                            <div className="space-y-1.5">
+                                <label className={labelCls}>API key</label>
+                                <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${keyPresent
+                                    ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/60 dark:bg-emerald-950/30'
+                                    : 'border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/30'}`}>
+                                    <span className={`text-[10px] font-bold ${keyPresent ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-800 dark:text-amber-400'}`}>
+                                        {keyPresent
+                                            ? (keySource === 'env'
+                                                ? `Using ${selectedProvider?.api_key_env ?? 'environment key'}`
+                                                : 'Key saved for this provider')
+                                            : `No key — set ${selectedProvider?.api_key_env ?? 'an API key'}`}
+                                    </span>
+                                </div>
+                                <p className="text-[9px] text-slate-400 font-medium">
+                                    Manage keys under Library → Providers. Deployments use the environment key.
+                                </p>
+                            </div>
+                        )}
+
+                        {droppedFields.length > 0 && (
+                            <p className="text-[9px] text-slate-400 font-medium">
+                                {effectiveRoute} ignores: {droppedFields.join(', ')} — hidden below.
+                            </p>
+                        )}
+
+                        {samplingFields.map(renderField)}
+
+                        <details className="pt-1">
+                            <summary className="cursor-pointer text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+                                Advanced
+                            </summary>
+                            <div className="space-y-3 pt-2.5">
+                                <div className="space-y-1.5">
+                                    <label className={labelCls}>Base URL override</label>
+                                    <input
+                                        type="text"
+                                        value={config.model_config?.base_url || ''}
+                                        onChange={(e) => updateNestedConfig('model_config', 'base_url', e.target.value)}
+                                        className={`${fieldCls} font-mono`}
+                                        placeholder={selectedProvider?.base_url || 'provider default'}
+                                    />
+                                    <p className="text-[9px] text-slate-400 font-medium">Only needed for a self-hosted or custom endpoint.</p>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className={labelCls}>API key env var</label>
+                                    <input
+                                        type="text"
+                                        value={config.model_config?.api_key_env || ''}
+                                        onChange={(e) => updateNestedConfig('model_config', 'api_key_env', e.target.value)}
+                                        className={`${fieldCls} font-mono`}
+                                        placeholder={selectedProvider?.api_key_env || 'provider default'}
+                                    />
+                                    <p className="text-[9px] text-slate-400 font-medium">Override which variable this agent reads its key from.</p>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                ))}
+
+                {renderSection('Agent limits', 'agent_limits', (
+                    <div className="space-y-4">
+                        {AGENT_SETTING_FIELDS.map(renderField)}
+                    </div>
+                ))}
+            </>
+        );
     };
 
     const renderToolsSelector = () => {
@@ -804,9 +904,6 @@ export const PropertiesPanel = () => {
             ))}
         </>
     );
-
-    const fieldCls = 'w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9';
-    const labelCls = 'text-[10px] font-extrabold text-slate-500 uppercase tracking-wider';
 
     function renderMcpConfig() {
         const transport = config.transport || 'stdio';

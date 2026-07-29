@@ -3,23 +3,9 @@ import { X, Plus, Trash2, Wrench, Bot, Save, Loader2, Download, ChevronDown, Che
 import { useLibraryStore } from '../stores/libraryStore';
 import type { LibraryItem, ItemType } from '../stores/libraryStore';
 import { SwaggerImportModal } from './SwaggerImportModal';
+import { AGENT_TYPES, HUMAN_INPUT_MODES } from '../constants/agentOptions';
 
 // --- Shared Constants (Matched with PropertiesPanel.tsx) ---
-const AGENT_TYPES = [
-    { id: 'LlmAgent', name: 'LLM Agent (Chat/Reasoning)' },
-    { id: 'RecursiveAgent', name: 'Recursive Selector Agent' },
-    { id: 'SequentialAgent', name: 'Sequential Agent' },
-    { id: 'ParallelAgent', name: 'Parallel Agent' },
-    { id: 'LoopAgent', name: 'Loop Agent' },
-    { id: 'conversable', name: 'Conversable Agent (Legacy)' }
-];
-
-const HUMAN_INPUT_MODES = [
-    { id: 'NEVER', name: 'Never' },
-    { id: 'ALWAYS', name: 'Always' },
-    { id: 'TERMINATE', name: 'Terminate' },
-];
-
 interface LibraryModalProps {
     isOpen: boolean;
     onClose: () => void;

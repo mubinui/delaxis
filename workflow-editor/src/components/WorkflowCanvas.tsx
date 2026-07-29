@@ -89,15 +89,22 @@ const WorkflowCanvasContent = () => {
             const existingModelConfig = newConfig.model_config || {};
             const llmConfig = newConfig.llm_config || {};
 
-            // Build complete model_config
+            // Spread both sources first so settings this function does not know
+            // about (max_iter, top_p, seed, …) survive a drop from the library.
+            // Listing keys explicitly here silently deleted every field added
+            // after this code was written. No api_key: keys belong in the
+            // provider secret store, not in node config, where they would also
+            // ride along in any payload built from it.
             newConfig.model_config = {
+                ...llmConfig,
+                ...existingModelConfig,
                 provider_id: existingModelConfig.provider_id || llmConfig.provider_id || 'openai',
                 model: existingModelConfig.model || llmConfig.model || '',
                 base_url: existingModelConfig.base_url || llmConfig.base_url || '',
                 temperature: existingModelConfig.temperature ?? llmConfig.temperature ?? 0.7,
                 max_tokens: existingModelConfig.max_tokens || llmConfig.max_tokens || 2048,
-                api_key: existingModelConfig.api_key || llmConfig.api_key
             };
+            delete newConfig.model_config.api_key;
 
             // If model has provider prefix like "openai/gpt-4o", extract provider
             if (newConfig.model_config.model && newConfig.model_config.model.includes('/')) {

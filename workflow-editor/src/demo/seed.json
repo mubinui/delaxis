@@ -1,10 +1,12 @@
 {
  "agents": [
   {
+   "agent_settings": null,
    "code_execution_config": false,
    "description": "Routes user queries to the right specialist: web search, knowledge base, or calculator",
    "human_input_mode": "NEVER",
    "id": "demo_selector_agent",
+   "is_selector": true,
    "llm_config": {
     "max_tokens": 2000,
     "model": "google/gemini-3.5-flash-lite",
@@ -12,17 +14,21 @@
     "temperature": 0.4
    },
    "max_consecutive_auto_reply": 10,
+   "model_config_override": null,
    "name": "DemoSelectorAgent",
+   "output_key": "selector_result",
    "retrieve_config": null,
    "system_message": "You are a friendly assistant that routes questions to specialists. When someone greets you, welcome them warmly.\n\nYou have three specialist agents available:\n- SearchAssistant: Finds current information on the web\n- RAGAssistant: Answers questions from the knowledge base\n- CalculatorAgent: Evaluates arithmetic expressions\n\nUnderstand what the user wants and transfer them to the appropriate specialist using transfer_to_agent. If you're unsure what they're asking, ask a clarifying question.",
    "tools": [],
    "type": "conversable"
   },
   {
+   "agent_settings": null,
    "code_execution_config": false,
    "description": "General purpose helpful assistant for non-specialized queries",
    "human_input_mode": "NEVER",
    "id": "general_assistant",
+   "is_selector": false,
    "llm_config": {
     "max_tokens": 2000,
     "model": "google/gemini-3.5-flash-lite",
@@ -30,17 +36,21 @@
     "temperature": 0.7
    },
    "max_consecutive_auto_reply": 10,
+   "model_config_override": null,
    "name": "GeneralAssistant",
+   "output_key": "general_result",
    "retrieve_config": null,
    "system_message": "You are a helpful AI assistant. Answer questions clearly, concisely, and accurately. Be friendly and professional in all interactions.",
    "tools": [],
    "type": "conversable"
   },
   {
+   "agent_settings": null,
    "code_execution_config": false,
    "description": "Web search specialist using DuckDuckGo for current information",
    "human_input_mode": "NEVER",
    "id": "search_assistant",
+   "is_selector": false,
    "llm_config": {
     "max_tokens": 1500,
     "model": "google/gemini-3.5-flash-lite",
@@ -48,7 +58,9 @@
     "temperature": 0.7
    },
    "max_consecutive_auto_reply": 10,
+   "model_config_override": null,
    "name": "SearchAssistant",
+   "output_key": "search_result",
    "retrieve_config": null,
    "system_message": "You are a Web Search Specialist. When users ask questions requiring current information, use the search_web tool to find relevant content.\n\nAVAILABLE TOOLS:\n1. search_web - Search the web using DuckDuckGo\n   - Parameter: query (string) - the search query\n   - Returns: titles, descriptions, and URLs\n\nHOW TO RESPOND:\n1. Formulate an effective search query\n2. Call search_web with the query\n3. Summarize the results in clear, natural language\n4. Always cite your sources with URLs\n5. Be honest if you cannot find the information",
    "tools": [
@@ -57,10 +69,12 @@
    "type": "conversable"
   },
   {
+   "agent_settings": null,
    "code_execution_config": false,
    "description": "Knowledge base specialist with RAG (Retrieval-Augmented Generation) capabilities",
    "human_input_mode": "NEVER",
    "id": "rag_assistant",
+   "is_selector": false,
    "llm_config": {
     "max_tokens": 1500,
     "model": "google/gemini-3.5-flash-lite",
@@ -68,7 +82,9 @@
     "temperature": 0.7
    },
    "max_consecutive_auto_reply": 10,
+   "model_config_override": null,
    "name": "RAGAssistant",
+   "output_key": "rag_result",
    "retrieve_config": null,
    "system_message": "You are a Knowledge Base Specialist with RAG capabilities. Use the knowledge base to answer user questions.\n\nAVAILABLE TOOLS:\n1. rag_query - Search the knowledge base and get answers\n   - Parameters: collection (string), query (string), top_k (optional, default 5)\n   - Use for answering questions from documents\n\n2. rag_list_files - List files in a collection\n   - Parameter: collection (string)\n   - Use when user asks what documents are available\n\n3. rag_get_stats - Get collection statistics\n   - Parameter: collection (string)\n   - Use when user asks about collection size or stats\n\nHOW TO RESPOND:\n1. Use rag_query to search for relevant information before answering\n2. Provide accurate, contextual answers based on retrieved documents\n3. If no relevant documents found, say so honestly",
    "tools": [
@@ -79,10 +95,12 @@
    "type": "conversable"
   },
   {
+   "agent_settings": null,
    "code_execution_config": false,
    "description": "Math specialist that evaluates arithmetic expressions with the calculate tool",
    "human_input_mode": "NEVER",
    "id": "calculator_agent",
+   "is_selector": false,
    "llm_config": {
     "max_tokens": 1000,
     "model": "google/gemini-3.5-flash-lite",
@@ -90,7 +108,9 @@
     "temperature": 0.2
    },
    "max_consecutive_auto_reply": 10,
+   "model_config_override": null,
    "name": "CalculatorAgent",
+   "output_key": "calculation_result",
    "retrieve_config": null,
    "system_message": "You are a Math Specialist. Use the calculate tool to evaluate arithmetic expressions.\n\nAVAILABLE TOOLS:\n1. calculate - Safely evaluate an arithmetic expression\n   - Parameter: expression (string), e.g. '2 * (3 + 4)'\n   - Returns: the numeric result\n\nHOW TO RESPOND:\n1. Extract the arithmetic expression from the user's question\n2. Call calculate with the expression\n3. Explain the result in plain language\n4. Never guess at arithmetic - always use the tool",
    "tools": [
@@ -99,10 +119,12 @@
    "type": "conversable"
   },
   {
+   "agent_settings": null,
    "code_execution_config": false,
    "description": "Searches the web and summarizes findings",
    "human_input_mode": "NEVER",
    "id": "e2e_researcher",
+   "is_selector": false,
    "llm_config": {
     "max_tokens": 800,
     "model": "google/gemini-3.5-flash-lite",
@@ -110,7 +132,9 @@
     "temperature": 0.3
    },
    "max_consecutive_auto_reply": 5,
+   "model_config_override": null,
    "name": "Web_Researcher",
+   "output_key": null,
    "retrieve_config": null,
    "system_message": "You are a web research specialist. Use the web_search tool to find current information about the user's question, then report concise, sourced findings.",
    "tools": [
@@ -119,10 +143,12 @@
    "type": "conversable"
   },
   {
+   "agent_settings": null,
    "code_execution_config": false,
    "description": "Writes the final guarded answer",
    "human_input_mode": "NEVER",
    "id": "e2e_writer",
+   "is_selector": false,
    "llm_config": {
     "max_tokens": 800,
     "model": "google/gemini-3.5-flash-lite",
@@ -130,7 +156,9 @@
     "temperature": 0.5
    },
    "max_consecutive_auto_reply": 5,
+   "model_config_override": null,
    "name": "Answer_Writer",
+   "output_key": null,
    "retrieve_config": null,
    "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
    "tools": [],
@@ -372,6 +400,54 @@
     "model_id": "kimi-k2.6",
     "provider_id": "moonshot",
     "provider_name": "Moonshot Kimi"
+   },
+   {
+    "display_name": "grok-4.5 (xAI Grok)",
+    "model_id": "grok-4.5",
+    "provider_id": "grok",
+    "provider_name": "xAI Grok"
+   },
+   {
+    "display_name": "grok-4.3 (xAI Grok)",
+    "model_id": "grok-4.3",
+    "provider_id": "grok",
+    "provider_name": "xAI Grok"
+   },
+   {
+    "display_name": "grok-4.20 (xAI Grok)",
+    "model_id": "grok-4.20",
+    "provider_id": "grok",
+    "provider_name": "xAI Grok"
+   },
+   {
+    "display_name": "claude-opus-5 (Anthropic Claude)",
+    "model_id": "claude-opus-5",
+    "provider_id": "anthropic",
+    "provider_name": "Anthropic Claude"
+   },
+   {
+    "display_name": "claude-sonnet-5 (Anthropic Claude)",
+    "model_id": "claude-sonnet-5",
+    "provider_id": "anthropic",
+    "provider_name": "Anthropic Claude"
+   },
+   {
+    "display_name": "claude-fable-5 (Anthropic Claude)",
+    "model_id": "claude-fable-5",
+    "provider_id": "anthropic",
+    "provider_name": "Anthropic Claude"
+   },
+   {
+    "display_name": "mistral-medium-3-5 (Mistral AI)",
+    "model_id": "mistral-medium-3-5",
+    "provider_id": "mistral",
+    "provider_name": "Mistral AI"
+   },
+   {
+    "display_name": "mistral-small-2603 (Mistral AI)",
+    "model_id": "mistral-small-2603",
+    "provider_id": "mistral",
+    "provider_name": "Mistral AI"
    }
   ]
  },
@@ -379,19 +455,19 @@
   {
    "api_url": "",
    "auth_mode": "public",
-   "created_at": "2026-07-13T06:06:47.270678+00:00",
+   "created_at": "2026-07-29T06:39:10.330195+00:00",
    "error": null,
-   "greeting": "Hi, I am ready.",
+   "greeting": "Hi, how can I help?",
    "id": "e2e-search-demo",
-   "model_id": "google/gemini-3.1-pro-preview",
+   "model_id": "google/gemini-3.6-flash",
    "name": "e2e_search_demo",
-   "path": "data/deployments/e2e-search-demo",
+   "path": "/Users/mubinuiislam/Home/PycharmProjects/MicrosoftAutogen/data/deployments/e2e-search-demo",
    "provider_id": "openrouter",
    "status": "active",
    "theme": "midnight",
    "title": "E2E Search Demo",
    "trigger_id": null,
-   "updated_at": "2026-07-13T06:06:47.270678+00:00",
+   "updated_at": "2026-07-29T06:39:10.330195+00:00",
    "url": "/d/e2e-search-demo/",
    "workflow_id": "e2e_search_demo"
   },
@@ -512,6 +588,7 @@
    "enabled": true,
    "etag": null,
    "id": "openrouter",
+   "key_source": "env",
    "last_updated": null,
    "litellm_prefix": "openrouter",
    "models": [
@@ -637,6 +714,7 @@
    "enabled": true,
    "etag": null,
    "id": "vllm",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": "hosted_vllm",
    "models": [
@@ -672,6 +750,7 @@
    "enabled": true,
    "etag": null,
    "id": "openai",
+   "key_source": "env",
    "last_updated": null,
    "litellm_prefix": "openai",
    "models": [
@@ -741,13 +820,14 @@
   },
   {
    "api_key_env": "GEMINI_API_KEY",
-   "api_key_masked": null,
+   "api_key_masked": "sk-demo-****************************",
    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
    "config": {},
    "description": "Google AI Studio Gemini API. Uses the native provider when crewai[google-genai] is installed, otherwise the OpenAI-compatible endpoint below.",
    "enabled": true,
    "etag": null,
    "id": "gemini",
+   "key_source": "env",
    "last_updated": null,
    "litellm_prefix": "gemini",
    "models": [
@@ -805,6 +885,7 @@
    "enabled": true,
    "etag": null,
    "id": "ollama",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": "ollama",
    "models": [
@@ -845,6 +926,7 @@
    "enabled": true,
    "etag": null,
    "id": "lm-studio",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": null,
    "models": null,
@@ -861,6 +943,7 @@
    "enabled": true,
    "etag": null,
    "id": "deepseek",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": "deepseek",
    "models": [
@@ -915,6 +998,7 @@
    "enabled": true,
    "etag": null,
    "id": "dashscope",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": null,
    "models": [
@@ -969,6 +1053,7 @@
    "enabled": true,
    "etag": null,
    "id": "zhipu",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": null,
    "models": [
@@ -1015,6 +1100,7 @@
    "enabled": true,
    "etag": null,
    "id": "moonshot",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": null,
    "models": [
@@ -1052,6 +1138,148 @@
    "version": null
   },
   {
+   "api_key_env": "XAI_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://api.x.ai/v1",
+   "config": {},
+   "description": "xAI Grok via its OpenAI-compatible API.",
+   "enabled": true,
+   "etag": null,
+   "id": "grok",
+   "key_source": "none",
+   "last_updated": null,
+   "litellm_prefix": null,
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "vision",
+      "structured_outputs"
+     ],
+     "default": true,
+     "name": "grok-4.5"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "name": "grok-4.3"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "name": "grok-4.20"
+    }
+   ],
+   "name": "xAI Grok",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "ANTHROPIC_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://api.anthropic.com/v1",
+   "config": {},
+   "description": "Anthropic API. Uses the native provider when crewai[anthropic] is installed.",
+   "enabled": true,
+   "etag": null,
+   "id": "anthropic",
+   "key_source": "none",
+   "last_updated": null,
+   "litellm_prefix": "anthropic",
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "default": true,
+     "name": "claude-opus-5"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "name": "claude-sonnet-5"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "reasoning",
+      "structured_outputs"
+     ],
+     "name": "claude-fable-5"
+    }
+   ],
+   "name": "Anthropic Claude",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "GROQ_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://api.groq.com/openai/v1",
+   "config": {},
+   "description": "Groq's OpenAI-compatible endpoint for low-latency inference.",
+   "enabled": true,
+   "etag": null,
+   "id": "groq",
+   "key_source": "none",
+   "last_updated": null,
+   "litellm_prefix": null,
+   "models": null,
+   "name": "Groq",
+   "type": "llm",
+   "version": null
+  },
+  {
+   "api_key_env": "MISTRAL_API_KEY",
+   "api_key_masked": null,
+   "base_url": "https://api.mistral.ai/v1",
+   "config": {},
+   "description": "Mistral's OpenAI-compatible API.",
+   "enabled": true,
+   "etag": null,
+   "id": "mistral",
+   "key_source": "none",
+   "last_updated": null,
+   "litellm_prefix": null,
+   "models": [
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "default": true,
+     "name": "mistral-medium-3-5"
+    },
+    {
+     "capabilities": [
+      "chat",
+      "function_calling",
+      "structured_outputs"
+     ],
+     "name": "mistral-small-2603"
+    }
+   ],
+   "name": "Mistral AI",
+   "type": "llm",
+   "version": null
+  },
+  {
    "api_key_env": null,
    "api_key_masked": null,
    "base_url": null,
@@ -1060,6 +1288,7 @@
    "enabled": true,
    "etag": null,
    "id": "duckduckgo",
+   "key_source": "none",
    "last_updated": null,
    "litellm_prefix": null,
    "models": null,
@@ -1119,7 +1348,7 @@
   "counts": {
    "agents": 7,
    "deployments": 1,
-   "providers": 11,
+   "providers": 15,
    "tools": 9,
    "workflows": 8
   },
@@ -2216,7 +2445,7 @@
   },
   {
    "deployment_auth_mode": "private",
-   "description": "Workflow with 4 nodes and 3 edges",
+   "description": "Workflow with 5 nodes and 7 edges",
    "enabled": true,
    "event_listeners": [],
    "execution_strategy": "sequential",
@@ -2234,54 +2463,125 @@
    "last_updated": null,
    "mcp_servers": [],
    "memory": {
-    "enabled": false,
+    "enabled": true,
     "retention": "session"
    },
    "metadata": {
     "visual_canvas": {
      "edges": [
       {
+       "animated": false,
        "context_strategy": "full",
-       "from_node": "undefined-1783922360387-qut2v",
-       "id": "e-1784053008581-fzlpe",
+       "from_node": "undefined-1784053008580-r10xf",
+       "id": "e-1785306162915-ed1qb",
        "selected": false,
-       "source": "undefined-1784053008580-r10xf",
-       "target": "undefined-1784053008581-l5cyf",
-       "to_node": "undefined-1783922360388-gjsp6"
+       "source": "agent-1785306162915-ilhrq",
+       "style": {
+        "stroke": "#22c55e"
+       },
+       "target": "agent-1785306162915-byo7z",
+       "to_node": "undefined-1784053008581-l5cyf"
       },
       {
        "animated": false,
-       "id": "xy-edge__trigger-1784053019767-undefined-1784053008580-r10xf",
+       "id": "xy-edge__trigger-1785306171897-agent-1785306162915-ilhrq",
        "markerEnd": {
-        "color": "#64748b",
+        "color": "#b1b1b7",
         "type": "arrowclosed"
        },
        "selected": false,
-       "source": "trigger-1784053019767",
+       "source": "trigger-1785306171897",
        "style": {
-        "stroke": "#64748b",
+        "stroke": "#22c55e",
         "strokeWidth": 2
        },
-       "target": "undefined-1784053008580-r10xf",
+       "target": "agent-1785306162915-ilhrq",
        "type": "smoothstep"
       },
       {
        "animated": false,
-       "id": "xy-edge__tool-1784053049463attach-undefined-1784053008581-l5cyftools",
+       "id": "xy-edge__tool-1785307127699attach-agent-1785306162915-ilhrqmemory",
        "markerEnd": {
-        "color": "#64748b",
+        "color": "#b1b1b7",
         "type": "arrowclosed"
        },
-       "source": "tool-1784053049463",
+       "selected": false,
+       "source": "tool-1785307127699",
        "sourceHandle": "attach",
        "style": {
-        "stroke": "#94a3b8",
+        "stroke": "#22c55e",
         "strokeDasharray": "6 4",
         "strokeWidth": 1.5
        },
-       "target": "undefined-1784053008581-l5cyf",
-       "targetHandle": "tools",
+       "target": "agent-1785306162915-ilhrq",
+       "targetHandle": "memory",
        "type": "straight"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__trigger-1785306171897-router-1785307242044",
+       "markerEnd": {
+        "color": "#b1b1b7",
+        "type": "arrowclosed"
+       },
+       "selected": false,
+       "source": "trigger-1785306171897",
+       "style": {
+        "stroke": "#b1b1b7",
+        "strokeWidth": 2
+       },
+       "target": "router-1785307242044",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__router-1785307242044right-agent-1785306162915-ilhrq",
+       "markerEnd": {
+        "color": "#b1b1b7",
+        "type": "arrowclosed"
+       },
+       "selected": false,
+       "source": "router-1785307242044",
+       "sourceHandle": "right",
+       "style": {
+        "stroke": "#22c55e",
+        "strokeWidth": 2
+       },
+       "target": "agent-1785306162915-ilhrq",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__trigger-1785307497614-router-1785307504177",
+       "markerEnd": {
+        "color": "#b1b1b7",
+        "type": "arrowclosed"
+       },
+       "selected": false,
+       "source": "trigger-1785307497614",
+       "style": {
+        "stroke": "#b1b1b7",
+        "strokeWidth": 2
+       },
+       "target": "router-1785307504177",
+       "type": "smoothstep"
+      },
+      {
+       "animated": false,
+       "id": "xy-edge__router-1785307504177right-agent-1785306162915-ilhrq",
+       "markerEnd": {
+        "color": "#b1b1b7",
+        "type": "arrowclosed"
+       },
+       "selected": false,
+       "source": "router-1785307504177",
+       "sourceHandle": "right",
+       "style": {
+        "stroke": "#22c55e",
+        "strokeWidth": 2
+       },
+       "target": "agent-1785306162915-ilhrq",
+       "type": "smoothstep"
       }
      ],
      "nodes": [
@@ -2331,20 +2631,39 @@
          ],
          "type": "conversable"
         },
+        "description": "",
         "label": "Web_Researcher",
-        "library_agent_name": "Web_Researcher"
+        "lastInput": {
+         "data": {
+          "context": [],
+          "description": "Workflow Blueprint: E2E Search Demo\nDomain Focus: Workflow with 3 nodes and 2 edges\nExecution Phase Step: 1\nActive Node: agent-1785306162915-ilhrq\nMandatory Task Objective: Run Web_Researcher as CrewAI task 1.\nSession Trace ID: 8531d8a1-e10b-449f-9de8-ee754391533f\nIdentity Context: live-runner\nRuntime Parameters: {'session_metadata': {'workflow_id': 'e2e_search_demo', 'user_id': 'live-runner', 'runtime': 'crewai', 'source': 'canvas_live_run'}, 'history': [{'role': 'user', 'content': 'Lets create a poem about dog ', 'timestamp': '2026-07-29T06:46:03.094909'}], 'workflow_id': 'e2e_search_demo', 'source': 'canvas_live_run'}\n\nIncoming User Prompt:\nLets create a poem about dog \n\nDeliver an optimal, exhaustive answer utilizing any applicable configured tools automatically.",
+          "message": "Lets create a poem about dog "
+         },
+         "timestamp": "2026-07-29T06:46:10.185Z"
+        },
+        "lastOutput": {
+         "data": {
+          "agent": "Web_Researcher",
+          "description": "Workflow Blueprint: E2E Search Demo\nDomain Focus: Workflow with 3 nodes and 2 edges\nExecution Phase Step: 1\nActive Node: agent-1785306162915-ilhrq\nMandatory Task Objective: Run Web_Researcher as CrewAI task 1.\nSession Trace ID: 8531d8a1-e10b-449f-9de8-ee754391533f\nIdentity Context: live-runner\nRuntime Parameters: {'session_metadata': {'workflow_id': 'e2e_search_demo', 'user_id': 'live-runner', 'runtime': 'crewai', 'source': 'canvas_live_run'}, 'history': [{'role': 'user', 'content': 'Lets create a poem about dog ', 'timestamp': '2026-07-29T06:46:03.094909'}], 'workflow_id': 'e2e_search_demo', 'source': 'canvas_live_run'}\n\nIncoming User Prompt:\nLets create a poem about dog \n\nDeliver an optimal, exhaustive answer utilizing any applicable configured tools automatically.",
+          "expected_output": "A structured, useful result for the next node or final response.",
+          "raw": "A loyal friend upon the floor,\nWho greets you softly at the door,\nWith eyes of brown and heart so true,\nA dog is always there for you.\n\nThrough fields of green and sunny skies,\nWith boundless joy in faithful eyes,\nA tail that wags, a gentle bark,\nA shining light within the dark."
+         },
+         "timestamp": "2026-07-29T06:46:10.185Z"
+        },
+        "library_agent_name": "Web_Researcher",
+        "status": "configured"
        },
        "description": "",
-       "id": "undefined-1784053008580-r10xf",
+       "id": "agent-1785306162915-ilhrq",
        "measured": {
-        "height": 105,
+        "height": 135,
         "width": 239
        },
        "position": {
-        "x": 458.0879610963291,
-        "y": 298.0320004977594
+        "x": 533.0879610963291,
+        "y": 385.0320004977594
        },
-       "selected": false,
+       "selected": true,
        "tools": [],
        "type": "agent"
       },
@@ -2387,21 +2706,48 @@
          "name": "Answer_Writer",
          "retrieve_config": null,
          "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
-         "tools": [],
+         "tools": [
+          "search_web",
+          "get_weather"
+         ],
          "type": "conversable"
         },
+        "description": "",
         "label": "Answer_Writer",
-        "library_agent_name": "Answer_Writer"
+        "lastInput": {
+         "data": {
+          "context": [
+           {
+            "node_id": "agent-1785306162915-ilhrq",
+            "output": "A loyal friend upon the floor,\nWho greets you softly at the door,\nWith eyes of brown and heart so true,\nA dog is always there for you.\n\nThrough fields of green and sunny skies,\nWith boundless joy in faithful eyes,\nA tail that wags, a gentle bark,\nA shining light within the dark."
+           }
+          ],
+          "description": "Workflow Blueprint: E2E Search Demo\nDomain Focus: Workflow with 3 nodes and 2 edges\nExecution Phase Step: 2\nActive Node: agent-1785306162915-byo7z\nMandatory Task Objective: Run Answer_Writer as CrewAI task 2.\nSession Trace ID: 8531d8a1-e10b-449f-9de8-ee754391533f\nIdentity Context: live-runner\nRuntime Parameters: {'session_metadata': {'workflow_id': 'e2e_search_demo', 'user_id': 'live-runner', 'runtime': 'crewai', 'source': 'canvas_live_run'}, 'history': [{'role': 'user', 'content': 'Lets create a poem about dog ', 'timestamp': '2026-07-29T06:46:03.094909'}], 'workflow_id': 'e2e_search_demo', 'source': 'canvas_live_run'}\n\nIncoming User Prompt:\nLets create a poem about dog \n\nDeliver an optimal, exhaustive answer utilizing any applicable configured tools automatically.",
+          "message": "Lets create a poem about dog "
+         },
+         "timestamp": "2026-07-29T06:46:10.185Z"
+        },
+        "lastOutput": {
+         "data": {
+          "agent": "Answer_Writer",
+          "description": "Workflow Blueprint: E2E Search Demo\nDomain Focus: Workflow with 3 nodes and 2 edges\nExecution Phase Step: 2\nActive Node: agent-1785306162915-byo7z\nMandatory Task Objective: Run Answer_Writer as CrewAI task 2.\nSession Trace ID: 8531d8a1-e10b-449f-9de8-ee754391533f\nIdentity Context: live-runner\nRuntime Parameters: {'session_metadata': {'workflow_id': 'e2e_search_demo', 'user_id': 'live-runner', 'runtime': 'crewai', 'source': 'canvas_live_run'}, 'history': [{'role': 'user', 'content': 'Lets create a poem about dog ', 'timestamp': '2026-07-29T06:46:03.094909'}], 'workflow_id': 'e2e_search_demo', 'source': 'canvas_live_run'}\n\nIncoming User Prompt:\nLets create a poem about dog \n\nDeliver an optimal, exhaustive answer utilizing any applicable configured tools automatically.",
+          "expected_output": "A structured, useful result for the next node or final response.",
+          "raw": "Here is the complete poem about a dog, crafted and prepared as requested:\n\nA loyal friend upon the floor,\nWho greets you softly at the door,\nWith eyes of brown and heart so true,\nA dog is always there for you.\n\nThrough fields of green and sunny skies,\nWith boundless joy in faithful eyes,\nA tail that wags, a gentle bark,\nA shining light within the dark."
+         },
+         "timestamp": "2026-07-29T06:46:10.185Z"
+        },
+        "library_agent_name": "Answer_Writer",
+        "status": "configured"
        },
        "description": "",
-       "id": "undefined-1784053008581-l5cyf",
+       "id": "agent-1785306162915-byo7z",
        "measured": {
-        "height": 105,
+        "height": 135,
         "width": 224
        },
        "position": {
-        "x": 851.9234067015224,
-        "y": 297.9793673000922
+        "x": 926.9234067015224,
+        "y": 384.9793673000922
        },
        "selected": false,
        "tools": [
@@ -2412,20 +2758,43 @@
       {
        "data": {
         "config": {
+         "memory_enabled": true,
+         "retention": "session",
+         "type": "memory"
+        },
+        "label": "Memory Store",
+        "status": "configured"
+       },
+       "dragging": false,
+       "id": "tool-1785307127699",
+       "measured": {
+        "height": 76,
+        "width": 159
+       },
+       "position": {
+        "x": 575.5288822534253,
+        "y": 662.32866538124
+       },
+       "selected": false,
+       "type": "tool"
+      },
+      {
+       "data": {
+        "config": {
          "label": "On Chat",
          "trigger_type": "chat"
         },
-        "label": "Chat Trigger"
+        "label": "Chat Trigger",
+        "status": "configured"
        },
-       "dragging": false,
-       "id": "trigger-1784053019767",
+       "id": "trigger-1785307497614",
        "measured": {
         "height": 56,
         "width": 56
        },
        "position": {
-        "x": 253.53659885826488,
-        "y": 302.1067087656901
+        "x": 72.40783941688164,
+        "y": 419.4277808877098
        },
        "selected": false,
        "type": "trigger"
@@ -2433,27 +2802,27 @@
       {
        "data": {
         "config": {
-         "description": "Search the web using DuckDuckGo and return formatted results with titles, descriptions, and URLs. Useful for finding current information, facts, and resources.",
-         "enabled": true,
-         "entrypoint": "src.tools.web_search:search_web",
-         "id": "web_search",
-         "max_results": 5,
-         "name": "search_web"
+         "guardrails_enabled": true,
+         "output_schema": "text",
+         "tools": [],
+         "type": "guardrail"
         },
-        "label": "search_web"
+        "description": "Only pass the message related to Maldives or Vacation ",
+        "label": "Guardrail",
+        "status": "configured"
        },
        "dragging": false,
-       "id": "tool-1784053049463",
+       "id": "router-1785307504177",
        "measured": {
-        "height": 76,
-        "width": 193
+        "height": 64,
+        "width": 64
        },
        "position": {
-        "x": 825.6245931648273,
-        "y": 508.60624262220244
+        "x": 314.2651251681071,
+        "y": 417.8045776276345
        },
        "selected": false,
-       "type": "tool"
+       "type": "router"
       }
      ],
      "viewport": {
@@ -2466,35 +2835,35 @@
    "name": "E2E Search Demo",
    "output_schema": "text",
    "persistence": "postgres",
-   "process": "sequential",
+   "process": "hierarchical",
    "runtime": "crewai",
    "tasks": [
     {
      "agent_id": "e2e_researcher",
-     "description": "Run Web_Researcher as CrewAI task 1.",
+     "description": "",
      "expected_output": "A structured, useful result for the next node or final response.",
-     "id": "undefined-1784053008580-r10xf_task",
-     "node_id": "undefined-1784053008580-r10xf"
+     "id": "agent-1785306162915-ilhrq_task",
+     "node_id": "agent-1785306162915-ilhrq"
     },
     {
      "agent_id": "e2e_writer",
-     "description": "Run Answer_Writer as CrewAI task 2.",
+     "description": "",
      "expected_output": "A structured, useful result for the next node or final response.",
-     "id": "undefined-1784053008581-l5cyf_task",
-     "node_id": "undefined-1784053008581-l5cyf"
+     "id": "agent-1785306162915-byo7z_task",
+     "node_id": "agent-1785306162915-byo7z"
     }
    ],
    "topology": {
     "edges": [
      {
       "context_strategy": "full",
-      "from_node": "undefined-1784053008580-r10xf",
-      "source": "undefined-1784053008580-r10xf",
-      "target": "undefined-1784053008581-l5cyf",
-      "to_node": "undefined-1784053008581-l5cyf"
+      "from_node": "agent-1785306162915-ilhrq",
+      "source": "agent-1785306162915-ilhrq",
+      "target": "agent-1785306162915-byo7z",
+      "to_node": "agent-1785306162915-byo7z"
      }
     ],
-    "entry_node": "undefined-1784053008580-r10xf",
+    "entry_node": "agent-1785306162915-ilhrq",
     "nodes": [
      {
       "agent_id": "e2e_researcher",
@@ -2520,10 +2889,11 @@
        "type": "conversable"
       },
       "description": "",
-      "id": "undefined-1784053008580-r10xf",
+      "id": "agent-1785306162915-ilhrq",
+      "memory": true,
       "position": {
-       "x": 458.0879610963291,
-       "y": 298.0320004977594
+       "x": 533.0879610963291,
+       "y": 385.0320004977594
       },
       "tools": []
      },
@@ -2545,21 +2915,22 @@
        "name": "Answer_Writer",
        "retrieve_config": null,
        "system_message": "You write a clear, well-structured final answer for the user based on the research handed to you. Always produce a complete, non-empty answer.",
-       "tools": [],
+       "tools": [
+        "search_web",
+        "get_weather"
+       ],
        "type": "conversable"
       },
       "description": "",
-      "id": "undefined-1784053008581-l5cyf",
+      "id": "agent-1785306162915-byo7z",
       "position": {
-       "x": 851.9234067015224,
-       "y": 297.9793673000922
+       "x": 926.9234067015224,
+       "y": 384.9793673000922
       },
-      "tools": [
-       "web_search"
-      ]
+      "tools": []
      }
     ],
-    "type": "sequential"
+    "type": "graph"
    },
    "tracing": {
     "amp_enabled": false,

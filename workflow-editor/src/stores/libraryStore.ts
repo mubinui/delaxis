@@ -107,7 +107,12 @@ const agentToLibraryItem = (agent: AgentConfig): LibraryItem => ({
         name: agent.name,
         instruction: agent.system_message ?? '',
         system_message: agent.system_message ?? '',
-        model_config: agent.llm_config && typeof agent.llm_config === 'object' ? agent.llm_config : {},
+        model_config: {
+            ...(agent.llm_config && typeof agent.llm_config === 'object' ? agent.llm_config : {}),
+            ...((agent as any).agent_settings ?? {}),
+        },
+        is_selector: Boolean((agent as any).is_selector),
+        output_key: (agent as any).output_key ?? '',
         human_input_mode: agent.human_input_mode ?? 'NEVER',
         code_execution_config: agent.code_execution_config,
         tools: agent.tools ?? [],
@@ -160,12 +165,26 @@ const itemToAgentCreate = (item: Partial<LibraryItem>) => {
         )
         : null;
 
+    // agent_settings holds the CrewAI execution knobs; they live alongside the
+    // sampling params in model_config on the canvas.
+    const agentSettingKeys = [
+        'max_iter', 'max_rpm', 'max_execution_time', 'max_retry_limit',
+        'allow_delegation', 'respect_context_window', 'cache', 'verbose',
+        'inject_date', 'use_system_prompt',
+    ];
+    const agent_settings = Object.fromEntries(
+        Object.entries(modelConfig).filter(([key, value]) => agentSettingKeys.includes(key) && value !== undefined && value !== ''),
+    );
+
     return {
         id,
         type,
         name,
         system_message: String(config.instruction ?? config.system_message ?? 'You are a helpful AI assistant.'),
         llm_config,
+        agent_settings: Object.keys(agent_settings).length > 0 ? agent_settings : null,
+        is_selector: Boolean(config.is_selector),
+        output_key: config.output_key || null,
         human_input_mode: String(config.human_input_mode ?? 'NEVER'),
         code_execution_config: config.code_execution_config ?? false,
         tools: Array.isArray(config.tools) ? config.tools : [],
