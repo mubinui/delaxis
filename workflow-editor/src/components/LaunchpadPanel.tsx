@@ -7,6 +7,7 @@ import { api } from '../api/client';
 import { useShallow } from 'zustand/react/shallow';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
+import { workflowToCanvas } from '../utils/workflowToCanvas';
 
 type Tab = 'build' | 'api' | 'triggers' | 'frontend' | 'deploy';
 type BuildKind = BuilderType | 'chatbot' | 'api' | 'frontend';
@@ -44,11 +45,13 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [frontendPrompt, setFrontendPrompt] = useState('Create a premium university admissions chatbot UI with a clean welcome panel, suggested questions, and a fast mobile layout.');
     const [frontendMessages, setFrontendMessages] = useState<ChatMessage[]>([]);
     const [frontendHtml, setFrontendHtml] = useState('');
+    const [frontendMode, setFrontendMode] = useState<'themed' | 'custom'>('themed');
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
     const [messageIsError, setMessageIsError] = useState(false);
     const [deployTitle, setDeployTitle] = useState('');
     const [deployGreeting, setDeployGreeting] = useState('Hi, how can I help?');
+    const [deploySuggestions, setDeploySuggestions] = useState('');
     const [deployTheme, setDeployTheme] = useState('midnight');
     const [themes, setThemes] = useState<ThemePreset[]>([]);
 
@@ -59,6 +62,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
             workflowName: state.workflowName,
         })),
     );
+    const loadWorkflow = useWorkflowStore((state) => state.loadWorkflow);
+    const addNodeToCanvas = useWorkflowStore((state) => state.addNode);
     const {
         triggers,
         deployments,
@@ -67,6 +72,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         flashDeploy,
         deleteDeployment,
         fetchOperationsData,
+        fetchLibraryItems,
+        saveItem,
     } = useLibraryStore();
 
     const workflowId = currentWorkflowId || plan?.workflow?.id || '';
@@ -164,6 +171,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     provider_id: providerId,
                     model_id: modelId,
                     history: buildMessages,
+                    mode: frontendMode,
                 });
                 setFrontendHtml(result.html);
                 setBuildMessages([...nextMessages, { role: 'assistant', content: `${result.summary}\n\nReady to flash deploy from the Frontend tab.` }]);
@@ -198,16 +206,44 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 provider_id: providerId,
                 model_id: modelId,
             });
-            if (typeof result.config === 'string') {
-                setMessage(result.config);
-            } else if (buildKind === 'workflow') {
-                setPlan({ workflow: result.config });
-                setMessage(compactJson(result.config));
-            } else {
-                setMessage(compactJson(result.config));
+            // A Python function is source code, not a config — there is no node
+            // for it, so it stays as text for the user to review.
+            if (typeof result.config === 'string' || buildKind === 'function') {
+                setMessage(typeof result.config === 'string' ? result.config : compactJson(result.config));
+                return;
             }
+
+            const config = result.config as Record<string, any>;
+            if (buildKind === 'workflow') {
+                // Route through the plan applier so its agents are created too,
+                // then the workflow opens on the canvas.
+                setPlan({ workflow: config });
+                reportSuccess('Workflow config ready. Press Apply to create it and open it on the canvas.');
+                return;
+            }
+
+            // Agents and tools are saved to the library and dropped on the canvas,
+            // rather than being printed as JSON the user has to copy by hand.
+            const kind = buildKind === 'agent' ? 'agent' : 'tool';
+            const saved = await saveItem(kind, {
+                name: String(config.name ?? config.id ?? `New ${kind}`),
+                description: String(config.description ?? ''),
+                config,
+            });
+            addNodeToCanvas({
+                id: `${kind}-${Date.now()}`,
+                type: kind,
+                position: { x: 420, y: 220 },
+                data: {
+                    label: saved.name,
+                    description: saved.description ?? '',
+                    config: { ...config, id: saved.id },
+                },
+            } as any);
+            reportSuccess(`Saved "${saved.name}" to the library and added it to the canvas.`);
+            onClose?.();
         } catch (error) {
-            setMessage((error as Error).message);
+            reportError((error as Error).message);
         } finally {
             setBusy(false);
         }
@@ -228,15 +264,51 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         }
     };
 
+    /** Put a saved workflow config on the canvas so it can be seen and edited. */
+    const openOnCanvas = async (config: Record<string, any>, name?: string) => {
+        // Refresh first: the agents and tools the plan just created are what the
+        // canvas reads model settings and tool details from.
+        await fetchLibraryItems().catch(() => undefined);
+        const { savedAgents, savedTools } = useLibraryStore.getState();
+        const { nodes, edges } = workflowToCanvas({ config, agents: savedAgents, tools: savedTools });
+        loadWorkflow(String(config.id ?? ''), String(name ?? config.name ?? 'Generated workflow'), nodes, edges);
+        onClose?.();
+    };
+
     const applyPlan = async () => {
         if (!plan) return;
         setBusy(true);
         try {
             const result = await applyBuilderPlan(plan);
-            setMessage(`Applied plan: ${compactJson(result)}`);
             await fetchOperationsData();
+
+            const describe = (bucket: Record<string, string[]>, verb: string) =>
+                Object.entries(bucket ?? {})
+                    .filter(([, ids]) => Array.isArray(ids) && ids.length > 0)
+                    .map(([kind, ids]) => `${verb} ${ids.length} ${kind}`)
+                    .join(', ');
+            const summary = [
+                describe(result.created as Record<string, string[]>, 'created'),
+                describe(result.updated as Record<string, string[]>, 'updated'),
+            ].filter(Boolean).join(', ');
+            const failures = (result.errors ?? []) as string[];
+
+            // The whole point of applying is to end up with something editable —
+            // previously this only printed JSON and left the canvas untouched.
+            const workflowConfig = result.workflow as Record<string, any> | null;
+            if (workflowConfig) {
+                await openOnCanvas(workflowConfig);
+                reportSuccess(
+                    `Applied the plan (${summary || 'no changes'}) and opened the workflow on the canvas.`
+                    + (failures.length ? ` ${failures.length} item(s) failed: ${failures.join('; ')}` : ''),
+                );
+            } else if (failures.length) {
+                reportError(`Nothing was created: ${failures.join('; ')}`);
+            } else {
+                reportSuccess(`Applied the plan: ${summary || 'no changes'}.`);
+            }
         } catch (error) {
-            setMessage((error as Error).message);
+            reportError((error as Error).message);
         } finally {
             setBusy(false);
         }
@@ -283,6 +355,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 provider_id: providerId,
                 model_id: modelId,
                 history: frontendMessages,
+                mode: frontendMode,
             });
             setFrontendHtml(result.html);
             setFrontendMessages([
@@ -355,6 +428,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const deployBranding = () => ({
         title: deployTitle.trim() || workflowLabel,
         greeting: deployGreeting.trim() || 'Hi, how can I help?',
+        // Starter chips on an empty conversation; the backend keeps the first four.
+        suggestions: deploySuggestions.split('\n').map((line) => line.trim()).filter(Boolean),
         theme: deployTheme,
     });
 
@@ -573,13 +648,40 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
 
                 {tab === 'frontend' && (
                     <>
+                        <div className="rounded-md border border-slate-200 dark:border-slate-800 p-2.5 space-y-2">
+                            <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">Generation mode</div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {([
+                                    ['themed', 'Styled', 'Restyles the built-in page. Chat, history and buttons are the tested ones.'],
+                                    ['custom', 'Custom HTML', 'The model writes the whole page. Any layout, but it can come back broken.'],
+                                ] as const).map(([value, label, hint]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setFrontendMode(value)}
+                                        className={`rounded-md border p-2 text-left transition-all ${frontendMode === value
+                                            ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/25'
+                                            : 'border-slate-200 dark:border-slate-800'}`}
+                                    >
+                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{label}</div>
+                                        <div className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{hint}</div>
+                                    </button>
+                                ))}
+                            </div>
+                            {frontendMode === 'custom' && (
+                                <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+                                    A generated page that cannot reach the API or has no working send button is
+                                    rejected, and the styled page is used instead.
+                                </p>
+                            )}
+                        </div>
                         <button onClick={useGeminiFrontendModel} className="w-full bg-slate-900 dark:bg-slate-700 text-white rounded-md py-2 text-sm font-semibold">
                             Use Gemini Pro
                         </button>
                         <div className="border border-slate-200 dark:border-slate-800 rounded-md bg-slate-50 dark:bg-slate-900/40 h-72 overflow-y-auto p-3 space-y-3">
                             {frontendMessages.length === 0 && (
                                 <div className="text-sm text-slate-500 dark:text-slate-400">
-                                    Describe the exact customer-facing chatbot UI you want. This lane generates a deployable frontend and keeps the workflow backend intact.
+                                    Describe the look you want — colours, tone, starter questions. The workflow behind it is untouched.
                                 </div>
                             )}
                             {frontendMessages.map((chatMessage, index) => (
@@ -667,6 +769,19 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                 placeholder="Hi, how can I help?"
                                 className="mt-1 w-full border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1.5 text-sm font-normal bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                             />
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                            Starter prompts
+                            <textarea
+                                value={deploySuggestions}
+                                onChange={(event) => setDeploySuggestions(event.target.value)}
+                                rows={3}
+                                placeholder={'One per line, up to four\nWhat can you do?\nSummarise this week\'s releases'}
+                                className="mt-1 w-full border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1.5 text-sm font-normal bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-y"
+                            />
+                            <span className="mt-1 block font-normal text-[11px] text-slate-500 dark:text-slate-400">
+                                Shown as chips on an empty conversation, so visitors know what to ask.
+                            </span>
                         </label>
                         <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                             Theme

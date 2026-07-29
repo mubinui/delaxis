@@ -20,6 +20,10 @@ export interface FrontendGenerateResponse {
     model_id: string;
     provider_id: string;
     used_fallback: boolean;
+    /** Which path produced the page — 'custom' output that failed its checks comes back as 'themed'. */
+    mode?: 'themed' | 'custom';
+    design?: Record<string, any>;
+    warnings?: string[];
 }
 
 export function listBuilderModels(): Promise<{ models: ModelInfo[] }> {
@@ -94,6 +98,8 @@ export function generateFrontend(body: {
     provider_id: string;
     model_id: string;
     history: ChatMessage[];
+    mode?: 'themed' | 'custom';
+    theme?: string;
 }): Promise<FrontendGenerateResponse> {
     return api<FrontendGenerateResponse>('/api/v1/builder/frontend/generate', {
         method: 'POST',

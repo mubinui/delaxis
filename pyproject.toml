@@ -1,6 +1,6 @@
 [project]
 name = "open-agent-kit"
-version = "0.3.1"
+version = "0.4.0"
 description = "Open Agent Kit (OAK) - open-source multi-agent development kit with a visual studio, live LLM testing, and deployable chatbots"
 authors = [
     {name = "Mubin Ul Islam", email = "uic.mubin@gmail.com"}

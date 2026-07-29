@@ -2,8 +2,7 @@
 
 import json
 import re
-from html import escape
-from typing import AsyncGenerator, Literal
+from typing import Any, AsyncGenerator, Literal
 
 import httpx
 import structlog
@@ -14,11 +13,13 @@ from pydantic import BaseModel, Field
 from src.api.auth import require_user, CurrentUser
 from src.api.builder_prompts import get_builder_prompt
 from src.api.chatbot_page import (
-    MARKDOWN_STYLE,
-    MARKDOWN_SCRIPT,
+    THEMES,
+    default_chatbot_html,
     ensure_config_contract,
     ensure_markdown_support,
-    safe_json,
+    harmonize_brand,
+    normalize_theme,
+    page_defects,
     validate_page,
 )
 from src.config.config_loader import get_config_loader
@@ -104,6 +105,10 @@ class FrontendGenerateRequest(BaseModel):
     provider_id: str = "openrouter"
     model_id: str = "google/gemini-3.6-flash"
     history: list[FrontendChatMessage] = Field(default_factory=list)
+    # "themed" restyles the built-in page (its chat always works); "custom" asks
+    # the model for a whole HTML document, which is far more likely to break.
+    mode: Literal["themed", "custom"] = "themed"
+    theme: str = "midnight"
 
 
 class FrontendGenerateResponse(BaseModel):
@@ -112,6 +117,10 @@ class FrontendGenerateResponse(BaseModel):
     model_id: str
     provider_id: str
     used_fallback: bool = False
+    mode: str = "themed"
+    # The design the model produced, so the Studio can show what it chose.
+    design: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -354,124 +363,6 @@ def _fallback_plan(prompt: str) -> dict:
         ],
         "missing_secrets": ["OPENROUTER_API_KEY"],
     }
-
-
-def _fallback_frontend(body: FrontendGenerateRequest) -> str:
-    title = escape(body.title)
-    # Greeting lands inside a JS string literal, so it needs a JS escape, not an HTML one
-    greeting_js = safe_json(body.greeting)
-    prompt = escape(body.prompt)
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script>window.CHATBOT_CONFIG = __CHATBOT_CONFIG__;</script>
-  <title>{title}</title>
-  <style>
-    * {{ box-sizing: border-box; }}
-    body {{ margin: 0; min-height: 100vh; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f7fb; color: #172033; }}
-    main {{ min-height: 100vh; display: grid; grid-template-columns: minmax(280px, 390px) 1fr; }}
-    aside {{ padding: 32px; background: #172033; color: white; display: flex; flex-direction: column; justify-content: space-between; }}
-    h1 {{ margin: 0; font-size: 34px; line-height: 1.05; letter-spacing: 0; }}
-    p {{ color: #cbd5e1; line-height: 1.6; }}
-    .tag {{ display: inline-flex; align-items: center; width: max-content; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 7px 10px; font-size: 12px; color: #dbeafe; margin-bottom: 18px; }}
-    section {{ display: flex; align-items: center; justify-content: center; padding: 28px; }}
-    .chat {{ width: min(760px, 100%); height: min(760px, calc(100vh - 56px)); background: white; border: 1px solid #d8deea; border-radius: 8px; box-shadow: 0 22px 70px rgba(15,23,42,.12); display: flex; flex-direction: column; overflow: hidden; }}
-    .bar {{ padding: 16px 18px; border-bottom: 1px solid #e5e9f1; font-weight: 800; }}
-    .messages {{ flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }}
-    .msg {{ max-width: 84%; padding: 12px 14px; border-radius: 8px; line-height: 1.5; white-space: pre-wrap; font-size: 14px; }}
-    .assistant {{ align-self: flex-start; background: #eef3ff; color: #172033; }}
-    .user {{ align-self: flex-end; background: #2563eb; color: white; }}
-{MARKDOWN_STYLE}
-    form {{ display: flex; gap: 10px; padding: 14px; border-top: 1px solid #e5e9f1; }}
-    input {{ flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; font: inherit; }}
-    button {{ border: 0; border-radius: 6px; background: #172033; color: white; font-weight: 800; padding: 0 18px; cursor: pointer; }}
-    button:disabled {{ opacity: .55; cursor: wait; }}
-    @media (max-width: 820px) {{ main {{ grid-template-columns: 1fr; }} aside {{ display: none; }} section {{ padding: 12px; }} .chat {{ height: calc(100vh - 24px); }} }}
-  </style>
-</head>
-<body>
-  <main>
-    <aside>
-      <div>
-        <div class="tag">Flash deployed chatbot</div>
-        <h1>{title}</h1>
-        <p>{prompt}</p>
-      </div>
-      <p>Workflow: <strong id="workflow-label"></strong></p>
-    </aside>
-    <section>
-      <div class="chat">
-        <div class="bar">{title}</div>
-        <div id="messages" class="messages"></div>
-        <form id="form">
-          <input id="input" autocomplete="off" placeholder="Type your message..." />
-          <button id="send" type="submit">Send</button>
-        </form>
-      </div>
-    </section>
-  </main>
-  <script>
-    const cfg = window.CHATBOT_CONFIG || {{}};
-    const messages = document.getElementById('messages');
-    const input = document.getElementById('input');
-    const send = document.getElementById('send');
-    document.getElementById('workflow-label').textContent = cfg.workflow_id || '';
-    let sessionId = null;
-{MARKDOWN_SCRIPT}
-    function add(role, text) {{
-      const bubble = document.createElement('div');
-      bubble.className = 'msg ' + role;
-            if (role === 'assistant') {{
-                bubble.classList.add('md-content');
-                bubble.innerHTML = renderMarkdown(text);
-            }} else {{
-                bubble.textContent = text;
-            }}
-      messages.appendChild(bubble);
-      messages.scrollTop = messages.scrollHeight;
-    }}
-    async function ensureSession() {{
-      if (sessionId) return sessionId;
-      const response = await fetch(cfg.api_url + '/api/v1/sessions', {{
-        method: 'POST',
-        headers: {{ 'Content-Type': 'application/json' }},
-        body: JSON.stringify({{ workflow_id: cfg.workflow_id, user_id: 'flash-user', metadata: {{ deployment: cfg.name }} }})
-      }});
-      if (!response.ok) throw new Error(await response.text());
-      const data = await response.json();
-      sessionId = data.session_id;
-      return sessionId;
-    }}
-    add('assistant', cfg.greeting || {greeting_js});
-    document.getElementById('form').addEventListener('submit', async (event) => {{
-      event.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = '';
-      add('user', text);
-      send.disabled = true;
-      try {{
-        const sid = await ensureSession();
-        const response = await fetch(cfg.api_url + '/api/v1/sessions/' + sid + '/messages', {{
-          method: 'POST',
-          headers: {{ 'Content-Type': 'application/json' }},
-          body: JSON.stringify({{ message: text, max_turns: 10, metadata: {{ provider_id: cfg.provider_id, model_id: cfg.model_id }} }})
-        }});
-        if (!response.ok) throw new Error(await response.text());
-        const data = await response.json();
-        add('assistant', data.response || 'No response');
-      }} catch (error) {{
-        add('assistant', 'Error: ' + error.message);
-      }} finally {{
-        send.disabled = false;
-        input.focus();
-      }}
-    }});
-  </script>
-</body>
-</html>"""
 
 
 def _coerce_tool_config(config: dict, raw_api: str, specification: str) -> dict:
@@ -757,17 +648,150 @@ async def list_builder_models(request: Request) -> AvailableModelsResponse:
     return AvailableModelsResponse(models=models)
 
 
+DESIGN_SYSTEM_PROMPT = (
+    "You are a product designer choosing the visual identity for a chatbot.\n"
+    "Return ONLY a JSON object — no prose, no markdown — with these keys:\n"
+    '{"theme": one of ' + ", ".join(f'"{t}"' for t in THEMES) + ",\n"
+    ' "brand": {"accent": css colour, "accent-text": css colour readable ON accent,\n'
+    '           "bg": page background, "surface": panel background, "panel": sidebar background,\n'
+    '           "border": hairline colour, "text": body colour, "muted": secondary text,\n'
+    '           "assistant-bubble": reply background, "assistant-border": reply border,\n'
+    '           "input-bg", "input-border", "link", "font": a websafe font stack,\n'
+    '           "radius": e.g. "12px"},\n'
+    ' "title": short product name, "greeting": the assistant\'s opening line,\n'
+    ' "suggestions": up to 4 short starter prompts}\n\n'
+    "Rules:\n"
+    "- Start from the closest theme, then override only what the brief needs.\n"
+    "- Colours must be plain hex/rgb/hsl values. No gradients, no images, no CSS beyond a colour.\n"
+    "- Body text must stay clearly readable on its background — check accent-text against accent.\n"
+    "- Only use fonts that ship with operating systems; there is no network to load one from."
+)
+
+
+def _render_themed_frontend(
+    body: FrontendGenerateRequest, design: dict[str, Any]
+) -> tuple[str, dict[str, Any]]:
+    """Render the built-in page with a generated design applied.
+
+    The page's session handling, composer and API calls come from the template
+    that ships with the product, so only presentation can differ — which is why
+    this path cannot produce a chatbot whose buttons do nothing.
+    """
+    theme = normalize_theme(str(design.get("theme") or body.theme))
+    # Measured, not trusted: a generated palette that would make text
+    # unreadable falls back to the theme's own colours for those values.
+    brand, contrast_notes = harmonize_brand(
+        theme, design.get("brand") if isinstance(design.get("brand"), dict) else {}
+    )
+    title = str(design.get("title") or body.title)[:80]
+    greeting = str(design.get("greeting") or body.greeting)[:400]
+    suggestions = [
+        str(item).strip()[:120]
+        for item in (design.get("suggestions") or [])
+        if str(item).strip()
+    ][:4]
+
+    config = {
+        "workflow_id": body.workflow_id,
+        "name": body.workflow_id,
+        "title": title,
+        "greeting": greeting,
+        "suggestions": suggestions,
+        "theme": theme,
+        "api_url": "",
+    }
+    html = default_chatbot_html(
+        title=title,
+        greeting=greeting,
+        workflow_id=body.workflow_id,
+        provider_id=body.provider_id,
+        model_id=body.model_id,
+        theme=theme,
+        config=config,
+        brand=brand,
+    )
+    applied = {
+        "theme": theme,
+        "brand": brand,
+        "title": title,
+        "greeting": greeting,
+        "suggestions": suggestions,
+        "contrast_notes": contrast_notes,
+    }
+    return html, applied
+
+
+async def _generate_design(
+    base_url: str, api_key: str, body: FrontendGenerateRequest
+) -> dict[str, Any]:
+    messages: list[dict] = [{"role": "system", "content": DESIGN_SYSTEM_PROMPT}]
+    for history_item in body.history[-6:]:
+        messages.append({"role": history_item.role, "content": history_item.content})
+    messages.append(
+        {
+            "role": "user",
+            "content": f"Brief: {body.prompt}\nProduct name hint: {body.title}\nOpening line hint: {body.greeting}",
+        }
+    )
+    raw, _truncated = await _call_llm_sync(base_url, api_key, body.model_id, messages, max_tokens=1500)
+    return _extract_json_from_text(raw) or {}
+
+
 @router.post("/frontend/generate", response_model=FrontendGenerateResponse)
 async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequest) -> FrontendGenerateResponse:
-    """Generate a deployable custom chatbot frontend as a single HTML file."""
+    """Generate a deployable chatbot frontend.
+
+    ``themed`` (the default) restyles the page that ships with the product, so
+    the chat, the composer and the conversation list are the ones that are
+    already tested. ``custom`` asks the model for the whole document, which
+    allows any layout but has to be checked before it can be deployed.
+    """
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
+        html, design = _render_themed_frontend(body, {})
         return FrontendGenerateResponse(
-            html=_fallback_frontend(body),
-            summary="Generated a local premium fallback frontend because the model API key is not configured.",
+            html=html,
+            summary="Rendered the built-in chat page with the default theme, because no model API key is configured.",
             model_id=body.model_id,
             provider_id=body.provider_id,
             used_fallback=True,
+            mode="themed",
+            design=design,
+        )
+
+    if body.mode == "themed":
+        try:
+            design = await _generate_design(base_url, api_key, body)
+        except HTTPException as exc:
+            html, applied = _render_themed_frontend(body, {})
+            return FrontendGenerateResponse(
+                html=html,
+                summary=f"Used the default theme because the model failed: {exc.detail}",
+                model_id=body.model_id,
+                provider_id=body.provider_id,
+                used_fallback=True,
+                mode="themed",
+                design=applied,
+            )
+        html, applied = _render_themed_frontend(body, design)
+        return FrontendGenerateResponse(
+            html=html,
+            summary=(
+                f"Styled the built-in chat page: {applied['theme']} theme"
+                + (f" with {len(applied['brand'])} custom colours" if applied["brand"] else "")
+                + (f" and {len(applied['suggestions'])} starter prompts" if applied["suggestions"] else "")
+                + ". Sessions, history and the composer are the tested ones."
+                + (
+                    f" Kept the theme's colour for {len(applied['contrast_notes'])} value(s) that "
+                    f"would have been unreadable: {'; '.join(applied['contrast_notes'])}."
+                    if applied["contrast_notes"]
+                    else ""
+                )
+            ),
+            model_id=body.model_id,
+            provider_id=body.provider_id,
+            mode="themed",
+            design=applied,
         )
 
     messages: list[dict] = [
@@ -797,6 +821,19 @@ async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequ
         }
     )
 
+    def themed_instead(reason: str) -> FrontendGenerateResponse:
+        """Fall back to the page that works, rather than returning a broken one."""
+        html, applied = _render_themed_frontend(body, {})
+        return FrontendGenerateResponse(
+            html=html,
+            summary=f"{reason} Fell back to the built-in chat page so the chatbot still works.",
+            model_id=body.model_id,
+            provider_id=body.provider_id,
+            used_fallback=True,
+            mode="themed",
+            design=applied,
+        )
+
     try:
         # A whole page plus a reasoning model's thinking tokens does not fit in
         # the default budget; truncation is what leaves an unterminated ```html
@@ -805,43 +842,181 @@ async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequ
             base_url, api_key, body.model_id, messages, max_tokens=FRONTEND_MAX_TOKENS
         )
     except HTTPException as exc:
-        return FrontendGenerateResponse(
-            html=_fallback_frontend(body),
-            summary=f"Generated a local fallback frontend because the selected model failed: {exc.detail}",
-            model_id=body.model_id,
-            provider_id=body.provider_id,
-            used_fallback=True,
-        )
+        return themed_instead(f"The selected model failed: {exc.detail}.")
+
     if truncated:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "The model ran out of output tokens before finishing the page. "
-                "Try a shorter prompt or a model with a larger output budget."
-            ),
-        )
+        return themed_instead("The model ran out of output tokens before finishing the page.")
+
     html = _extract_html_from_text(raw)
     if html is None:
-        raise HTTPException(status_code=422, detail="Could not extract a complete HTML document from the model response")
-    # Boundary check only: the injected markdown renderer legitimately contains
-    # triple backticks (it parses fenced code blocks), so scanning the whole
-    # document would false-positive on every page.
-    if html.lstrip().startswith("```") or html.rstrip().endswith("```"):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The model response still contained markdown fences after extraction.",
-        )
+        return themed_instead("The model did not return a complete HTML document.")
+
     html = _ensure_frontend_contract(html)
-    page_warnings = validate_page(html)
-    summary = "Generated a custom deployable chatbot frontend."
-    if page_warnings:
-        summary = f"{summary} Warnings: {'; '.join(page_warnings)}"
+
+    # The page has to actually function as a chatbot. Custom generation is where
+    # dead buttons and chats that never reach the API came from, so a page that
+    # fails these checks is replaced rather than handed over to deploy.
+    defects = page_defects(html)
+    if defects:
+        logger.info("builder_custom_frontend_rejected", defects=defects, model_id=body.model_id)
+        return themed_instead(f"The generated page would not work: {'; '.join(defects)}")
+
+    warnings = validate_page(html)
     return FrontendGenerateResponse(
         html=html,
-        summary=summary,
+        summary=(
+            "Generated a custom chatbot page."
+            + (f" Warnings: {'; '.join(warnings)}" if warnings else "")
+        ),
         model_id=body.model_id,
         provider_id=body.provider_id,
+        mode="custom",
+        warnings=warnings,
     )
+
+
+def _known_tool_ids() -> list[str]:
+    """Tool ids the plan is allowed to reference, so nothing dangles on apply."""
+    try:
+        from src.config.tool_registry import get_tool_registry
+
+        return sorted(get_tool_registry().list_tools())
+    except Exception:
+        return []
+
+
+def _slug(value: str, fallback: str) -> str:
+    slug = re.sub(r"[^a-z0-9_]+", "_", str(value).lower()).strip("_")
+    return slug or fallback
+
+
+# What the model tends to say, mapped onto what ConversationPattern accepts.
+# A value outside the enum makes workflow creation 422, which is one of the ways
+# a generated plan ended up creating nothing at all.
+_PATTERN_SYNONYMS: dict[str, str] = {
+    "chat": "single",
+    "chatbot": "single",
+    "conversational": "single",
+    "conversation": "single",
+    "simple": "single",
+    "routing": "selector",
+    "router": "selector",
+    "tree": "selector",
+    "hierarchical": "selector",
+    "graph": "selector",
+    "pipeline": "sequential",
+    "chain": "sequential",
+    "linear": "sequential",
+    "concurrent": "parallel",
+    "fanout": "parallel",
+}
+
+
+def _coerce_pattern(value: Any, node_count: int) -> str:
+    """Map a model's pattern onto a value ConversationPattern accepts."""
+    from src.config.workflow_models import ConversationPattern
+
+    allowed = {member.value for member in ConversationPattern}
+    text = _slug(str(value or ""), "")
+    if text in allowed:
+        return text
+    mapped = _PATTERN_SYNONYMS.get(text)
+    if mapped in allowed:
+        return mapped
+    return "single" if node_count <= 1 else "sequential"
+
+
+def _normalize_plan(plan: dict, prompt: str) -> dict:
+    """Repair the plan so it actually applies, instead of failing halfway.
+
+    Models reliably get the shape roughly right and the details wrong: an agent
+    id in the topology that no planned agent uses, a tool id that was never
+    registered, a missing entry node. Each of those makes `apply` record an
+    error and leave the Studio with nothing to show, so they are fixed here
+    rather than surfaced.
+    """
+    plan = dict(plan or {})
+    known_tools = set(_known_tool_ids())
+
+    agents: list[dict] = [dict(a) for a in plan.get("agents") or [] if isinstance(a, dict)]
+    planned_tool_ids = {
+        _slug(t.get("id") or t.get("name") or "", "tool")
+        for t in plan.get("tools") or []
+        if isinstance(t, dict)
+    }
+    resolvable = known_tools | planned_tool_ids
+
+    seen_ids: set[str] = set()
+    for index, agent in enumerate(agents):
+        agent_id = _slug(agent.get("id") or agent.get("name") or "", f"agent_{index + 1}")
+        while agent_id in seen_ids:
+            agent_id = f"{agent_id}_{index + 1}"
+        seen_ids.add(agent_id)
+        agent["id"] = agent_id
+        agent.setdefault("type", "conversable")
+        agent.setdefault("name", agent_id)
+        agent.setdefault("description", prompt[:240])
+        # A tool the runtime cannot resolve is worse than none: the agent is told
+        # it has a capability it will never be able to call.
+        agent["tools"] = [t for t in (agent.get("tools") or []) if t in resolvable]
+
+    if not agents:
+        agents = _fallback_plan(prompt)["agents"]
+    plan["agents"] = agents
+
+    agents_by_id = {a["id"]: a for a in agents}
+    workflow = dict(plan.get("workflow") or {})
+    workflow.setdefault("id", _slug(workflow.get("name") or prompt[:40], "custom_chatbot"))
+    workflow.setdefault("name", workflow["id"].replace("_", " ").title())
+    workflow.setdefault("description", prompt[:240])
+    workflow.setdefault("enabled", True)
+    workflow.setdefault("workflow_type", "chatbot")
+
+    topology = dict(workflow.get("topology") or {})
+    nodes = [dict(n) for n in topology.get("nodes") or [] if isinstance(n, dict)]
+    # Drop nodes pointing at agents the plan never defines, and add one for
+    # every agent the topology forgot.
+    nodes = [n for n in nodes if str(n.get("agent_id") or n.get("id")) in agents_by_id]
+    covered = {str(n.get("agent_id") or n.get("id")) for n in nodes}
+    for agent in agents:
+        if agent["id"] not in covered:
+            nodes.append({"id": agent["id"], "agent_id": agent["id"], "description": agent.get("description", "")})
+
+    for node in nodes:
+        node.setdefault("id", node.get("agent_id"))
+        node.setdefault("agent_id", node.get("id"))
+        # Mirror the agent's tools onto the node so the canvas can draw them.
+        agent = agents_by_id.get(str(node["agent_id"]))
+        if agent and agent.get("tools") and not node.get("tools"):
+            node["tools"] = list(agent["tools"])
+
+    entry = str(topology.get("entry_node") or workflow.get("entry_agent_id") or "")
+    if entry not in {str(n["id"]) for n in nodes}:
+        entry = str(nodes[0]["id"]) if nodes else ""
+    topology["nodes"] = nodes
+    topology["entry_node"] = entry
+    topology.setdefault("edges", [])
+    pattern = _coerce_pattern(workflow.get("pattern"), len(nodes))
+    topology["type"] = "single" if pattern == "single" else "sequential" if pattern == "sequential" else "graph"
+
+    workflow["pattern"] = pattern
+    workflow["topology"] = topology
+    workflow["entry_agent_id"] = str(
+        agents_by_id.get(entry, {}).get("id")
+        or next((n["agent_id"] for n in nodes if n["id"] == entry), entry)
+    )
+    # A chatbot people will talk to wants memory; without it every turn starts cold.
+    workflow.setdefault("memory", {"enabled": True, "retention": "session"})
+    metadata = dict(workflow.get("metadata") or {})
+    metadata.setdefault("builder_prompt", prompt)
+    workflow["metadata"] = metadata
+    plan["workflow"] = workflow
+
+    plan.setdefault("tools", [])
+    plan.setdefault("functions", [])
+    plan.setdefault("triggers", [])
+    plan.setdefault("missing_secrets", [])
+    return plan
 
 
 @router.post("/plan-chatbot")
@@ -849,17 +1024,29 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
     """Generate a complete chatbot build plan from a natural-language prompt."""
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
-        return _fallback_plan(body.prompt)
+        return _normalize_plan(_fallback_plan(body.prompt), body.prompt)
 
+    tool_ids = _known_tool_ids()
     messages = [
         {
             "role": "system",
             "content": (
-                "You are designing a production AI chatbot platform build plan. "
-                "Return only JSON with keys: summary, agents, tools, functions, workflow, triggers, missing_secrets. "
-                "Agents must match /api/v1/agents schema. Tools must match /api/v1/tools schema. "
-                "Workflow must match /api/v1/workflows schema with topology. "
-                "Prefer simple, shippable configs over explanations."
+                "You design build plans for a CrewAI-based chatbot platform.\n"
+                "Return ONLY a JSON object with keys: summary, agents, tools, functions, workflow, "
+                "triggers, missing_secrets.\n\n"
+                "agents[]: {id (snake_case), type: 'conversable', name, description, instruction, "
+                "tools: [tool_id], llm_config: {provider_id, model, temperature, max_tokens}}\n"
+                "workflow: {id, name, description, pattern, entry_agent_id, workflow_type: 'chatbot', "
+                "topology: {type, entry_node, nodes: [{id, agent_id, description, tools: [tool_id]}], edges: "
+                "[{from_node, to_node}]}}\n\n"
+                "Rules:\n"
+                "- Every topology node's agent_id MUST be one of the agents you define.\n"
+                "- topology.entry_node MUST be one of the node ids.\n"
+                f"- Only reference these existing tool ids: {', '.join(tool_ids) or 'none available'}. "
+                "Define anything else under tools[] first.\n"
+                "- Repeat each agent's tools on its topology node.\n"
+                "- Prefer the fewest agents that do the job. One is fine.\n"
+                "- No prose, no markdown outside the JSON."
             ),
         },
         {"role": "user", "content": body.prompt},
@@ -868,7 +1055,7 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
     plan = _extract_json_from_text(raw)
     if plan is None:
         raise HTTPException(status_code=422, detail="Could not extract a JSON chatbot plan from the model response")
-    return plan
+    return _normalize_plan(plan, body.prompt)
 
 
 @router.post("/normalize-api")
@@ -924,23 +1111,49 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
     from src.api.routers.workflows import create_workflow
     from src.api.models import AgentConfigCreateRequest, ToolRegisterRequest, WorkflowCreateRequest
 
-    created: dict[str, list[str]] = {"agents": [], "tools": [], "functions": [], "workflows": []}
-    errors: list[str] = []
-    plan = body.plan
+    from src.api.routers.agents import update_agent_config
+    from src.api.routers.workflows import update_workflow
+    from src.api.models import AgentConfigUpdateRequest, WorkflowUpdateRequest
 
+    created: dict[str, list[str]] = {"agents": [], "tools": [], "functions": [], "workflows": []}
+    updated: dict[str, list[str]] = {"agents": [], "tools": [], "workflows": []}
+    errors: list[str] = []
+    # Normalize here as well as at plan time: a plan can arrive edited by hand
+    # or from an older session, and a missing derived field (entry_agent_id, a
+    # pattern outside the enum) would otherwise fail the whole apply.
+    plan = _normalize_plan(body.plan, str((body.plan.get("workflow") or {}).get("description") or ""))
+
+    def already_exists(exc: Exception) -> bool:
+        return getattr(exc, "status_code", None) == status.HTTP_409_CONFLICT
+
+    # Applying is idempotent. Re-running a plan — or refining one after a first
+    # pass — used to fail on "already exists" and leave the Studio with nothing.
     for agent in plan.get("agents", []):
+        agent_id = agent.get("id")
         try:
             result = await create_agent_config(request, AgentConfigCreateRequest(**agent))
             created["agents"].append(result.id)
         except Exception as exc:
-            errors.append(f"agent {agent.get('id')}: {exc}")
+            if not already_exists(exc):
+                errors.append(f"agent {agent_id}: {exc}")
+                continue
+            try:
+                payload = {k: v for k, v in agent.items() if k in AgentConfigUpdateRequest.model_fields}
+                await update_agent_config(request, str(agent_id), AgentConfigUpdateRequest(**payload))
+                updated["agents"].append(str(agent_id))
+            except Exception as update_exc:
+                errors.append(f"agent {agent_id}: {update_exc}")
 
     for tool in plan.get("tools", []):
+        tool_id = tool.get("id")
         try:
             result = await register_tool(request, ToolRegisterRequest(**tool))
             created["tools"].append(result.id)
         except Exception as exc:
-            errors.append(f"tool {tool.get('id')}: {exc}")
+            if already_exists(exc):
+                updated["tools"].append(str(tool_id))
+            else:
+                errors.append(f"tool {tool_id}: {exc}")
 
     for function in plan.get("functions", []):
         try:
@@ -950,11 +1163,48 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
             errors.append(f"function {function.get('id')}: {exc}")
 
     workflow = plan.get("workflow")
+    workflow_config: dict | None = None
     if workflow:
+        workflow_id = str(workflow.get("id") or "")
         try:
             result = await create_workflow(request, WorkflowCreateRequest(**workflow))
             created["workflows"].append(result.id)
+            workflow_id = result.id
         except Exception as exc:
-            errors.append(f"workflow {workflow.get('id')}: {exc}")
+            if already_exists(exc):
+                try:
+                    payload = {k: v for k, v in workflow.items() if k in WorkflowUpdateRequest.model_fields}
+                    await update_workflow(request, workflow_id, WorkflowUpdateRequest(**payload))
+                    updated["workflows"].append(workflow_id)
+                except Exception as update_exc:
+                    errors.append(f"workflow {workflow_id}: {update_exc}")
+                    workflow_id = ""
+            else:
+                errors.append(f"workflow {workflow_id}: {exc}")
+                workflow_id = ""
+        # Returned so the Studio can put the graph on the canvas without a second
+        # round trip and without guessing which workflow to load.
+        if workflow_id:
+            workflow_config = _workflow_config_for_canvas(workflow_id)
 
-    return {"created": created, "errors": errors}
+    return {"created": created, "updated": updated, "errors": errors, "workflow": workflow_config}
+
+
+def _workflow_config_for_canvas(workflow_id: str) -> dict | None:
+    """The saved workflow as a plain dict, for the Studio to render.
+
+    The registry caches its config, so a workflow created moments ago is not in
+    it yet — reload first, or the Studio is handed nothing to draw.
+    """
+    try:
+        from src.config.workflow_registry import get_workflow_registry
+
+        registry = get_workflow_registry()
+        registry.reload()
+        config = registry.get_workflow(workflow_id)
+    except Exception as exc:
+        logger.warning("builder_workflow_reload_failed", workflow_id=workflow_id, error=str(exc))
+        return None
+    if config is None:
+        return None
+    return config.model_dump(mode="json")

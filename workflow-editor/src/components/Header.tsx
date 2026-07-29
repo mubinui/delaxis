@@ -5,37 +5,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { useLibraryStore } from '../stores/libraryStore';
 import { buildWorkflowPayload, getAgentBindings } from '../utils/workflowPayload';
+import { workflowToCanvas } from '../utils/workflowToCanvas';
 import { describeSaveError } from '../utils/saveErrors';
 import { getLayoutedElements } from '../utils/layout';
 import { OakLogo } from './OakLogo';
 import { useTheme } from '../hooks/useTheme';
-
-const isSelectorTopology = (topology: any) => (
-    Boolean(topology?.entry_node)
-    && Array.isArray(topology?.domain_agents)
-    && topology.domain_agents.length > 0
-);
-
-const buildSelectorEdges = (topology: any) => {
-    if (!topology?.entry_node) {
-        return [];
-    }
-
-    const targetIds = Array.isArray(topology.domain_agents) && topology.domain_agents.length > 0
-        ? topology.domain_agents.map((agent: any) => agent.id)
-        : (topology.nodes ?? [])
-            .map((node: any) => node.id)
-            .filter((nodeId: string) => nodeId !== topology.entry_node);
-
-    return targetIds
-        .filter((targetId: string) => targetId && targetId !== topology.entry_node)
-        .map((targetId: string, index: number) => ({
-            id: `selector-edge-${index}`,
-            source: topology.entry_node,
-            target: targetId,
-            type: 'smoothstep',
-        }));
-};
 
 interface HeaderProps {
     onOpenLanding?: () => void;
@@ -63,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
             updateNodeData: state.updateNodeData,
         })),
     );
-    const { savedWorkflows, saveWorkflow, validateWorkflow, executeWorkflow, isLoading, fetchLibraryItems } = useLibraryStore();
+    const { savedWorkflows, savedAgents, savedTools, saveWorkflow, validateWorkflow, executeWorkflow, isLoading, fetchLibraryItems } = useLibraryStore();
     const { fitView } = useReactFlow();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [copied, setCopied] = useState(false);
@@ -161,59 +135,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
         const workflow = savedWorkflows.find((item) => item.id === workflowId);
         if (!workflow) return;
 
-        const topology = workflow.config?.topology ?? {};
-        const selectorTopology = isSelectorTopology(topology);
-        const visualCanvas = workflow.config?.metadata?.visual_canvas ?? workflow.config;
-        const hasVisualCanvas = Array.isArray(visualCanvas.nodes) && visualCanvas.nodes.some((node: any) => node.data);
-        const baseWorkflowNodes = hasVisualCanvas
-            ? visualCanvas.nodes
-            : (topology.nodes ?? []).map((node: any, index: number) => ({
-                id: node.id,
-                type: 'agent',
-                position: node.position ?? { x: 120 + index * 260, y: 180 },
-                data: {
-                    label: node.agent_id ?? node.id,
-                    description: node.description ?? '',
-                    config: {
-                        id: node.agent_id ?? node.id,
-                        agent_id: node.agent_id ?? node.id,
-                        is_selector: selectorTopology && node.id === topology.entry_node,
-                        ...(node.config ?? {}),
-                    },
-                },
-            }));
-        const workflowNodes = selectorTopology
-            ? baseWorkflowNodes.map((node: any) => {
-                if (node.id !== topology.entry_node) {
-                    return node;
-                }
-                return {
-                    ...node,
-                    data: {
-                        ...node.data,
-                        config: {
-                            ...(node.data?.config ?? {}),
-                            is_selector: true,
-                        },
-                    },
-                };
-            })
-            : baseWorkflowNodes;
-        const topologyEdges = (topology.edges ?? []).map((edge: any, index: number) => ({
-                id: edge.id ?? `edge-${index}`,
-                source: edge.source ?? edge.from_node,
-                target: edge.target ?? edge.to_node,
-                type: 'smoothstep',
-            }));
-        const workflowEdges = Array.isArray(visualCanvas.edges) && visualCanvas.edges.length > 0
-            ? visualCanvas.edges
-            : topologyEdges.length > 0
-                ? topologyEdges
-                : selectorTopology
-                    ? buildSelectorEdges(topology)
-                    : [];
-
-        loadWorkflow(workflow.id, workflow.name, workflowNodes, workflowEdges);
+        const { nodes, edges } = workflowToCanvas({
+            config: workflow.config,
+            agents: savedAgents,
+            tools: savedTools,
+        });
+        loadWorkflow(workflow.id, workflow.name, nodes, edges);
         setTimeout(() => fitView({ padding: 0.2, duration: 500 }), 100);
     };
 
