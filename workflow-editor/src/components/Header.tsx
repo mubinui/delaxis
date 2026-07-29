@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Plus, Layout, Save, Download, Upload, Copy, Check, ShieldCheck, Play, Moon, Sun, Home, Zap, Rocket, Sparkles } from 'lucide-react';
+import { Check, Copy, Download, Home, Layout, Moon, Play, Plus, Rocket, Save, ShieldCheck, Sparkles, Stethoscope, Sun, Upload, Zap } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
@@ -43,9 +43,11 @@ interface HeaderProps {
     onOpenDeploy?: () => void;
     builderOpen?: boolean;
     onToggleBuilder?: () => void;
+    helpOpen?: boolean;
+    onToggleHelp?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onOpenDeploy, builderOpen = false, onToggleBuilder }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onOpenDeploy, builderOpen = false, onToggleBuilder, helpOpen = false, onToggleHelp }) => {
     // Only `workflowName` is actually rendered here — everything else is read fresh via
     // getState() inside handlers so this header doesn't re-render on every node/edge
     // change (e.g. every mousemove frame while dragging a node on the canvas).
@@ -370,6 +372,21 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
                     >
                         <Sparkles size={14} />
                         <span className="hidden md:inline">Builder</span>
+                    </button>
+                )}
+
+                {/* Help — diagnoses the graph and documents each component */}
+                {onToggleHelp && (
+                    <button
+                        onClick={onToggleHelp}
+                        className={`flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-all ${helpOpen
+                            ? 'bg-[var(--color-primary)] text-white shadow-sm'
+                            : 'border border-slate-300/60 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+                            }`}
+                        title={helpOpen ? 'Close help' : 'Help — check this workflow for problems and learn what each component does'}
+                    >
+                        <Stethoscope size={14} />
+                        <span className="hidden md:inline">Help</span>
                     </button>
                 )}
 

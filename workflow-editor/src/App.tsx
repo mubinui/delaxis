@@ -6,6 +6,7 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { ChatPanel } from './components/ChatPanel';
 import { LibraryModal } from './components/LibraryModal';
 import { LaunchpadPanel } from './components/LaunchpadPanel';
+import { HelpPanel } from './components/HelpPanel';
 import { ExecutionTimeline } from './components/ExecutionTimeline';
 
 import { LandingPage } from './components/LandingPage';
@@ -39,6 +40,7 @@ function App() {
   // AI Builder lives behind a header button as a floating window — it no longer
   // consumes permanent layout width next to the canvas.
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const openLibraryModal = (tab: 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops' = 'tools') => {
     setLibraryModalTab(tab);
@@ -65,7 +67,9 @@ function App() {
               onOpenTester={() => setCurrentScreen('tester')}
               onOpenDeploy={() => setCurrentScreen('deploy')}
               builderOpen={builderOpen}
-              onToggleBuilder={() => setBuilderOpen((open) => !open)}
+              onToggleBuilder={() => { setBuilderOpen((open) => !open); setHelpOpen(false); }}
+              helpOpen={helpOpen}
+              onToggleHelp={() => { setHelpOpen((open) => !open); setBuilderOpen(false); }}
             />
           )}
 
@@ -79,6 +83,7 @@ function App() {
                   <div className="flex-1 relative min-w-0">
                     <WorkflowCanvas />
                     {builderOpen && <LaunchpadPanel onClose={() => setBuilderOpen(false)} />}
+                    {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
                     <ChatPanel />
                     <ExecutionTimeline />
                   </div>

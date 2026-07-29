@@ -617,6 +617,93 @@ async def builder_generate(
         return BuilderGenerateResponse(builder_type=body.builder_type, config=config, raw=raw)
 
 
+class GraphDigestNode(BaseModel):
+    """Allowlisted view of a canvas node.
+
+    Never build this by spreading a node's config: WorkflowCanvas.normalizeConfig
+    writes a raw api_key into model_config, and this payload goes to a third-party
+    model.
+    """
+
+    id: str
+    type: str = "agent"
+    label: str = ""
+    provider_id: str = ""
+    model: str = ""
+    tools: list[str] = Field(default_factory=list)
+
+
+class GraphDigest(BaseModel):
+    nodes: list[GraphDigestNode] = Field(default_factory=list)
+    edges: list[dict[str, str]] = Field(default_factory=list)
+    pattern: str = ""
+
+
+class DiagnosticExplainRequest(BaseModel):
+    mode: Literal["explain", "fix", "ask"] = "explain"
+    diagnostic: dict | None = None
+    question: str | None = None
+    graph: GraphDigest = Field(default_factory=GraphDigest)
+    provider_id: str = "gemini"
+    model_id: str = "gemini-3.5-flash"
+
+
+def _digest_text(graph: GraphDigest) -> str:
+    if not graph.nodes:
+        return "The canvas is empty."
+    lines = [f"Pattern: {graph.pattern or 'unknown'}", "Nodes:"]
+    for node in graph.nodes:
+        model = f" using {node.provider_id}/{node.model}" if node.model else ""
+        tools = f" tools=[{', '.join(node.tools)}]" if node.tools else ""
+        lines.append(f"  - {node.id} ({node.type}) \"{node.label}\"{model}{tools}")
+    if graph.edges:
+        lines.append("Connections:")
+        lines.extend(f"  - {e.get('source', '?')} -> {e.get('target', '?')}" for e in graph.edges)
+    return "\n".join(lines)
+
+
+@router.post("/explain-diagnostic")
+async def explain_diagnostic(request: Request, body: DiagnosticExplainRequest) -> StreamingResponse:
+    """Explain a workflow problem, or answer a question about the graph.
+
+    The deterministic diagnostics engine decides *what* is wrong; this only puts
+    it in plain language and suggests a fix, so a wrong answer here cannot
+    invent a problem that does not exist.
+    """
+    base_url, api_key, ready = _get_provider_credentials(body.provider_id)
+    if not ready:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No API key configured for provider '{body.provider_id}'",
+        )
+
+    system = (
+        "You help someone building an AI agent workflow in a visual studio. "
+        "Be concise and concrete: two short paragraphs at most, or a short numbered list. "
+        "Refer to nodes by their label. Never invent settings that were not mentioned. "
+        "If the finding is a warning rather than an error, say plainly whether it needs fixing."
+    )
+    digest = _digest_text(body.graph)
+
+    if body.mode == "ask":
+        user = f"Workflow:\n{digest}\n\nQuestion: {body.question or 'What does this workflow do?'}"
+    else:
+        finding = body.diagnostic or {}
+        verb = "Explain what this means and why it matters" if body.mode == "explain" else "Give the exact steps to fix this"
+        user = (
+            f"Workflow:\n{digest}\n\n"
+            f"Finding [{finding.get('severity', 'error')}] {finding.get('code', '')}: "
+            f"{finding.get('title', '')}\n{finding.get('detail', '')}\n\n{verb}."
+        )
+
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    return StreamingResponse(
+        _stream_llm(base_url, api_key, body.model_id, messages),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.get("/models", response_model=AvailableModelsResponse)
 async def list_builder_models(request: Request) -> AvailableModelsResponse:
     """List all models available for use in the builder, from configured api-providers."""
