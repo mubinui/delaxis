@@ -54,7 +54,7 @@ def test_call_llm_sync_returns_message_content(monkeypatch):
     response = _FakeResponse({"choices": [{"message": {"content": "<html></html>"}}]})
     monkeypatch.setattr(builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response))
 
-    result = asyncio.run(
+    content, truncated = asyncio.run(
         builder._call_llm_sync(
             "https://example.test",
             "fake-key",
@@ -63,4 +63,25 @@ def test_call_llm_sync_returns_message_content(monkeypatch):
         )
     )
 
-    assert result == "<html></html>"
+    assert content == "<html></html>"
+    assert truncated is False
+
+
+def test_call_llm_sync_reports_token_truncation(monkeypatch):
+    """finish_reason=length means the document is unfinished — callers must not
+    deploy it, because a cut-off page leaves an unterminated ```html fence."""
+    response = _FakeResponse(
+        {"choices": [{"message": {"content": "```html\n<!doctype html><html>"}, "finish_reason": "length"}]}
+    )
+    monkeypatch.setattr(builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response))
+
+    _content, truncated = asyncio.run(
+        builder._call_llm_sync(
+            "https://example.test",
+            "fake-key",
+            "google/gemini-3.1-flash-lite",
+            [{"role": "user", "content": "Build a chatbot frontend"}],
+        )
+    )
+
+    assert truncated is True

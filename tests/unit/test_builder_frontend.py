@@ -137,3 +137,72 @@ class TestGenerateEndpointFallback:
             json={"prompt": "bot", "workflow_id": "wf", "provider_id": "ghost"},
         )
         assert response.status_code == 400
+
+
+class TestHtmlExtraction:
+    """A truncated response leaves an unterminated ```html fence; fence-pair
+    matching alone let that marker leak into the deployed page."""
+
+    def test_unterminated_fence_from_truncated_output(self):
+        from src.api.routers.builder import _extract_html_from_text
+
+        html = _extract_html_from_text(
+            '```html\n<!doctype html>\n<html><head><title>Bot</title></head><body><div id="app">'
+        )
+        assert html is not None
+        assert "```" not in html
+        assert html.startswith("<!doctype html>")
+
+    def test_uppercase_language_tag_is_not_left_in_the_page(self):
+        from src.api.routers.builder import _extract_html_from_text
+
+        html = _extract_html_from_text("```HTML\n<!doctype html><html><body>hi</body></html>\n```")
+        assert html == "<!doctype html><html><body>hi</body></html>"
+
+    def test_last_fenced_html_block_wins_over_earlier_blocks(self):
+        from src.api.routers.builder import _extract_html_from_text
+
+        html = _extract_html_from_text(
+            '```json\n{"a":1}\n```\nand here it is:\n'
+            "```html\n<!doctype html><html><body>x</body></html>\n```"
+        )
+        assert html == "<!doctype html><html><body>x</body></html>"
+
+    def test_bare_document_without_a_fence(self):
+        from src.api.routers.builder import _extract_html_from_text
+
+        html = _extract_html_from_text("<!doctype html><html><body>hi</body></html>")
+        assert html == "<!doctype html><html><body>hi</body></html>"
+
+    def test_non_html_returns_none(self):
+        from src.api.routers.builder import _extract_html_from_text
+
+        assert _extract_html_from_text('```json\n{"a":1}\n```') is None
+
+
+class TestGenerationTruncation:
+    def test_truncated_generation_is_rejected_not_deployed(self, providers_file, monkeypatch):
+        """Half a page must surface as an error rather than a broken deployment."""
+        providers_file([
+            {
+                "id": "p1",
+                "type": "llm",
+                "base_url": "https://x.example/v1",
+                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+            }
+        ])
+        monkeypatch.setenv("P1_KEY", "sk-test")
+
+        async def _truncated(*args, **kwargs):
+            return "```html\n<!doctype html><html><body>half", True
+
+        monkeypatch.setattr(builder_router, "_call_llm_sync", _truncated)
+
+        app = FastAPI()
+        app.include_router(builder_router.router)
+        response = TestClient(app).post(
+            "/api/v1/builder/frontend/generate",
+            json={"prompt": "bot", "workflow_id": "wf", "provider_id": "p1"},
+        )
+        assert response.status_code == 422
+        assert "output tokens" in response.json()["detail"]

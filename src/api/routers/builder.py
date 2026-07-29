@@ -19,6 +19,7 @@ from src.api.chatbot_page import (
     ensure_config_contract,
     ensure_markdown_support,
     safe_json,
+    validate_page,
 )
 from src.config.config_loader import get_config_loader
 from src.config.provider_registry import ProviderResolutionError, resolve_openai_endpoint
@@ -27,6 +28,9 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/builder", tags=["builder"])
 
 BuilderType = Literal["agent", "tool", "function", "workflow"]
+
+# A full single-file chat UI plus a reasoning model's thinking tokens
+FRONTEND_MAX_TOKENS = 16384
 
 
 # ---------------------------------------------------------------------------
@@ -190,8 +194,14 @@ async def _call_llm_sync(
     api_key: str,
     model_id: str,
     messages: list[dict],
-) -> str:
-    """Call LLM without streaming and return the full response text."""
+    max_tokens: int = 4096,
+) -> tuple[str, bool]:
+    """Call an LLM without streaming.
+
+    Returns (content, truncated). ``truncated`` is True when the provider
+    stopped because the token budget ran out — the caller must not treat a
+    half-finished document as usable output.
+    """
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -201,9 +211,9 @@ async def _call_llm_sync(
         "messages": messages,
         "stream": False,
         "temperature": 0.2,
-        "max_tokens": 4096,
+        "max_tokens": max_tokens,
     }
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=180) as client:
         response = await client.post(
             f"{base_url.rstrip('/')}/chat/completions",
             headers=headers,
@@ -216,7 +226,8 @@ async def _call_llm_sync(
             )
         data = response.json()
         try:
-            content = data["choices"][0]["message"].get("content")
+            choice = data["choices"][0]
+            content = choice["message"].get("content")
         except (KeyError, IndexError, TypeError) as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -227,7 +238,8 @@ async def _call_llm_sync(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="LLM provider returned an empty response.",
             )
-        return content
+        truncated = str(choice.get("finish_reason") or "").lower() == "length"
+        return content, truncated
 
 
 def _extract_json_from_text(text: str) -> dict | None:
@@ -256,15 +268,41 @@ def _extract_python_from_text(text: str) -> str | None:
     return None
 
 
+_FENCE_OPEN_RE = re.compile(r"^\s*```[^\n]*\n", re.IGNORECASE)
+_FENCE_CLOSE_RE = re.compile(r"\n\s*```\s*$")
+
+
+def _looks_like_html(value: str) -> bool:
+    lowered = value.lower()
+    return "<html" in lowered or "<!doctype html" in lowered
+
+
+def _strip_code_fences(value: str) -> str:
+    """Remove markdown fences the model wrapped around the document.
+
+    A truncated response leaves the opening fence with no closing one, so
+    fence-pair matching alone lets ```html leak into the deployed page.
+    """
+    stripped = value.strip()
+    stripped = _FENCE_OPEN_RE.sub("", stripped, count=1)
+    stripped = _FENCE_CLOSE_RE.sub("", stripped)
+    # A bare language word can survive when the fence had no newline after it
+    if stripped[:5].lower() in {"html\n", "html\r"}:
+        stripped = stripped[5:]
+    return stripped.strip()
+
+
 def _extract_html_from_text(text: str) -> str | None:
-    """Extract deployable HTML from model output."""
-    matches = re.findall(r"```(?:html)?\s*(.*?)```", text, re.DOTALL)
-    for candidate in reversed(matches):
-        stripped = candidate.strip()
-        if "<html" in stripped.lower() or "<!doctype html" in stripped.lower():
+    """Extract a deployable HTML document from model output."""
+    # Complete fenced blocks first — last one wins (models often explain, then emit)
+    for candidate in reversed(re.findall(r"```[^\n]*\n(.*?)```", text, re.DOTALL)):
+        stripped = _strip_code_fences(candidate)
+        if _looks_like_html(stripped):
             return stripped
-    stripped = text.strip()
-    if "<html" in stripped.lower() or "<!doctype html" in stripped.lower():
+
+    # Unterminated fence (truncated output) or no fence at all
+    stripped = _strip_code_fences(text)
+    if _looks_like_html(stripped):
         return stripped
     return None
 
@@ -559,7 +597,7 @@ async def builder_generate(
         model=body.model_id,
     )
 
-    raw = await _call_llm_sync(base_url, api_key, body.model_id, messages)
+    raw, _truncated = await _call_llm_sync(base_url, api_key, body.model_id, messages)
 
     if body.builder_type == "function":
         code = _extract_python_from_text(raw)
@@ -673,7 +711,12 @@ async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequ
     )
 
     try:
-        raw = await _call_llm_sync(base_url, api_key, body.model_id, messages)
+        # A whole page plus a reasoning model's thinking tokens does not fit in
+        # the default budget; truncation is what leaves an unterminated ```html
+        # fence in the deployed page.
+        raw, truncated = await _call_llm_sync(
+            base_url, api_key, body.model_id, messages, max_tokens=FRONTEND_MAX_TOKENS
+        )
     except HTTPException as exc:
         return FrontendGenerateResponse(
             html=_fallback_frontend(body),
@@ -682,13 +725,33 @@ async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequ
             provider_id=body.provider_id,
             used_fallback=True,
         )
+    if truncated:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "The model ran out of output tokens before finishing the page. "
+                "Try a shorter prompt or a model with a larger output budget."
+            ),
+        )
     html = _extract_html_from_text(raw)
     if html is None:
         raise HTTPException(status_code=422, detail="Could not extract a complete HTML document from the model response")
+    # Boundary check only: the injected markdown renderer legitimately contains
+    # triple backticks (it parses fenced code blocks), so scanning the whole
+    # document would false-positive on every page.
+    if html.lstrip().startswith("```") or html.rstrip().endswith("```"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The model response still contained markdown fences after extraction.",
+        )
     html = _ensure_frontend_contract(html)
+    page_warnings = validate_page(html)
+    summary = "Generated a custom deployable chatbot frontend."
+    if page_warnings:
+        summary = f"{summary} Warnings: {'; '.join(page_warnings)}"
     return FrontendGenerateResponse(
         html=html,
-        summary="Generated a custom deployable chatbot frontend.",
+        summary=summary,
         model_id=body.model_id,
         provider_id=body.provider_id,
     )
@@ -714,7 +777,7 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
         },
         {"role": "user", "content": body.prompt},
     ]
-    raw = await _call_llm_sync(base_url, api_key, body.model_id, messages)
+    raw, _truncated = await _call_llm_sync(base_url, api_key, body.model_id, messages)
     plan = _extract_json_from_text(raw)
     if plan is None:
         raise HTTPException(status_code=422, detail="Could not extract a JSON chatbot plan from the model response")
@@ -758,7 +821,7 @@ async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> d
         },
         {"role": "user", "content": f"Specification:\n{body.specification}\n\nRaw API:\n{body.raw_api}"},
     ]
-    raw = await _call_llm_sync(base_url, api_key, body.model_id, messages)
+    raw, _truncated = await _call_llm_sync(base_url, api_key, body.model_id, messages)
     config = _extract_json_from_text(raw)
     if config is None:
         raise HTTPException(status_code=422, detail="Could not extract a JSON tool config from the model response")
