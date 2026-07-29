@@ -567,6 +567,137 @@
       ]
     },
     {
+      "id": "grok",
+      "name": "xAI Grok",
+      "type": "llm",
+      "description": "xAI Grok via its OpenAI-compatible API.",
+      "base_url": "https://api.x.ai/v1",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "XAI_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "grok-4.5",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "vision",
+            "structured_outputs"
+          ]
+        },
+        {
+          "name": "grok-4.3",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ]
+        },
+        {
+          "name": "grok-4.20",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic Claude",
+      "type": "llm",
+      "description": "Anthropic API. Uses the native provider when crewai[anthropic] is installed.",
+      "base_url": "https://api.anthropic.com/v1",
+      "litellm_prefix": "anthropic",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "ANTHROPIC_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "claude-opus-5",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ]
+        },
+        {
+          "name": "claude-sonnet-5",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ]
+        },
+        {
+          "name": "claude-fable-5",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "reasoning",
+            "structured_outputs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "groq",
+      "name": "Groq",
+      "type": "llm",
+      "description": "Groq's OpenAI-compatible endpoint for low-latency inference.",
+      "base_url": "https://api.groq.com/openai/v1",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "GROQ_API_KEY",
+        "required": true
+      },
+      "models": []
+    },
+    {
+      "id": "mistral",
+      "name": "Mistral AI",
+      "type": "llm",
+      "description": "Mistral's OpenAI-compatible API.",
+      "base_url": "https://api.mistral.ai/v1",
+      "enabled": true,
+      "auth": {
+        "scheme": "bearer",
+        "env_var": "MISTRAL_API_KEY",
+        "required": true
+      },
+      "models": [
+        {
+          "name": "mistral-medium-3-5",
+          "default": true,
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ]
+        },
+        {
+          "name": "mistral-small-2603",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ]
+        }
+      ]
+    },
+    {
       "id": "duckduckgo",
       "name": "DuckDuckGo Search",
       "type": "tool",
