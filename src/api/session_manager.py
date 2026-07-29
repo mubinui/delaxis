@@ -134,6 +134,16 @@ class SessionManager:
             "history": session.conversation_history[-20:],
             **(metadata or {}),
         }
+        # Routing comes from the deployment record, never from client-supplied
+        # metadata: the deployed page's JS is editable by any visitor.
+        run_metadata.pop("model_override", None)
+        deployment_ref = session.metadata.get("deployment")
+        if deployment_ref:
+            from src.api.routers.deployments import deployment_model_override
+
+            override = deployment_model_override(str(deployment_ref))
+            if override:
+                run_metadata["model_override"] = override
         result = await self.runtime.run_message(
             workflow=workflow,
             message=message,

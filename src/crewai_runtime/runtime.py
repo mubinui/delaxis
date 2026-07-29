@@ -127,6 +127,9 @@ class CrewAIWorkflowRuntime:
         os.environ.setdefault("CREWAI_STORAGE_DIR", self.storage_dir)
 
         agent_configs = {agent.id: agent for agent in load_agents_config().agents}
+        # Set by the session manager from the deployment record (server-side only)
+        raw_override = metadata.get("model_override")
+        model_override = raw_override if isinstance(raw_override, dict) and raw_override else None
         ordered_nodes = self._ordered_nodes(workflow)
         workflow_agent_ids = [node.agent_id for node in ordered_nodes]
         if not workflow_agent_ids:
@@ -163,6 +166,7 @@ class CrewAIWorkflowRuntime:
                 extra_tool_ids=extra_tools.get(agent_id, []),
                 memory_attached=agent_id in wants_memory,
                 knowledge_sources=attached_knowledge_sources if agent_id in wants_knowledge else None,
+                model_override=model_override,
             )
             crew_agents.append(crew_agent)
             crew_agent_by_id[agent_id] = crew_agent
@@ -419,8 +423,12 @@ class CrewAIWorkflowRuntime:
         extra_tool_ids: list[str] | None = None,
         memory_attached: bool = False,
         knowledge_sources: list[Any] | None = None,
+        model_override: dict[str, Any] | None = None,
     ) -> Any:
         model_config = self._effective_model_config(config)
+        if model_override:
+            # A deployment pins provider/model for every agent it runs
+            model_config = {**model_config, **model_override}
         tool_ids = list(config.tools)
         for tool_id in extra_tool_ids or []:
             if tool_id not in tool_ids:

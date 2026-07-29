@@ -147,6 +147,33 @@ def _write_deployment(deployment_id: str, body: DeploymentCreateRequest) -> Path
     return path
 
 
+def deployment_model_override(deployment_ref: str) -> dict[str, str] | None:
+    """Model settings a deployment pins, resolved server-side.
+
+    The generated page also sends provider_id/model_id in its message metadata,
+    but that JS is editable by anyone who opens a public deployment, so it is
+    never trusted for routing. The deployment record is the only authority.
+    """
+    if not deployment_ref:
+        return None
+    deployment_id = _slug(str(deployment_ref))
+    try:
+        config = _load_config()
+    except (OSError, json.JSONDecodeError):
+        return None
+    record = next(
+        (d for d in config.get("deployments", []) if d.get("id") == deployment_id), None
+    )
+    if record is None:
+        return None
+    override: dict[str, str] = {}
+    if record.get("provider_id"):
+        override["provider_id"] = str(record["provider_id"])
+    if record.get("model_id"):
+        override["model"] = str(record["model_id"])
+    return override or None
+
+
 @router.get("", response_model=list[DeploymentResponse])
 async def list_deployments() -> list[DeploymentResponse]:
     config = _load_config()
