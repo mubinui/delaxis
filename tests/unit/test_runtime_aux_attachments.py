@@ -19,10 +19,39 @@ def test_node_attachments_fold_per_agent_with_union() -> None:
         AgentNode(id="n2", agent_id="agent_one", tools=["t2", "t3"], knowledge=True),
         AgentNode(id="n3", agent_id="agent_two"),
     ]
-    extra_tools, wants_memory, wants_knowledge = CrewAIWorkflowRuntime._node_attachments(nodes)
+    extra_tools, wants_memory, wants_knowledge, routers = CrewAIWorkflowRuntime._node_attachments(nodes)
     assert extra_tools == {"agent_one": ["t1", "t2", "t3"]}
     assert wants_memory == {"agent_one"}
     assert wants_knowledge == {"agent_one"}
+    assert routers == set()
+
+
+def test_node_attachments_collect_router_agents() -> None:
+    nodes = [
+        AgentNode(id="n1", agent_id="agent_one", is_router=True),
+        AgentNode(id="n2", agent_id="agent_two"),
+    ]
+    _, _, _, routers = CrewAIWorkflowRuntime._node_attachments(nodes)
+    assert routers == {"agent_one"}
+
+
+def test_create_agent_grants_delegation_for_router_nodes(monkeypatch) -> None:
+    runtime = make_runtime()
+    monkeypatch.setattr(runtime, "_get_crewai_tools", lambda *a, **k: [])
+
+    captured: dict = {}
+
+    def fake_agent_cls(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(**kwargs)
+
+    config = AgentConfig(id="agent_one", type="conversable", name="Agent One")
+    runtime._create_agent(fake_agent_cls, config, delegates=True)
+    assert captured["allow_delegation"] is True
+
+    captured.clear()
+    runtime._create_agent(fake_agent_cls, config)
+    assert captured["allow_delegation"] is False
 
 
 def test_create_agent_merges_extra_tools_and_attachment_kwargs(monkeypatch) -> None:
@@ -141,3 +170,81 @@ def test_create_tasks_skips_nodes_with_missing_agents_without_misalignment() -> 
     assert [meta.node_id for meta in metas] == ["n2"]
     # n1 never created a task, so it must not appear as upstream context
     assert metas[0].upstream_node_ids == []
+
+
+def test_knowledge_tools_need_a_collection() -> None:
+    """No collection means no search tool, rather than one that can only fail."""
+    runtime = make_runtime()
+    workflow = make_workflow()
+    workflow.knowledge.enabled = True
+    workflow.knowledge.collections = []
+    assert runtime._knowledge_retrieval_tools(workflow) == []
+
+
+def test_knowledge_tools_skipped_when_rag_service_is_off(monkeypatch) -> None:
+    runtime = make_runtime()
+    workflow = make_workflow()
+    workflow.knowledge.enabled = True
+    workflow.knowledge.collections = ["handbook"]
+
+    from src.config import settings as settings_module
+
+    original = settings_module.get_settings()
+    monkeypatch.setattr(original.external_services, "rag_pipeline_enabled", False)
+    assert runtime._knowledge_retrieval_tools(workflow) == []
+
+
+def test_knowledge_tool_queries_every_configured_collection(monkeypatch) -> None:
+    runtime = make_runtime()
+    workflow = make_workflow()
+    workflow.knowledge.enabled = True
+    workflow.knowledge.collections = ["handbook", "policies"]
+    workflow.knowledge.top_k = 3
+
+    from src.config import settings as settings_module
+
+    monkeypatch.setattr(settings_module.get_settings().external_services, "rag_pipeline_enabled", True)
+
+    queried: list[tuple[str, str, int]] = []
+
+    async def fake_query_rag(query: str, collection: str, top_k: int):
+        queried.append((query, collection, top_k))
+        return {"success": True, "results": [{"text": f"passage from {collection}", "score": 0.9}]}
+
+    import src.tools.rag_pipeline as rag_pipeline
+
+    monkeypatch.setattr(rag_pipeline, "query_rag", fake_query_rag)
+
+    tools = runtime._knowledge_retrieval_tools(workflow)
+    assert len(tools) == 1
+
+    result = tools[0].run(query="what is the leave policy")
+    assert queried == [
+        ("what is the leave policy", "handbook", 3),
+        ("what is the leave policy", "policies", 3),
+    ]
+    assert "passage from handbook" in result
+    assert "passage from policies" in result
+
+
+def test_knowledge_tool_survives_one_failing_collection(monkeypatch) -> None:
+    runtime = make_runtime()
+    workflow = make_workflow()
+    workflow.knowledge.enabled = True
+    workflow.knowledge.collections = ["broken", "good"]
+
+    from src.config import settings as settings_module
+
+    monkeypatch.setattr(settings_module.get_settings().external_services, "rag_pipeline_enabled", True)
+
+    async def fake_query_rag(query: str, collection: str, top_k: int):
+        if collection == "broken":
+            raise RuntimeError("connection refused")
+        return {"success": True, "results": [{"text": "still here", "score": 0.5}]}
+
+    import src.tools.rag_pipeline as rag_pipeline
+
+    monkeypatch.setattr(rag_pipeline, "query_rag", fake_query_rag)
+
+    result = runtime._knowledge_retrieval_tools(workflow)[0].run(query="anything")
+    assert "still here" in result

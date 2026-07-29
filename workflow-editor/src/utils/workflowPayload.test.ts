@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import type { VisualEdge, VisualNode } from '../types/workflow';
-import { buildWorkflowPayload, getAgentBindings } from './workflowPayload';
+import { buildWorkflowPayload, compileFlowLinks, getAgentBindings } from './workflowPayload';
+
+const router = (id: string, label = 'Flow Router'): VisualNode => ({
+    id,
+    type: 'router',
+    position: { x: 0, y: 0 },
+    data: { label, config: { type: 'router', routing_mode: 'conditional' } },
+});
+
+const guardrail = (id: string, config: Record<string, any> = {}): VisualNode => ({
+    id,
+    type: 'router',
+    position: { x: 0, y: 0 },
+    data: { label: 'Guardrail', config: { type: 'guardrail', guardrails_enabled: true, ...config } },
+});
+
+const trigger = (id: string): VisualNode => ({
+    id,
+    type: 'trigger',
+    position: { x: 0, y: 0 },
+    data: { label: 'Start', config: { trigger_type: 'manual' } },
+});
 
 const agent = (id: string, label: string): VisualNode => ({
     id,
@@ -133,5 +154,117 @@ describe('buildWorkflowPayload without attachments', () => {
         expect(create.memory.enabled).toBe(true);
         // but no per-node attachment without an aux handle edge
         expect(create.topology.nodes[0].memory).toBeUndefined();
+    });
+});
+
+describe('compileFlowLinks', () => {
+    it('contracts a Flow Router so the connection survives the save', () => {
+        const nodes = [agent('a', 'A'), router('r1'), agent('b', 'B'), agent('c', 'C')];
+        const edges = [flowEdge('a', 'r1'), flowEdge('r1', 'b'), flowEdge('r1', 'c')];
+        expect(compileFlowLinks(nodes, edges)).toEqual([
+            { from: 'a', to: 'b', viaRouter: true },
+            { from: 'a', to: 'c', viaRouter: true },
+        ]);
+    });
+
+    it('contracts chained pass-through nodes', () => {
+        const nodes = [agent('a', 'A'), router('r1'), guardrail('g1'), agent('b', 'B')];
+        const edges = [flowEdge('a', 'r1'), flowEdge('r1', 'g1'), flowEdge('g1', 'b')];
+        expect(compileFlowLinks(nodes, edges)).toEqual([{ from: 'a', to: 'b', viaRouter: true }]);
+    });
+
+    it('does not mark a guardrail-only hop as a router branch', () => {
+        const nodes = [agent('a', 'A'), guardrail('g1'), agent('b', 'B')];
+        const edges = [flowEdge('a', 'g1'), flowEdge('g1', 'b')];
+        expect(compileFlowLinks(nodes, edges)).toEqual([{ from: 'a', to: 'b', viaRouter: false }]);
+    });
+
+    it('ignores attachment edges', () => {
+        const nodes = [agent('a', 'A'), tool('t1', 'Tool', 'mcp')];
+        const edges = [auxEdge('t1', 'a', 'tools')];
+        expect(compileFlowLinks(nodes, edges)).toEqual([]);
+    });
+});
+
+describe('buildWorkflowPayload router nodes', () => {
+    const nodes = [trigger('start'), agent('a', 'A'), router('r1'), agent('b', 'B'), agent('c', 'C')];
+    const edges = [flowEdge('start', 'a'), flowEdge('a', 'r1'), flowEdge('r1', 'b'), flowEdge('r1', 'c')];
+    const { create } = buildWorkflowPayload({ id: 'wf', name: 'WF', nodes, edges });
+
+    it('persists the connections that ran through the router', () => {
+        expect(create.connections).toEqual([
+            { from_node: 'a', to_node: 'b', type: 'sequential' },
+            { from_node: 'a', to_node: 'c', type: 'sequential' },
+        ]);
+    });
+
+    it('marks the branching agent a router so the backend lets it delegate', () => {
+        const nodeA = create.topology.nodes.find((n) => n.id === 'a')!;
+        expect(nodeA.is_router).toBe(true);
+        expect(nodeA.config.is_selector).toBe(true);
+        expect(create.topology.nodes.find((n) => n.id === 'b')!.is_router).toBeUndefined();
+    });
+
+    it('infers the selector pattern and a hierarchical process', () => {
+        expect(create.pattern).toBe('selector');
+        expect(create.process).toBe('hierarchical');
+    });
+
+    it('resolves the entry agent through the trigger', () => {
+        expect(create.topology.entry_node).toBe('a');
+    });
+
+    it('needs two branches before an agent counts as a selector', () => {
+        const single = buildWorkflowPayload({
+            id: 'wf-single',
+            name: 'WF',
+            nodes: [agent('a', 'A'), router('r1'), agent('b', 'B')],
+            edges: [flowEdge('a', 'r1'), flowEdge('r1', 'b')],
+        });
+        expect(single.create.topology.nodes.find((n) => n.id === 'a')!.is_router).toBeUndefined();
+        expect(single.create.pattern).toBe('sequential');
+    });
+});
+
+describe('buildWorkflowPayload guardrails', () => {
+    it('is off without a Guardrail node (was hardcoded on)', () => {
+        const { create } = buildWorkflowPayload({
+            id: 'wf',
+            name: 'WF',
+            nodes: [agent('a', 'A')],
+            edges: [],
+        });
+        expect(create.guardrails.enabled).toBe(false);
+        expect(create.output_schema).toBe('text');
+    });
+
+    it('takes its schema and review flag from the node', () => {
+        const { create } = buildWorkflowPayload({
+            id: 'wf',
+            name: 'WF',
+            nodes: [agent('a', 'A'), guardrail('g1', { output_schema: 'json', human_review: true })],
+            edges: [flowEdge('a', 'g1')],
+        });
+        expect(create.guardrails).toEqual({ enabled: true, human_review: true, output_schema: 'json' });
+        expect(create.output_schema).toBe('json');
+    });
+});
+
+describe('buildWorkflowPayload memory and knowledge settings', () => {
+    it('carries retention, collections and top_k from the nodes', () => {
+        const memoryNode = tool('mem', 'Memory Store', 'memory');
+        memoryNode.data.config = { ...memoryNode.data.config, retention: 'persistent' };
+        const knowledgeNode = tool('kb', 'Knowledge Source', 'knowledge');
+        knowledgeNode.data.config = { ...knowledgeNode.data.config, collections: ['handbook'], top_k: 8 };
+
+        const { create } = buildWorkflowPayload({
+            id: 'wf',
+            name: 'WF',
+            nodes: [agent('a', 'A'), memoryNode, knowledgeNode],
+            edges: [auxEdge('mem', 'a', 'memory'), auxEdge('kb', 'a', 'knowledge')],
+        });
+
+        expect(create.memory).toEqual({ enabled: true, retention: 'persistent' });
+        expect(create.knowledge).toEqual({ enabled: true, collections: ['handbook'], top_k: 8 });
     });
 });

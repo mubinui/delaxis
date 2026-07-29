@@ -31,6 +31,10 @@ export interface DiagnosticsInput {
 
 const label = (node: VisualNode) => String(node.data?.label ?? node.id);
 
+/** Same normalisation buildWorkflowPayload applies when it derives a tool id. */
+const slugish = (value: string) =>
+    value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
+
 const modelConfigOf = (node: VisualNode) =>
     (node.data?.config?.model_config ?? node.data?.config?.llm_config ?? {}) as Record<string, any>;
 
@@ -141,23 +145,92 @@ export function diagnoseWorkflow(input: DiagnosticsInput): Diagnostic[] {
     });
 
     // --- Silent data loss on save -----------------------------------------
-    // buildWorkflowPayload keeps only agent nodes and agent→agent edges, so
-    // these disappear on save with no warning anywhere else in the studio.
+    // buildWorkflowPayload persists agent nodes plus the connections between
+    // them; router and guardrail nodes are compiled into those connections and
+    // settings, but an Output node carries nothing and simply disappears.
     // Triggers are excluded: they are managed through the triggers API rather
     // than the topology, so flagging them would fire on every normal canvas.
-    const droppedTypes = ['router', 'output'] as const;
-    const dropped = nodes.filter((n) => droppedTypes.includes(n.type as any));
+    const dropped = nodes.filter((n) => n.type === 'output');
     if (dropped.length > 0) {
         push({
             code: 'nodes_dropped_on_save',
-            severity: 'warning',
+            severity: 'info',
             title: `${dropped.length} node${dropped.length === 1 ? '' : 's'} will not be saved`,
             detail:
-                `${dropped.map(label).join(', ')} — only agent nodes and the connections between them are ` +
-                'persisted to the workflow topology. These stay on the canvas but are not sent to the backend.',
-            component: 'workflow',
+                `${dropped.map(label).join(', ')} — an Output node is a visual terminator only. ` +
+                'The last agent to run supplies the workflow result either way.',
+            component: 'output',
         });
     }
+
+    // A Flow Router only means anything when it actually branches: with one
+    // outgoing edge it compiles to a plain hand-off.
+    nodes
+        .filter((n) => n.type === 'router' && n.data?.config?.type !== 'guardrail')
+        .forEach((node) => {
+            const outgoing = flowEdges.filter((e) => e.source === node.id).length;
+            if (outgoing < 2) {
+                push({
+                    code: 'router_without_branches',
+                    severity: 'warning',
+                    title: `"${label(node)}" has ${outgoing} branch${outgoing === 1 ? '' : 'es'}`,
+                    detail:
+                        'A Flow Router makes the agent feeding it delegate between the agents it fans out to. ' +
+                        'With fewer than two outgoing connections it just passes the result straight through.',
+                    nodeId: node.id,
+                    nodeLabel: label(node),
+                    component: 'router',
+                    fixHint: 'Connect the router to at least two agents, or remove it.',
+                });
+            }
+        });
+
+    // Tool nodes attached to an agent but never registered on the backend.
+    // At run time these resolve to nothing: the server logs `crewai_tool_missing`
+    // and the agent silently runs without the capability.
+    const toolNameOrId = new Set([...knownTools.keys(), ...tools.map((t) => t.name)]);
+    edges
+        .filter((e) => String(e.targetHandle ?? '') === 'tools')
+        .forEach((edge) => {
+            const source = nodes.find((n) => n.id === edge.source);
+            if (!source || source.type !== 'tool') return;
+            const config = (source.data?.config ?? {}) as Record<string, any>;
+            const toolId = String(config.id ?? config.tool_id ?? config.name ?? source.data?.label ?? source.id);
+            if (toolNameOrId.has(toolId) || toolNameOrId.has(slugish(toolId))) return;
+            push({
+                code: 'tool_not_registered',
+                severity: 'error',
+                title: `"${label(source)}" is not registered on the backend`,
+                detail:
+                    'This tool exists only on the canvas, so the agent will run without it. ' +
+                    'Tool nodes have to be saved to the library before a run can resolve them.',
+                nodeId: source.id,
+                nodeLabel: label(source),
+                component: `tool.${config.type ?? ''}`,
+                fixHint: 'Open the node and use "Save to Library (registers on backend)".',
+            });
+        });
+
+    // A Knowledge Source with no collection cannot retrieve anything.
+    nodes
+        .filter((n) => n.data?.config?.type === 'knowledge')
+        .forEach((node) => {
+            const collections = node.data?.config?.collections;
+            if (!Array.isArray(collections) || collections.length === 0) {
+                push({
+                    code: 'knowledge_without_collections',
+                    severity: 'warning',
+                    title: `"${label(node)}" has no collection`,
+                    detail:
+                        'Retrieval runs against named RAG collections. Without one the agent gets no ' +
+                        'search tool and falls back to the workflow description alone.',
+                    nodeId: node.id,
+                    nodeLabel: label(node),
+                    component: 'tool.knowledge',
+                    fixHint: 'Name at least one collection on the node.',
+                });
+            }
+        });
 
     // --- Per-node configuration -------------------------------------------
     nodes.forEach((node) => {

@@ -87,184 +87,30 @@ def scrub(value: Any) -> Any:
     return value
 
 
-SHOWCASE_WORKFLOW = "demo_multi_agent"
-
-# Laid out left to right: trigger → selector → three specialists → output, with
-# each specialist's tool hanging off its aux handle. Node ids for agents match
-# the topology node ids so streamed execution events light up the right node.
-CANVAS_AGENTS = [
-    ("demo_selector_agent", 300, 300),
-    ("search_assistant", 760, 20),
-    ("rag_assistant", 760, 330),
-    ("calculator_agent", 760, 660),
-]
-
-# (node id, tool id from configs/tools.json, agent to attach to, aux handle, x, y)
-# Tools sit ~190px below their agent — enough clearance for an agent card that
-# grows a footer row when it has run data or a configuration warning.
-CANVAS_TOOLS = [
-    ("tool-web-search", "web_search", "search_assistant", "tools", 760, 210),
-    ("tool-rag-query", "rag_query", "rag_assistant", "tools", 680, 520),
-    ("tool-calculate", "calculate", "calculator_agent", "tools", 760, 850),
-]
-
-# Canvas-only helper nodes: they have no configs/tools.json entry.
-CANVAS_HELPERS = [
-    ("tool-memory", "Memory Store", {"type": "memory", "memory_enabled": True, "retention": "session"},
-     "demo_selector_agent", "memory", 300, 490),
-    ("tool-knowledge", "Knowledge Source", {"type": "knowledge", "knowledge_enabled": True, "top_k": 5},
-     "rag_assistant", "knowledge", 930, 520),
-]
-
-FLOW_EDGE_STYLE = {"stroke": "#64748b", "strokeWidth": 2}
-FLOW_EDGE_MARKER = {"type": "arrowclosed", "color": "#64748b"}
-AUX_EDGE_STYLE = {"stroke": "#94a3b8", "strokeWidth": 1.5, "strokeDasharray": "6 4"}
+SHOWCASE_WORKFLOW = "support_triage"
 
 
 def build_canvas(data: dict[str, Any]) -> None:
-    """Give the showcase workflow a hand-laid-out, fully wired canvas.
+    """Make sure the showcase workflow opens as a wired graph, not a row of nodes.
 
-    Without this the Studio falls back to auto-placing topology nodes in a row
-    with no edges, because a selector topology stores its routing in
-    ``domain_agents`` rather than as explicit edges. That renders as a line of
-    disconnected agents, which misrepresents how the product actually looks.
+    Shipped workflows carry their own ``metadata.visual_canvas``, so this only
+    has to verify one is present: without it the Studio auto-places topology
+    nodes in a line with no edges, because a selector topology stores its
+    routing in ``domain_agents`` rather than as explicit edges.
     """
     workflow = next((item for item in data["workflows"] if item["id"] == SHOWCASE_WORKFLOW), None)
     if not workflow:
-        return
-
-    agents = {agent["id"]: agent for agent in data["agents"]}
-    tools = {tool["id"]: tool for tool in data["tools"]}
-    nodes: list[dict[str, Any]] = []
-    edges: list[dict[str, Any]] = []
-
-    nodes.append(
-        {
-            "id": "trigger-chat",
-            "type": "trigger",
-            "position": {"x": 40, "y": 322},
-            "data": {
-                "label": "On Chat",
-                "config": {
-                    "trigger_type": "chat",
-                    "label": "On Chat",
-                    "workflow_id": SHOWCASE_WORKFLOW,
-                },
-            },
-        }
-    )
-
-    for agent_id, x, y in CANVAS_AGENTS:
-        agent = agents.get(agent_id)
-        if not agent:
-            continue
-        is_selector = agent_id == workflow.get("topology", {}).get("entry_node")
-        nodes.append(
-            {
-                "id": agent_id,
-                "type": "agent",
-                "position": {"x": x, "y": y},
-                "data": {
-                    "label": agent_id,
-                    "description": agent.get("description", ""),
-                    "config": {
-                        "id": agent_id,
-                        "agent_id": agent_id,
-                        "name": agent.get("name", agent_id),
-                        "type": agent.get("type", "conversable"),
-                        "instruction": agent.get("system_message", ""),
-                        "system_message": agent.get("system_message", ""),
-                        "model_config": dict(agent.get("llm_config") or DEMO_MODEL),
-                        "tools": agent.get("tools") or [],
-                        "human_input_mode": agent.get("human_input_mode", "NEVER"),
-                        "is_selector": is_selector,
-                    },
-                },
-            }
+        sys.exit(
+            f"Showcase workflow '{SHOWCASE_WORKFLOW}' is missing from the API response. "
+            "Update SHOWCASE_WORKFLOW to one of the shipped workflows."
         )
 
-    def tool_node(node_id: str, label: str, config: dict[str, Any], x: int, y: int) -> dict[str, Any]:
-        return {
-            "id": node_id,
-            "type": "tool",
-            "position": {"x": x, "y": y},
-            "data": {"label": label, "config": config},
-        }
-
-    def aux_edge(source: str, target: str, handle: str) -> dict[str, Any]:
-        return {
-            "id": f"xy-edge__{source}attach-{target}{handle}",
-            "source": source,
-            "sourceHandle": "attach",
-            "target": target,
-            "targetHandle": handle,
-            "type": "straight",
-            "style": dict(AUX_EDGE_STYLE),
-        }
-
-    for node_id, tool_id, agent_id, handle, x, y in CANVAS_TOOLS:
-        tool = tools.get(tool_id)
-        if not tool:
-            continue
-        nodes.append(
-            tool_node(
-                node_id,
-                tool["name"],
-                {
-                    "id": tool["id"],
-                    "name": tool["name"],
-                    "description": tool.get("description", ""),
-                    "entrypoint": tool.get("entrypoint") or "",
-                    "enabled": tool.get("enabled", True),
-                    **(tool.get("settings") or {}),
-                },
-                x,
-                y,
-            )
+    canvas = (workflow.get("metadata") or {}).get("visual_canvas") or {}
+    if not canvas.get("nodes"):
+        sys.exit(
+            f"Showcase workflow '{SHOWCASE_WORKFLOW}' has no visual_canvas in configs/workflows.json, "
+            "so the demo would render it as disconnected nodes."
         )
-        edges.append(aux_edge(node_id, agent_id, handle))
-
-    for node_id, label, config, agent_id, handle, x, y in CANVAS_HELPERS:
-        nodes.append(tool_node(node_id, label, config, x, y))
-        edges.append(aux_edge(node_id, agent_id, handle))
-
-    nodes.append(
-        {
-            "id": "output-final",
-            "type": "output",
-            "position": {"x": 1280, "y": 352},
-            "data": {"label": "Answer", "config": {"type": "output"}},
-        }
-    )
-
-    def flow_edge(source: str, target: str) -> dict[str, Any]:
-        return {
-            "id": f"xy-edge__{source}-{target}",
-            "source": source,
-            "target": target,
-            "type": "smoothstep",
-            "animated": False,
-            "style": dict(FLOW_EDGE_STYLE),
-            "markerEnd": dict(FLOW_EDGE_MARKER),
-        }
-
-    entry = workflow.get("topology", {}).get("entry_node", "demo_selector_agent")
-    specialists = [agent_id for agent_id, _, _ in CANVAS_AGENTS if agent_id != entry]
-
-    edges.append(flow_edge("trigger-chat", entry))
-    for specialist in specialists:
-        edges.append(flow_edge(entry, specialist))
-        edges.append(flow_edge(specialist, "output-final"))
-
-    # The API returns metadata as an explicit null when unset, so setdefault alone
-    # would leave it None.
-    if not isinstance(workflow.get("metadata"), dict):
-        workflow["metadata"] = {}
-    workflow["metadata"]["visual_canvas"] = {
-        "nodes": nodes,
-        "edges": edges,
-        "viewport": {"x": 0, "y": 0, "zoom": 0.75},
-    }
 
 
 def load_config_instructions() -> dict[str, str]:
@@ -379,7 +225,7 @@ def enrich(data: dict[str, Any]) -> dict[str, Any]:
     data["triggers"] = [
         {
             "id": "trg_chat_demo",
-            "workflow_id": "demo_multi_agent",
+            "workflow_id": "support_triage",
             "type": "chat",
             "enabled": True,
             "name": "Support chat widget",
@@ -440,8 +286,8 @@ def enrich(data: dict[str, Any]) -> dict[str, Any]:
         data["deployments"].append(
             {
                 "id": "support-chat",
-                "workflow_id": "demo_multi_agent",
-                "name": "demo_multi_agent",
+                "workflow_id": "support_triage",
+                "name": "support_triage",
                 "api_url": "",
                 "trigger_id": "trg_chat_demo",
                 "title": "Support Assistant",

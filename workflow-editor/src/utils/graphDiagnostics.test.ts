@@ -128,16 +128,55 @@ describe('diagnoseWorkflow', () => {
         expect(found.map((d) => d.code)).toContain('invalid_attachment');
     });
 
-    it('warns that router and output nodes are not persisted', () => {
-        // buildWorkflowPayload keeps only agent nodes, so these vanish on save
+    it('notes that an output node is not persisted', () => {
+        // buildWorkflowPayload has nothing to persist for a terminator node
+        const found = diagnoseWorkflow({
+            ...healthy(),
+            nodes: [...healthy().nodes, node('o1', 'output', { type: 'output' })],
+            edges: [...healthy().edges, flowEdge('a1', 'o1')],
+        });
+        const dropped = found.find((d) => d.code === 'nodes_dropped_on_save');
+        expect(dropped?.severity).toBe('info');
+        expect(dropped?.detail).toContain('o1');
+    });
+
+    it('no longer claims routers are dropped — they compile into connections', () => {
         const found = diagnoseWorkflow({
             ...healthy(),
             nodes: [...healthy().nodes, node('r1', 'router', { type: 'router' })],
             edges: [...healthy().edges, flowEdge('a1', 'r1')],
         });
-        const dropped = found.find((d) => d.code === 'nodes_dropped_on_save');
-        expect(dropped?.severity).toBe('warning');
-        expect(dropped?.detail).toContain('r1');
+        expect(found.map((d) => d.code)).not.toContain('nodes_dropped_on_save');
+    });
+
+    it('warns about a Flow Router with fewer than two branches', () => {
+        const found = diagnoseWorkflow({
+            ...healthy(),
+            nodes: [...healthy().nodes, node('r1', 'router', { type: 'router' })],
+            edges: [...healthy().edges, flowEdge('a1', 'r1')],
+        });
+        const finding = found.find((d) => d.code === 'router_without_branches');
+        expect(finding?.severity).toBe('warning');
+    });
+
+    it('flags a tool node attached to an agent but never saved to the library', () => {
+        const base = healthy();
+        const found = diagnoseWorkflow({
+            ...base,
+            nodes: [...base.nodes, node('t9', 'tool', { type: 'mcp', id: 'unsaved_mcp' })],
+            edges: [...base.edges, auxEdge('t9', 'a1', 'tools')],
+        });
+        expect(found.map((d) => d.code)).toContain('tool_not_registered');
+    });
+
+    it('warns about a Knowledge Source with no collection', () => {
+        const base = healthy();
+        const found = diagnoseWorkflow({
+            ...base,
+            nodes: [...base.nodes, node('k1', 'tool', { type: 'knowledge' })],
+            edges: [...base.edges, auxEdge('k1', 'a1', 'knowledge')],
+        });
+        expect(found.map((d) => d.code)).toContain('knowledge_without_collections');
     });
 
     describe('provider configuration', () => {

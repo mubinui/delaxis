@@ -808,6 +808,126 @@ export const PropertiesPanel = () => {
         );
     };
 
+    /** Memory Store and Knowledge Source are tool nodes bound to typed agent
+     *  handles rather than callable tools, so they get their own fields instead
+     *  of the protocol picker — which used to show them as "Python Function". */
+    const renderAttachmentConfig = () => {
+        if (config.type === 'memory') {
+            return renderSection('Memory Store', 'tool_details', (
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className={labelCls}>Retention</label>
+                        <select
+                            value={config.retention || 'session'}
+                            onChange={(e) => updateConfig('retention', e.target.value)}
+                            className={fieldCls}
+                        >
+                            <option value="session">Session — cleared when the chat ends</option>
+                            <option value="persistent">Persistent — kept across sessions</option>
+                        </select>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                        Attach to an agent&apos;s <strong>memory</strong> handle. Without this node the
+                        workflow saves with memory off.
+                    </p>
+                </div>
+            ));
+        }
+
+        return renderSection('Knowledge Source', 'tool_details', (
+            <div className="space-y-4">
+                <div className="space-y-1.5">
+                    <label className={labelCls}>Collections (comma-separated)</label>
+                    <input
+                        type="text"
+                        value={(config.collections || []).join(', ')}
+                        onChange={(e) =>
+                            updateConfig(
+                                'collections',
+                                e.target.value.split(',').map((v) => v.trim()).filter(Boolean),
+                            )
+                        }
+                        className={`${fieldCls} font-mono`}
+                        placeholder="handbook, product_docs"
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <label className={labelCls}>Passages per query (top_k)</label>
+                    <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={config.top_k ?? 5}
+                        onChange={(e) => updateConfig('top_k', Number(e.target.value))}
+                        className={fieldCls}
+                    />
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    The agent gets a <code>search_knowledge</code> tool pinned to these collections.
+                    Needs <code>RAG_PIPELINE_ENABLED=true</code>; with no collection named, no search
+                    tool is created.
+                </p>
+            </div>
+        ));
+    };
+
+    /** Flow Router and Guardrail both live on `router` nodes and had no
+     *  inspector at all, so their settings could never be edited. */
+    const renderRouterConfig = () => {
+        if (config.type === 'guardrail') {
+            return renderSection('Guardrail', 'router_details', (
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className={labelCls}>Output schema</label>
+                        <select
+                            value={config.output_schema || 'text'}
+                            onChange={(e) => updateConfig('output_schema', e.target.value)}
+                            className={fieldCls}
+                        >
+                            <option value="text">Text — reject an empty answer</option>
+                            <option value="json">JSON — the answer must parse as JSON</option>
+                        </select>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(config.human_review)}
+                            onChange={(e) => updateConfig('human_review', e.target.checked)}
+                            className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-700"
+                        />
+                        Flag the result for human review
+                    </label>
+                    <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                        Checks the <strong>final</strong> output wherever this node sits, and makes the
+                        agent retry twice when it does not conform. Remove the node to turn guardrails
+                        off.
+                    </p>
+                </div>
+            ));
+        }
+
+        return renderSection('Flow Router', 'router_details', (
+            <div className="space-y-4">
+                <div className="space-y-1.5">
+                    <label className={labelCls}>Routing mode</label>
+                    <select
+                        value={config.routing_mode || 'conditional'}
+                        onChange={(e) => updateConfig('routing_mode', e.target.value)}
+                        className={fieldCls}
+                    >
+                        <option value="conditional">Conditional — the upstream agent picks a branch</option>
+                        <option value="broadcast">Broadcast — every branch receives the result</option>
+                    </select>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    On save the router is compiled into direct connections and the agent feeding it is
+                    marked a router, so it can delegate to the branches. Wire it to at least two agents
+                    — with one it is just a hand-off.
+                </p>
+            </div>
+        ));
+    };
+
     const renderToolConfig = () => (
         <>
             {renderSection('Protocol Payload Parameters', 'tool_details', (
@@ -1183,10 +1303,20 @@ export const PropertiesPanel = () => {
                     tabs={[
                         { id: 'overview', label: 'Overview', icon: Activity },
                         { id: 'model', label: 'Driver', icon: Sparkles, disabled: selectedNode.type !== 'agent' },
-                        { id: 'tools', label: selectedNode.type === 'tool' ? 'Config' : 'Tools', icon: Wrench, disabled: selectedNode.type === 'trigger' },
+                        { id: 'tools', label: selectedNode.type === 'tool' || selectedNode.type === 'router' ? 'Config' : 'Tools', icon: Wrench, disabled: selectedNode.type === 'trigger' },
                         { id: 'runtime', label: 'Runtime', icon: Layers },
                         { id: 'data', label: 'Data', icon: ArrowLeftRight, disabled: selectedNode.type !== 'agent' && selectedNode.type !== 'tool' },
-                        { id: 'test', label: 'Test', icon: Gauge, disabled: selectedNode.type === 'output' },
+                        {
+                            id: 'test',
+                            label: 'Test',
+                            icon: Gauge,
+                            // Nothing to invoke on a terminator, a router, or an
+                            // attachment node — they have no callable surface.
+                            disabled:
+                                selectedNode.type === 'output' ||
+                                selectedNode.type === 'router' ||
+                                (selectedNode.type === 'tool' && ['memory', 'knowledge'].includes(config.type)),
+                        },
                     ]}
                 />
 
@@ -1226,9 +1356,12 @@ export const PropertiesPanel = () => {
                     {selectedNode.type === 'agent' && activeInspectorTab === 'model' && renderModelConfig()}
                     {selectedNode.type === 'agent' && activeInspectorTab === 'tools' && renderToolsSelector()}
                     {selectedNode.type === 'agent' && activeInspectorTab === 'runtime' && renderAgentConfig()}
-                    {selectedNode.type === 'tool' && activeInspectorTab === 'tools' && renderToolConfig()}
-                    {selectedNode.type === 'tool' && activeInspectorTab === 'test' && renderToolTest()}
+                    {selectedNode.type === 'tool' && activeInspectorTab === 'tools' && (
+                        ['memory', 'knowledge'].includes(config.type) ? renderAttachmentConfig() : renderToolConfig()
+                    )}
+                    {selectedNode.type === 'tool' && activeInspectorTab === 'test' && !['memory', 'knowledge'].includes(config.type) && renderToolTest()}
                     {selectedNode.type === 'trigger' && activeInspectorTab === 'runtime' && renderTriggerConfig()}
+                    {selectedNode.type === 'router' && (activeInspectorTab === 'tools' || activeInspectorTab === 'runtime') && renderRouterConfig()}
 
                     {activeInspectorTab === 'data' && (selectedNode.type === 'agent' || selectedNode.type === 'tool') && (
                         <div className="space-y-4">

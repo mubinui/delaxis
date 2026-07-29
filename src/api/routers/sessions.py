@@ -51,7 +51,7 @@ async def create_session(
     Requirements: 1.1, 1.3
     """
     request_id = getattr(request.state, "request_id", None)
-    workflow_id = body.workflow_id or "demo_multi_agent"  # Default to the demo workflow
+    workflow_id = body.workflow_id or "support_triage"  # Default to the shipped triage workflow
     
     # Set request context
     set_request_user(current_user)

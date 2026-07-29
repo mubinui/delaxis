@@ -623,7 +623,7 @@ class TestProcurementWorkflowTopologyMigration:
         registry = WorkflowRegistry()
         
         # Test example workflows have topology
-        example_workflows = ['demo_multi_agent', 'simple_search']
+        example_workflows = ['support_triage', 'assistant_chat']
 
         for workflow_id in example_workflows:
             workflow = registry.get_workflow(workflow_id)

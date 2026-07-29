@@ -23,7 +23,7 @@ class SessionCreateRequest(BaseModel):
     """Request to create a new chatbot session."""
 
     user_id: Optional[str] = Field(default=None, description="Optional user identifier")
-    workflow_id: Optional[str] = Field(default="demo_multi_agent", description="Workflow to use (defaults to demo_multi_agent)")
+    workflow_id: Optional[str] = Field(default="support_triage", description="Workflow to use (defaults to support_triage)")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 

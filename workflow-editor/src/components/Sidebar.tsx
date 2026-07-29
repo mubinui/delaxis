@@ -223,10 +223,25 @@ export const Sidebar = () => {
                                 collapsed
                             />
                         ))}
+                        {/* Creating a tool is the natural next step after placing an
+                            agent/task, so the action sits with them rather than at
+                            the far bottom of the rail. */}
+                        {group.id === 'agents' && (
+                            <button
+                                onClick={() => openLibraryModal('tools')}
+                                title="Create a new tool"
+                                className="flex w-16 shrink-0 flex-col items-center gap-1 rounded-lg py-1.5 transition-all duration-150 hover:bg-gray-50 dark:hover:bg-slate-900"
+                            >
+                                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-orange-300 dark:border-orange-500/40 text-orange-500 dark:text-orange-400 transition-all duration-150 hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30">
+                                    <Plus size={15} strokeWidth={2.5} />
+                                </span>
+                                <span className="text-[9px] font-medium leading-none text-gray-500 dark:text-slate-400">New Tool</span>
+                            </button>
+                        )}
                     </React.Fragment>
                 ))}
 
-                {/* Library + create, pinned to the bottom */}
+                {/* Library, pinned to the bottom */}
                 <div className="mt-auto flex shrink-0 flex-col items-center gap-1 pt-2">
                     <div className="mb-1 h-px w-10 bg-gray-200 dark:bg-slate-800" />
                     <button
@@ -246,16 +261,6 @@ export const Sidebar = () => {
                             )}
                         </span>
                         <span className="text-[9px] font-medium leading-none text-gray-500 dark:text-slate-400">Library</span>
-                    </button>
-                    <button
-                        onClick={() => openLibraryModal('tools')}
-                        title="Create a new tool"
-                        className="flex w-16 flex-col items-center gap-1 rounded-lg py-1.5 transition-all duration-150 hover:bg-gray-50 dark:hover:bg-slate-900"
-                    >
-                        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-orange-300 dark:border-orange-500/40 text-orange-500 dark:text-orange-400 transition-all duration-150 hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30">
-                            <Plus size={15} strokeWidth={2.5} />
-                        </span>
-                        <span className="text-[9px] font-medium leading-none text-gray-500 dark:text-slate-400">New Tool</span>
                     </button>
                 </div>
             </aside>

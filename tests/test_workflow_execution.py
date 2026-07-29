@@ -495,7 +495,7 @@ class TestSessionWorkflowSelection:
     async def test_create_session_default_workflow(
         self, async_client: AsyncClient, mock_auth_token: str
     ):
-        """Test creating session without workflow_id defaults to demo_multi_agent."""
+        """Test creating session without workflow_id defaults to support_triage."""
         response = await async_client.post(
             "/api/v1/sessions",
             json={
@@ -506,7 +506,7 @@ class TestSessionWorkflowSelection:
         
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
-        assert data["workflow_id"] == "demo_multi_agent"
+        assert data["workflow_id"] == "support_triage"
 
 
 @pytest.fixture

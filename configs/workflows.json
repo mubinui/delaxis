@@ -1,371 +1,160 @@
 {
   "version": "2.0.0",
   "_schema": "oak-crewai-workflows",
-  "_comment": "Example workflow definitions for Open Agent Kit.",
-  "last_updated": "2026-07-11T00:00:00Z",
+  "_comment": "Starter workflows. Each one runs as shipped and is meant to be copied and adapted rather than studied \u2014 open one in the Studio, point it at your provider and edit. metadata.setup lists what each needs beyond an API key.",
+  "last_updated": "2026-07-29T00:00:00Z",
   "workflows": [
     {
-      "id": "demo_multi_agent",
-      "name": "Demo Multi-Agent Assistant",
-      "description": "Multi-agent assistant that routes to web search, knowledge base, or calculator specialists",
+      "id": "assistant_chat",
+      "name": "Assistant Chatbot",
+      "description": "A single general-purpose agent with session memory. The smallest workflow worth deploying, and the right starting point for most chatbots.",
+      "pattern": "single",
+      "entry_agent_id": "general_assistant",
+      "max_turns": 10,
       "enabled": true,
-      "pattern": "selector",
+      "workflow_type": "chatbot",
+      "persistence": "mongo_only",
+      "runtime": "crewai",
+      "process": "sequential",
+      "execution_strategy": "sequential",
       "topology": {
-        "type": "graph",
+        "type": "single",
         "nodes": [
           {
-            "id": "demo_selector_agent",
-            "agent_id": "demo_selector_agent",
-            "description": "Routes to specialists"
-          },
-          {
-            "id": "search_assistant",
-            "agent_id": "search_assistant",
-            "description": "Web search specialist"
-          },
-          {
-            "id": "rag_assistant",
-            "agent_id": "rag_assistant",
-            "description": "Knowledge base specialist"
-          },
-          {
-            "id": "calculator_agent",
-            "agent_id": "calculator_agent",
-            "description": "Math specialist"
+            "id": "general_assistant",
+            "agent_id": "general_assistant",
+            "description": "Answers the user",
+            "position": {
+              "x": 340,
+              "y": 150
+            },
+            "memory": true
           }
         ],
         "edges": [],
-        "entry_node": "demo_selector_agent",
-        "domain_agents": [
-          {
-            "id": "search_assistant",
-            "name": "SearchAssistant",
-            "domain": "web_search"
-          },
-          {
-            "id": "rag_assistant",
-            "name": "RAGAssistant",
-            "domain": "knowledge_base"
-          },
-          {
-            "id": "calculator_agent",
-            "name": "CalculatorAgent",
-            "domain": "math"
-          }
-        ],
-        "routing_method": "llm"
-      },
-      "execution_config": {
-        "max_turns": 15,
-        "timeout_seconds": 300,
-        "enable_streaming": false
-      },
-      "persistence": "postgres",
-      "workflow_type": "chatbot"
-    },
-    {
-      "id": "simple_search",
-      "name": "Simple Search Assistant",
-      "description": "Single agent for web search",
-      "enabled": true,
-      "pattern": "single",
-      "topology": {
-        "type": "single",
-        "nodes": [
-          {
-            "id": "search_assistant",
-            "agent_id": "search_assistant",
-            "description": "Web search agent"
-          }
-        ],
-        "entry_node": "search_assistant"
-      },
-      "execution_config": {
-        "max_turns": 10,
-        "timeout_seconds": 120
-      },
-      "persistence": "postgres",
-      "workflow_type": "chatbot"
-    },
-    {
-      "id": "rag_assistant",
-      "name": "RAG Knowledge Assistant",
-      "description": "Single agent with RAG capabilities",
-      "enabled": true,
-      "pattern": "single",
-      "topology": {
-        "type": "single",
-        "nodes": [
-          {
-            "id": "rag_assistant",
-            "agent_id": "rag_assistant",
-            "description": "RAG assistant"
-          }
-        ],
-        "entry_node": "rag_assistant"
-      },
-      "execution_config": {
-        "max_turns": 10,
-        "timeout_seconds": 180
-      },
-      "persistence": "postgres",
-      "workflow_type": "chatbot"
-    },
-    {
-      "id": "pipeline_example",
-      "name": "Sequential Pipeline Example",
-      "description": "Example of sequential agent execution",
-      "enabled": false,
-      "_comment": "Example workflow showing CrewAI's SequentialAgent pattern",
-      "pattern": "sequential",
-      "topology": {
-        "type": "sequential",
-        "nodes": [
-          {
-            "id": "search_assistant",
-            "agent_id": "search_assistant",
-            "description": "Search step"
-          },
-          {
-            "id": "general_assistant",
-            "agent_id": "general_assistant",
-            "description": "Summary step"
-          }
-        ],
-        "entry_node": "search_assistant",
-        "pipeline": [
-          {
-            "agent_id": "search_assistant",
-            "output_key": "search_results"
-          },
-          {
-            "agent_id": "general_assistant",
-            "instruction_override": "Summarize the search results: {search_results}"
-          }
-        ]
-      },
-      "execution_config": {
-        "max_turns": 5,
-        "timeout_seconds": 180
-      },
-      "persistence": "postgres",
-      "workflow_type": "sequential"
-    },
-    {
-      "id": "parallel_example",
-      "name": "Parallel Execution Example",
-      "description": "Example of parallel agent execution",
-      "enabled": false,
-      "_comment": "Example workflow showing CrewAI's ParallelAgent pattern",
-      "pattern": "parallel",
-      "topology": {
-        "type": "graph",
-        "nodes": [
-          {
-            "id": "search_assistant",
-            "agent_id": "search_assistant",
-            "description": "Search agent"
-          },
-          {
-            "id": "rag_assistant",
-            "agent_id": "rag_assistant",
-            "description": "RAG agent"
-          },
-          {
-            "id": "general_assistant",
-            "agent_id": "general_assistant",
-            "description": "Synthesis agent"
-          }
-        ],
-        "entry_node": "general_assistant",
-        "concurrent_agents": [
-          {
-            "agent_id": "search_assistant",
-            "output_key": "web_results"
-          },
-          {
-            "agent_id": "rag_assistant",
-            "output_key": "kb_results"
-          }
-        ],
-        "synthesizer": {
-          "agent_id": "general_assistant",
-          "instruction_override": "Combine results from web ({web_results}) and knowledge base ({kb_results})."
-        }
-      },
-      "execution_config": {
-        "max_turns": 3,
-        "timeout_seconds": 240
-      },
-      "persistence": "postgres",
-      "workflow_type": "custom"
-    },
-    {
-      "id": "echo_test",
-      "name": "Echo Test Workflow",
-      "description": "Simple workflow for testing - echoes back user input",
-      "enabled": true,
-      "pattern": "single",
-      "_comment": "Test workflow using general assistant without tools",
-      "topology": {
-        "type": "single",
-        "nodes": [
-          {
-            "id": "general_assistant",
-            "agent_id": "general_assistant",
-            "description": "Echo test agent"
-          }
-        ],
         "entry_node": "general_assistant"
       },
+      "tasks": [
+        {
+          "id": "answer",
+          "node_id": "general_assistant",
+          "agent_id": "general_assistant",
+          "description": "Answer the user's message directly and accurately, using the conversation so far for context.",
+          "expected_output": "A clear, complete answer in markdown."
+        }
+      ],
+      "memory": {
+        "enabled": true,
+        "retention": "session"
+      },
+      "knowledge": {
+        "enabled": false,
+        "collections": [],
+        "top_k": 5
+      },
+      "guardrails": {
+        "enabled": false,
+        "human_review": false,
+        "output_schema": "text"
+      },
+      "tracing": {
+        "enabled": true,
+        "amp_enabled": false,
+        "event_listeners": [
+          "crew",
+          "agent",
+          "task",
+          "tool",
+          "llm",
+          "memory",
+          "knowledge"
+        ]
+      },
+      "event_listeners": [],
+      "mcp_servers": [],
+      "output_schema": "text",
+      "deployment_auth_mode": "public",
       "execution_config": {
-        "max_turns": 3,
-        "timeout_seconds": 30
+        "max_turns": 10,
+        "timeout_seconds": 180
       },
-      "persistence": "postgres",
-      "workflow_type": "chatbot"
-    },
-    {
-      "id": "tool_test",
-      "name": "Tool Test Workflow",
-      "description": "Test workflow verifying tool calling functionality",
-      "enabled": true,
-      "pattern": "single",
-      "_comment": "Test workflow using search assistant with web_search tool",
-      "topology": {
-        "type": "single",
-        "nodes": [
-          {
-            "id": "search_assistant",
-            "agent_id": "search_assistant",
-            "description": "Tool test agent"
-          }
-        ],
-        "entry_node": "search_assistant"
-      },
-      "execution_config": {
-        "max_turns": 5,
-        "timeout_seconds": 60
-      },
-      "persistence": "postgres",
-      "workflow_type": "chatbot"
-    },
-    {
-      "id": "e2e_search_demo",
-      "name": "E2E Search Demo",
-      "description": "Trigger a web search, then write a guarded final answer.",
-      "pattern": "sequential",
-      "entry_agent_id": "e2e_researcher",
-      "recipient_agent_id": null,
-      "max_turns": 10,
-      "summary_method": "last_msg",
-      "enabled": true,
       "metadata": {
+        "use_case": "A general assistant you can deploy as a chat page in one click.",
+        "setup": [
+          "Set an LLM provider API key (that is all this workflow needs)."
+        ],
         "visual_canvas": {
           "nodes": [
             {
-              "id": "trigger_1",
+              "id": "trigger-chat",
               "type": "trigger",
               "position": {
                 "x": 40,
-                "y": 200
-              },
-              "data": {
-                "label": "Manual Trigger",
-                "config": {
-                  "trigger_type": "manual",
-                  "label": "Start"
-                }
-              }
-            },
-            {
-              "id": "researcher",
-              "type": "agent",
-              "position": {
-                "x": 320,
                 "y": 180
               },
               "data": {
-                "label": "Web Researcher",
+                "label": "On Chat",
                 "config": {
-                  "id": "e2e_researcher",
-                  "type": "conversable",
-                  "name": "Web_Researcher",
-                  "tools": [
-                    "web_search"
-                  ],
-                  "model_config": {
-                    "provider_id": "openrouter",
-                    "model": "openai/gpt-4o-mini",
-                    "temperature": 0.3,
-                    "max_tokens": 800
-                  }
+                  "trigger_type": "chat",
+                  "label": "On Chat",
+                  "workflow_id": "assistant_chat"
                 }
               }
             },
             {
-              "id": "web_search_tool",
+              "id": "general_assistant",
+              "type": "agent",
+              "position": {
+                "x": 340,
+                "y": 150
+              },
+              "data": {
+                "label": "GeneralAssistant",
+                "description": "General purpose assistant for open-ended questions",
+                "config": {
+                  "id": "general_assistant",
+                  "agent_id": "general_assistant",
+                  "name": "GeneralAssistant",
+                  "type": "conversable",
+                  "instruction": "You are a helpful assistant. Answer clearly, concisely and accurately.\n\nPrefer a short direct answer followed by detail, over a long preamble. Say plainly when you do not know something rather than guessing. Use markdown for structure when the answer has more than one part.",
+                  "system_message": "You are a helpful assistant. Answer clearly, concisely and accurately.\n\nPrefer a short direct answer followed by detail, over a long preamble. Say plainly when you do not know something rather than guessing. Use markdown for structure when the answer has more than one part.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.7,
+                    "max_tokens": 2000
+                  },
+                  "tools": [],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "tool-memory",
               "type": "tool",
               "position": {
-                "x": 300,
-                "y": 400
+                "x": 340,
+                "y": 380
               },
               "data": {
-                "label": "Web Search",
+                "label": "Memory Store",
                 "config": {
-                  "id": "web_search",
-                  "type": "function",
-                  "name": "web_search"
+                  "type": "memory",
+                  "memory_enabled": true,
+                  "retention": "session"
                 }
               }
             },
             {
-              "id": "writer",
-              "type": "agent",
-              "position": {
-                "x": 640,
-                "y": 180
-              },
-              "data": {
-                "label": "Answer Writer",
-                "config": {
-                  "id": "e2e_writer",
-                  "type": "conversable",
-                  "name": "Answer_Writer",
-                  "model_config": {
-                    "provider_id": "openrouter",
-                    "model": "openai/gpt-4o-mini",
-                    "temperature": 0.5,
-                    "max_tokens": 800
-                  }
-                }
-              }
-            },
-            {
-              "id": "guardrail_1",
-              "type": "router",
-              "position": {
-                "x": 940,
-                "y": 180
-              },
-              "data": {
-                "label": "Output Guardrail",
-                "config": {
-                  "type": "guardrail",
-                  "guardrails_enabled": true,
-                  "output_schema": "text"
-                }
-              }
-            },
-            {
-              "id": "output_1",
+              "id": "output-final",
               "type": "output",
               "position": {
-                "x": 1200,
-                "y": 200
+                "x": 760,
+                "y": 180
               },
               "data": {
-                "label": "Final Output",
+                "label": "Answer",
                 "config": {
                   "type": "output"
                 }
@@ -374,80 +163,370 @@
           ],
           "edges": [
             {
-              "id": "e-trigger",
-              "source": "trigger_1",
-              "target": "researcher",
-              "type": "smoothstep"
-            },
-            {
-              "id": "e-tool",
-              "source": "web_search_tool",
-              "target": "researcher",
-              "sourceHandle": "attach",
-              "targetHandle": "tools",
-              "type": "straight",
+              "id": "xy-edge__trigger-chat-general_assistant",
+              "source": "trigger-chat",
+              "target": "general_assistant",
+              "type": "smoothstep",
+              "animated": true,
               "style": {
-                "strokeDasharray": "6 4",
-                "stroke": "#94a3b8",
-                "strokeWidth": 1.5
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
               }
             },
             {
-              "id": "e-flow",
-              "source": "researcher",
-              "target": "writer",
-              "type": "smoothstep"
+              "id": "xy-edge__tool-memoryattach-general_assistantmemory",
+              "source": "tool-memory",
+              "sourceHandle": "attach",
+              "target": "general_assistant",
+              "targetHandle": "memory",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
             },
             {
-              "id": "e-guard",
-              "source": "writer",
-              "target": "guardrail_1",
-              "type": "smoothstep"
-            },
-            {
-              "id": "e-out",
-              "source": "guardrail_1",
-              "target": "output_1",
-              "type": "smoothstep"
+              "id": "xy-edge__general_assistant-output-final",
+              "source": "general_assistant",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
             }
           ],
           "viewport": {
             "x": 0,
             "y": 0,
-            "zoom": 1
+            "zoom": 0.85
           }
         }
-      },
+      }
+    },
+    {
+      "id": "web_research_chat",
+      "name": "Web Research Chatbot",
+      "description": "A single agent that searches the web before answering and cites its sources. Use it whenever answers must reflect current information rather than training data.",
+      "pattern": "single",
+      "entry_agent_id": "search_assistant",
+      "max_turns": 10,
+      "enabled": true,
+      "workflow_type": "chatbot",
+      "persistence": "mongo_only",
+      "runtime": "crewai",
+      "process": "sequential",
+      "execution_strategy": "sequential",
       "topology": {
-        "type": "sequential",
-        "entry_node": "researcher",
+        "type": "single",
         "nodes": [
           {
-            "id": "researcher",
-            "agent_id": "e2e_researcher",
+            "id": "search_assistant",
+            "agent_id": "search_assistant",
+            "description": "Searches the web and answers with citations",
+            "position": {
+              "x": 340,
+              "y": 150
+            },
+            "tools": [
+              "web_search"
+            ],
+            "memory": true
+          }
+        ],
+        "edges": [],
+        "entry_node": "search_assistant"
+      },
+      "tasks": [
+        {
+          "id": "research",
+          "node_id": "search_assistant",
+          "agent_id": "search_assistant",
+          "description": "Search the web for what the user asked, then answer from the results. Cite every claim with its source URL and say so if the search did not answer the question.",
+          "expected_output": "An answer grounded in search results, with a source URL for each claim."
+        }
+      ],
+      "memory": {
+        "enabled": true,
+        "retention": "session"
+      },
+      "knowledge": {
+        "enabled": false,
+        "collections": [],
+        "top_k": 5
+      },
+      "guardrails": {
+        "enabled": false,
+        "human_review": false,
+        "output_schema": "text"
+      },
+      "tracing": {
+        "enabled": true,
+        "amp_enabled": false,
+        "event_listeners": [
+          "crew",
+          "agent",
+          "task",
+          "tool",
+          "llm",
+          "memory",
+          "knowledge"
+        ]
+      },
+      "event_listeners": [],
+      "mcp_servers": [],
+      "output_schema": "text",
+      "deployment_auth_mode": "public",
+      "execution_config": {
+        "max_turns": 10,
+        "timeout_seconds": 180
+      },
+      "metadata": {
+        "use_case": "Answering questions about current events, prices, releases and other moving targets.",
+        "setup": [
+          "Set an LLM provider API key.",
+          "No extra service: web search uses DuckDuckGo directly."
+        ],
+        "visual_canvas": {
+          "nodes": [
+            {
+              "id": "trigger-chat",
+              "type": "trigger",
+              "position": {
+                "x": 40,
+                "y": 180
+              },
+              "data": {
+                "label": "On Chat",
+                "config": {
+                  "trigger_type": "chat",
+                  "label": "On Chat",
+                  "workflow_id": "web_research_chat"
+                }
+              }
+            },
+            {
+              "id": "search_assistant",
+              "type": "agent",
+              "position": {
+                "x": 340,
+                "y": 150
+              },
+              "data": {
+                "label": "SearchAssistant",
+                "description": "Web search specialist for current information",
+                "config": {
+                  "id": "search_assistant",
+                  "agent_id": "search_assistant",
+                  "name": "SearchAssistant",
+                  "type": "conversable",
+                  "instruction": "You are a web research specialist.\n\nAVAILABLE TOOLS\n- search_web(query) \u2014 searches the web and returns titles, descriptions and URLs.\n\nHOW TO WORK\n1. Turn the user's question into a focused search query and call search_web.\n2. Search again with a different angle if the first results are thin.\n3. Summarise what you found in plain language.\n4. Cite every claim with its source URL.\n5. Say so explicitly when the search does not answer the question \u2014 never fill the gap from memory and present it as a finding.",
+                  "system_message": "You are a web research specialist.\n\nAVAILABLE TOOLS\n- search_web(query) \u2014 searches the web and returns titles, descriptions and URLs.\n\nHOW TO WORK\n1. Turn the user's question into a focused search query and call search_web.\n2. Search again with a different angle if the first results are thin.\n3. Summarise what you found in plain language.\n4. Cite every claim with its source URL.\n5. Say so explicitly when the search does not answer the question \u2014 never fill the gap from memory and present it as a finding.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.5,
+                    "max_tokens": 1500
+                  },
+                  "tools": [
+                    "web_search"
+                  ],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "tool-web-search",
+              "type": "tool",
+              "position": {
+                "x": 300,
+                "y": 380
+              },
+              "data": {
+                "label": "search_web",
+                "config": {
+                  "id": "web_search",
+                  "name": "search_web",
+                  "description": "Search the web using DuckDuckGo and return formatted results with titles, descriptions, and URLs. Useful for finding current information, facts, and resources.",
+                  "entrypoint": "src.tools.web_search:search_web",
+                  "enabled": true,
+                  "max_results": 5
+                }
+              }
+            },
+            {
+              "id": "tool-memory",
+              "type": "tool",
+              "position": {
+                "x": 560,
+                "y": 380
+              },
+              "data": {
+                "label": "Memory Store",
+                "config": {
+                  "type": "memory",
+                  "memory_enabled": true,
+                  "retention": "session"
+                }
+              }
+            },
+            {
+              "id": "output-final",
+              "type": "output",
+              "position": {
+                "x": 760,
+                "y": 180
+              },
+              "data": {
+                "label": "Answer",
+                "config": {
+                  "type": "output"
+                }
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "xy-edge__trigger-chat-search_assistant",
+              "source": "trigger-chat",
+              "target": "search_assistant",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__tool-web-searchattach-search_assistanttools",
+              "source": "tool-web-search",
+              "sourceHandle": "attach",
+              "target": "search_assistant",
+              "targetHandle": "tools",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__tool-memoryattach-search_assistantmemory",
+              "source": "tool-memory",
+              "sourceHandle": "attach",
+              "target": "search_assistant",
+              "targetHandle": "memory",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__search_assistant-output-final",
+              "source": "search_assistant",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            }
+          ],
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 0.85
+          }
+        }
+      }
+    },
+    {
+      "id": "research_brief",
+      "name": "Research Brief Pipeline",
+      "description": "Researcher gathers sourced findings, then a writer turns them into a structured brief. A guardrail rejects an empty final answer. The template for any two-stage gather-then-produce pipeline.",
+      "pattern": "sequential",
+      "entry_agent_id": "search_assistant",
+      "max_turns": 10,
+      "enabled": true,
+      "workflow_type": "sequential",
+      "persistence": "postgres",
+      "runtime": "crewai",
+      "process": "sequential",
+      "execution_strategy": "sequential",
+      "topology": {
+        "type": "sequential",
+        "nodes": [
+          {
+            "id": "search_assistant",
+            "agent_id": "search_assistant",
+            "description": "Gathers sourced findings",
+            "position": {
+              "x": 320,
+              "y": 170
+            },
             "tools": [
               "web_search"
             ]
           },
           {
-            "id": "writer",
-            "agent_id": "e2e_writer"
+            "id": "research_writer",
+            "agent_id": "research_writer",
+            "description": "Writes the brief",
+            "position": {
+              "x": 720,
+              "y": 170
+            }
           }
         ],
         "edges": [
           {
-            "from_node": "researcher",
-            "to_node": "writer",
+            "from_node": "search_assistant",
+            "to_node": "research_writer",
+            "source": "search_assistant",
+            "target": "research_writer",
             "context_strategy": "full"
           }
-        ]
+        ],
+        "entry_node": "search_assistant"
       },
-      "execution_strategy": "sequential",
-      "workflow_type": "sequential",
-      "persistence": "postgres",
-      "runtime": "crewai",
-      "process": "sequential",
-      "tasks": [],
+      "tasks": [
+        {
+          "id": "gather",
+          "node_id": "search_assistant",
+          "agent_id": "search_assistant",
+          "description": "Research the user's question on the web. Run more than one search if the first is thin. Return findings as bullets, each with its source URL, plus a note on anything you could not establish.",
+          "expected_output": "Bulleted findings, each carrying a source URL, and a list of open gaps."
+        },
+        {
+          "id": "write",
+          "node_id": "research_writer",
+          "agent_id": "research_writer",
+          "description": "Turn the researcher's findings into a brief: Answer, What we found, Sources, Confidence. Use only what the researcher supplied.",
+          "expected_output": "A markdown brief with the four sections, citing every source the researcher found."
+        }
+      ],
       "memory": {
         "enabled": false,
         "retention": "session"
@@ -469,19 +548,1457 @@
           "crew",
           "agent",
           "task",
-          "tool"
+          "tool",
+          "llm",
+          "memory",
+          "knowledge"
         ]
       },
       "event_listeners": [],
       "mcp_servers": [],
       "output_schema": "text",
       "deployment_auth_mode": "public",
-      "steps": null,
-      "group_chat": null,
-      "nested_chats": null,
-      "selector_config": null,
-      "nodes": null,
-      "connections": null
+      "execution_config": {
+        "max_turns": 10,
+        "timeout_seconds": 180
+      },
+      "metadata": {
+        "use_case": "Turning a question into a sourced, structured brief a person can act on.",
+        "setup": [
+          "Set an LLM provider API key."
+        ],
+        "visual_canvas": {
+          "nodes": [
+            {
+              "id": "trigger-chat",
+              "type": "trigger",
+              "position": {
+                "x": 40,
+                "y": 200
+              },
+              "data": {
+                "label": "On Chat",
+                "config": {
+                  "trigger_type": "chat",
+                  "label": "On Chat",
+                  "workflow_id": "research_brief"
+                }
+              }
+            },
+            {
+              "id": "search_assistant",
+              "type": "agent",
+              "position": {
+                "x": 320,
+                "y": 170
+              },
+              "data": {
+                "label": "SearchAssistant",
+                "description": "Web search specialist for current information",
+                "config": {
+                  "id": "search_assistant",
+                  "agent_id": "search_assistant",
+                  "name": "SearchAssistant",
+                  "type": "conversable",
+                  "instruction": "You are a web research specialist.\n\nAVAILABLE TOOLS\n- search_web(query) \u2014 searches the web and returns titles, descriptions and URLs.\n\nHOW TO WORK\n1. Turn the user's question into a focused search query and call search_web.\n2. Search again with a different angle if the first results are thin.\n3. Summarise what you found in plain language.\n4. Cite every claim with its source URL.\n5. Say so explicitly when the search does not answer the question \u2014 never fill the gap from memory and present it as a finding.",
+                  "system_message": "You are a web research specialist.\n\nAVAILABLE TOOLS\n- search_web(query) \u2014 searches the web and returns titles, descriptions and URLs.\n\nHOW TO WORK\n1. Turn the user's question into a focused search query and call search_web.\n2. Search again with a different angle if the first results are thin.\n3. Summarise what you found in plain language.\n4. Cite every claim with its source URL.\n5. Say so explicitly when the search does not answer the question \u2014 never fill the gap from memory and present it as a finding.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.5,
+                    "max_tokens": 1500
+                  },
+                  "tools": [
+                    "web_search"
+                  ],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "tool-web-search",
+              "type": "tool",
+              "position": {
+                "x": 320,
+                "y": 400
+              },
+              "data": {
+                "label": "search_web",
+                "config": {
+                  "id": "web_search",
+                  "name": "search_web",
+                  "description": "Search the web using DuckDuckGo and return formatted results with titles, descriptions, and URLs. Useful for finding current information, facts, and resources.",
+                  "entrypoint": "src.tools.web_search:search_web",
+                  "enabled": true,
+                  "max_results": 5
+                }
+              }
+            },
+            {
+              "id": "research_writer",
+              "type": "agent",
+              "position": {
+                "x": 720,
+                "y": 170
+              },
+              "data": {
+                "label": "ResearchWriter",
+                "description": "Turns raw research notes into a structured brief",
+                "config": {
+                  "id": "research_writer",
+                  "agent_id": "research_writer",
+                  "name": "ResearchWriter",
+                  "type": "conversable",
+                  "instruction": "You write short research briefs from notes handed to you by a researcher.\n\nStructure every brief as:\n1. **Answer** \u2014 two or three sentences answering the question directly.\n2. **What we found** \u2014 the substantive detail, as bullets.\n3. **Sources** \u2014 every URL the researcher supplied.\n4. **Confidence** \u2014 high, medium or low, and what would raise it.\n\nUse only what the researcher gave you. If the notes do not support a claim, leave it out and note the gap under Confidence.",
+                  "system_message": "You write short research briefs from notes handed to you by a researcher.\n\nStructure every brief as:\n1. **Answer** \u2014 two or three sentences answering the question directly.\n2. **What we found** \u2014 the substantive detail, as bullets.\n3. **Sources** \u2014 every URL the researcher supplied.\n4. **Confidence** \u2014 high, medium or low, and what would raise it.\n\nUse only what the researcher gave you. If the notes do not support a claim, leave it out and note the gap under Confidence.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.4,
+                    "max_tokens": 2000
+                  },
+                  "tools": [],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "guardrail-final",
+              "type": "router",
+              "position": {
+                "x": 1080,
+                "y": 190
+              },
+              "data": {
+                "label": "Guardrail",
+                "config": {
+                  "type": "guardrail",
+                  "guardrails_enabled": true,
+                  "output_schema": "text",
+                  "human_review": false
+                }
+              }
+            },
+            {
+              "id": "output-final",
+              "type": "output",
+              "position": {
+                "x": 1340,
+                "y": 200
+              },
+              "data": {
+                "label": "Answer",
+                "config": {
+                  "type": "output"
+                }
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "xy-edge__trigger-chat-search_assistant",
+              "source": "trigger-chat",
+              "target": "search_assistant",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__tool-web-searchattach-search_assistanttools",
+              "source": "tool-web-search",
+              "sourceHandle": "attach",
+              "target": "search_assistant",
+              "targetHandle": "tools",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__search_assistant-research_writer",
+              "source": "search_assistant",
+              "target": "research_writer",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__research_writer-guardrail-final",
+              "source": "research_writer",
+              "target": "guardrail-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__guardrail-final-output-final",
+              "source": "guardrail-final",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            }
+          ],
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 0.85
+          }
+        }
+      }
+    },
+    {
+      "id": "docs_qa",
+      "name": "Docs Q&A",
+      "description": "Answers strictly from your indexed documents, with retrieval pinned to a named collection. The base for a support bot or internal handbook assistant.",
+      "pattern": "single",
+      "entry_agent_id": "rag_assistant",
+      "max_turns": 10,
+      "enabled": true,
+      "workflow_type": "chatbot",
+      "persistence": "mongo_only",
+      "runtime": "crewai",
+      "process": "sequential",
+      "execution_strategy": "sequential",
+      "topology": {
+        "type": "single",
+        "nodes": [
+          {
+            "id": "rag_assistant",
+            "agent_id": "rag_assistant",
+            "description": "Answers from the indexed documents",
+            "position": {
+              "x": 340,
+              "y": 150
+            },
+            "tools": [
+              "rag_query"
+            ],
+            "memory": true,
+            "knowledge": true
+          }
+        ],
+        "edges": [],
+        "entry_node": "rag_assistant"
+      },
+      "tasks": [
+        {
+          "id": "answer_from_docs",
+          "node_id": "rag_assistant",
+          "agent_id": "rag_assistant",
+          "description": "Retrieve from the knowledge collections before answering, and answer only from what you retrieve. Name the source document for each point. If nothing relevant comes back, say the documents do not cover it.",
+          "expected_output": "An answer grounded in retrieved passages, naming its source documents."
+        }
+      ],
+      "memory": {
+        "enabled": true,
+        "retention": "session"
+      },
+      "knowledge": {
+        "enabled": true,
+        "collections": [
+          "handbook"
+        ],
+        "top_k": 5
+      },
+      "guardrails": {
+        "enabled": false,
+        "human_review": false,
+        "output_schema": "text"
+      },
+      "tracing": {
+        "enabled": true,
+        "amp_enabled": false,
+        "event_listeners": [
+          "crew",
+          "agent",
+          "task",
+          "tool",
+          "llm",
+          "memory",
+          "knowledge"
+        ]
+      },
+      "event_listeners": [],
+      "mcp_servers": [],
+      "output_schema": "text",
+      "deployment_auth_mode": "public",
+      "execution_config": {
+        "max_turns": 10,
+        "timeout_seconds": 180
+      },
+      "metadata": {
+        "use_case": "Support and internal Q&A where answers must come from your documents, not the model.",
+        "setup": [
+          "Set an LLM provider API key.",
+          "Run a RAG service and set RAG_PIPELINE_ENABLED=true and RAG_PIPELINE_BASE_URL.",
+          "Ingest your documents, then rename the 'handbook' collection on the Knowledge Source node."
+        ],
+        "visual_canvas": {
+          "nodes": [
+            {
+              "id": "trigger-chat",
+              "type": "trigger",
+              "position": {
+                "x": 40,
+                "y": 180
+              },
+              "data": {
+                "label": "On Chat",
+                "config": {
+                  "trigger_type": "chat",
+                  "label": "On Chat",
+                  "workflow_id": "docs_qa"
+                }
+              }
+            },
+            {
+              "id": "rag_assistant",
+              "type": "agent",
+              "position": {
+                "x": 340,
+                "y": 150
+              },
+              "data": {
+                "label": "RAGAssistant",
+                "description": "Answers from your own indexed documents",
+                "config": {
+                  "id": "rag_assistant",
+                  "agent_id": "rag_assistant",
+                  "name": "RAGAssistant",
+                  "type": "conversable",
+                  "instruction": "You answer questions from the organisation's own documents.\n\nAVAILABLE TOOLS\n- search_knowledge(query) \u2014 retrieves passages from the configured collections.\n- rag_query(collection, query, top_k) \u2014 queries a named collection directly.\n\nHOW TO WORK\n1. Retrieve before answering. Do not answer documentation questions from memory.\n2. Quote or closely paraphrase the retrieved passages and name the document.\n3. If retrieval returns nothing relevant, say the documents do not cover it and suggest what would need to be indexed \u2014 do not improvise an answer.",
+                  "system_message": "You answer questions from the organisation's own documents.\n\nAVAILABLE TOOLS\n- search_knowledge(query) \u2014 retrieves passages from the configured collections.\n- rag_query(collection, query, top_k) \u2014 queries a named collection directly.\n\nHOW TO WORK\n1. Retrieve before answering. Do not answer documentation questions from memory.\n2. Quote or closely paraphrase the retrieved passages and name the document.\n3. If retrieval returns nothing relevant, say the documents do not cover it and suggest what would need to be indexed \u2014 do not improvise an answer.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.3,
+                    "max_tokens": 1500
+                  },
+                  "tools": [
+                    "rag_query",
+                    "rag_list_files"
+                  ],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "tool-rag-query",
+              "type": "tool",
+              "position": {
+                "x": 260,
+                "y": 380
+              },
+              "data": {
+                "label": "rag_query",
+                "config": {
+                  "id": "rag_query",
+                  "name": "rag_query",
+                  "description": "Query the RAG pipeline to retrieve relevant documents and generate answers. Parameters: collection (string), query (string), top_k (integer, default 5), rerank (boolean, default true).",
+                  "entrypoint": "src.tools.rag_pipeline:query_rag",
+                  "enabled": true
+                }
+              }
+            },
+            {
+              "id": "tool-knowledge",
+              "type": "tool",
+              "position": {
+                "x": 520,
+                "y": 380
+              },
+              "data": {
+                "label": "Knowledge Source",
+                "config": {
+                  "type": "knowledge",
+                  "knowledge_enabled": true,
+                  "collections": [
+                    "handbook"
+                  ],
+                  "top_k": 5
+                }
+              }
+            },
+            {
+              "id": "tool-memory",
+              "type": "tool",
+              "position": {
+                "x": 780,
+                "y": 380
+              },
+              "data": {
+                "label": "Memory Store",
+                "config": {
+                  "type": "memory",
+                  "memory_enabled": true,
+                  "retention": "session"
+                }
+              }
+            },
+            {
+              "id": "output-final",
+              "type": "output",
+              "position": {
+                "x": 800,
+                "y": 180
+              },
+              "data": {
+                "label": "Answer",
+                "config": {
+                  "type": "output"
+                }
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "xy-edge__trigger-chat-rag_assistant",
+              "source": "trigger-chat",
+              "target": "rag_assistant",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__tool-rag-queryattach-rag_assistanttools",
+              "source": "tool-rag-query",
+              "sourceHandle": "attach",
+              "target": "rag_assistant",
+              "targetHandle": "tools",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__tool-knowledgeattach-rag_assistantknowledge",
+              "source": "tool-knowledge",
+              "sourceHandle": "attach",
+              "target": "rag_assistant",
+              "targetHandle": "knowledge",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__tool-memoryattach-rag_assistantmemory",
+              "source": "tool-memory",
+              "sourceHandle": "attach",
+              "target": "rag_assistant",
+              "targetHandle": "memory",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__rag_assistant-output-final",
+              "source": "rag_assistant",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            }
+          ],
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 0.85
+          }
+        }
+      }
+    },
+    {
+      "id": "support_triage",
+      "name": "Support Triage",
+      "description": "A triage agent that reads the request and delegates to a web-search, documentation or calculation specialist. The base for any multi-skill assistant.",
+      "pattern": "selector",
+      "entry_agent_id": "triage_agent",
+      "max_turns": 10,
+      "enabled": true,
+      "workflow_type": "tree",
+      "persistence": "postgres",
+      "runtime": "crewai",
+      "process": "hierarchical",
+      "execution_strategy": "sequential",
+      "topology": {
+        "type": "graph",
+        "nodes": [
+          {
+            "id": "triage_agent",
+            "agent_id": "triage_agent",
+            "description": "Reads the request and delegates",
+            "position": {
+              "x": 300,
+              "y": 340
+            },
+            "is_router": true,
+            "memory": true
+          },
+          {
+            "id": "search_assistant",
+            "agent_id": "search_assistant",
+            "description": "Current information from the web",
+            "position": {
+              "x": 900,
+              "y": 60
+            },
+            "tools": [
+              "web_search"
+            ]
+          },
+          {
+            "id": "rag_assistant",
+            "agent_id": "rag_assistant",
+            "description": "Answers from the documents",
+            "position": {
+              "x": 900,
+              "y": 400
+            },
+            "tools": [
+              "rag_query"
+            ],
+            "knowledge": true
+          },
+          {
+            "id": "calculator_agent",
+            "agent_id": "calculator_agent",
+            "description": "Arithmetic",
+            "position": {
+              "x": 900,
+              "y": 750
+            },
+            "tools": [
+              "calculate"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from_node": "triage_agent",
+            "to_node": "search_assistant",
+            "source": "triage_agent",
+            "target": "search_assistant",
+            "context_strategy": "full"
+          },
+          {
+            "from_node": "triage_agent",
+            "to_node": "rag_assistant",
+            "source": "triage_agent",
+            "target": "rag_assistant",
+            "context_strategy": "full"
+          },
+          {
+            "from_node": "triage_agent",
+            "to_node": "calculator_agent",
+            "source": "triage_agent",
+            "target": "calculator_agent",
+            "context_strategy": "full"
+          }
+        ],
+        "entry_node": "triage_agent"
+      },
+      "tasks": [],
+      "memory": {
+        "enabled": true,
+        "retention": "session"
+      },
+      "knowledge": {
+        "enabled": true,
+        "collections": [
+          "handbook"
+        ],
+        "top_k": 5
+      },
+      "guardrails": {
+        "enabled": false,
+        "human_review": false,
+        "output_schema": "text"
+      },
+      "tracing": {
+        "enabled": true,
+        "amp_enabled": false,
+        "event_listeners": [
+          "crew",
+          "agent",
+          "task",
+          "tool",
+          "llm",
+          "memory",
+          "knowledge"
+        ]
+      },
+      "event_listeners": [],
+      "mcp_servers": [],
+      "output_schema": "text",
+      "deployment_auth_mode": "public",
+      "execution_config": {
+        "max_turns": 10,
+        "timeout_seconds": 180
+      },
+      "metadata": {
+        "use_case": "One assistant covering several skills, where the right specialist depends on the request.",
+        "setup": [
+          "Set an LLM provider API key.",
+          "The documentation branch needs a RAG service; without one the other two branches still work."
+        ],
+        "visual_canvas": {
+          "nodes": [
+            {
+              "id": "trigger-chat",
+              "type": "trigger",
+              "position": {
+                "x": 40,
+                "y": 372
+              },
+              "data": {
+                "label": "On Chat",
+                "config": {
+                  "trigger_type": "chat",
+                  "label": "On Chat",
+                  "workflow_id": "support_triage"
+                }
+              }
+            },
+            {
+              "id": "triage_agent",
+              "type": "agent",
+              "position": {
+                "x": 300,
+                "y": 340
+              },
+              "data": {
+                "label": "TriageAgent",
+                "description": "Front desk: understands the request and hands it to the right specialist",
+                "config": {
+                  "id": "triage_agent",
+                  "agent_id": "triage_agent",
+                  "name": "TriageAgent",
+                  "type": "conversable",
+                  "instruction": "You are the front desk of a support team. Greet people warmly and work out what they actually need, then hand the request to the specialist best suited to it:\n\n- SearchAssistant \u2014 anything that needs current information from the web.\n- RAGAssistant \u2014 anything answerable from our own documentation.\n- CalculatorAgent \u2014 arithmetic and unit conversions.\n\nDelegate rather than answering yourself when a specialist is a better fit. If the request is ambiguous, ask one clarifying question first. Always finish by giving the user a direct answer in your own words, not just the specialist's raw output.",
+                  "system_message": "You are the front desk of a support team. Greet people warmly and work out what they actually need, then hand the request to the specialist best suited to it:\n\n- SearchAssistant \u2014 anything that needs current information from the web.\n- RAGAssistant \u2014 anything answerable from our own documentation.\n- CalculatorAgent \u2014 arithmetic and unit conversions.\n\nDelegate rather than answering yourself when a specialist is a better fit. If the request is ambiguous, ask one clarifying question first. Always finish by giving the user a direct answer in your own words, not just the specialist's raw output.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.4,
+                    "max_tokens": 2000
+                  },
+                  "tools": [],
+                  "human_input_mode": "NEVER",
+                  "is_selector": true
+                }
+              }
+            },
+            {
+              "id": "tool-memory",
+              "type": "tool",
+              "position": {
+                "x": 300,
+                "y": 570
+              },
+              "data": {
+                "label": "Memory Store",
+                "config": {
+                  "type": "memory",
+                  "memory_enabled": true,
+                  "retention": "session"
+                }
+              }
+            },
+            {
+              "id": "router-skills",
+              "type": "router",
+              "position": {
+                "x": 660,
+                "y": 392
+              },
+              "data": {
+                "label": "Flow Router",
+                "config": {
+                  "type": "router",
+                  "routing_mode": "conditional"
+                }
+              }
+            },
+            {
+              "id": "search_assistant",
+              "type": "agent",
+              "position": {
+                "x": 900,
+                "y": 60
+              },
+              "data": {
+                "label": "SearchAssistant",
+                "description": "Web search specialist for current information",
+                "config": {
+                  "id": "search_assistant",
+                  "agent_id": "search_assistant",
+                  "name": "SearchAssistant",
+                  "type": "conversable",
+                  "instruction": "You are a web research specialist.\n\nAVAILABLE TOOLS\n- search_web(query) \u2014 searches the web and returns titles, descriptions and URLs.\n\nHOW TO WORK\n1. Turn the user's question into a focused search query and call search_web.\n2. Search again with a different angle if the first results are thin.\n3. Summarise what you found in plain language.\n4. Cite every claim with its source URL.\n5. Say so explicitly when the search does not answer the question \u2014 never fill the gap from memory and present it as a finding.",
+                  "system_message": "You are a web research specialist.\n\nAVAILABLE TOOLS\n- search_web(query) \u2014 searches the web and returns titles, descriptions and URLs.\n\nHOW TO WORK\n1. Turn the user's question into a focused search query and call search_web.\n2. Search again with a different angle if the first results are thin.\n3. Summarise what you found in plain language.\n4. Cite every claim with its source URL.\n5. Say so explicitly when the search does not answer the question \u2014 never fill the gap from memory and present it as a finding.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.5,
+                    "max_tokens": 1500
+                  },
+                  "tools": [
+                    "web_search"
+                  ],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "tool-web-search",
+              "type": "tool",
+              "position": {
+                "x": 900,
+                "y": 290
+              },
+              "data": {
+                "label": "search_web",
+                "config": {
+                  "id": "web_search",
+                  "name": "search_web",
+                  "description": "Search the web using DuckDuckGo and return formatted results with titles, descriptions, and URLs. Useful for finding current information, facts, and resources.",
+                  "entrypoint": "src.tools.web_search:search_web",
+                  "enabled": true,
+                  "max_results": 5
+                }
+              }
+            },
+            {
+              "id": "rag_assistant",
+              "type": "agent",
+              "position": {
+                "x": 900,
+                "y": 400
+              },
+              "data": {
+                "label": "RAGAssistant",
+                "description": "Answers from your own indexed documents",
+                "config": {
+                  "id": "rag_assistant",
+                  "agent_id": "rag_assistant",
+                  "name": "RAGAssistant",
+                  "type": "conversable",
+                  "instruction": "You answer questions from the organisation's own documents.\n\nAVAILABLE TOOLS\n- search_knowledge(query) \u2014 retrieves passages from the configured collections.\n- rag_query(collection, query, top_k) \u2014 queries a named collection directly.\n\nHOW TO WORK\n1. Retrieve before answering. Do not answer documentation questions from memory.\n2. Quote or closely paraphrase the retrieved passages and name the document.\n3. If retrieval returns nothing relevant, say the documents do not cover it and suggest what would need to be indexed \u2014 do not improvise an answer.",
+                  "system_message": "You answer questions from the organisation's own documents.\n\nAVAILABLE TOOLS\n- search_knowledge(query) \u2014 retrieves passages from the configured collections.\n- rag_query(collection, query, top_k) \u2014 queries a named collection directly.\n\nHOW TO WORK\n1. Retrieve before answering. Do not answer documentation questions from memory.\n2. Quote or closely paraphrase the retrieved passages and name the document.\n3. If retrieval returns nothing relevant, say the documents do not cover it and suggest what would need to be indexed \u2014 do not improvise an answer.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.3,
+                    "max_tokens": 1500
+                  },
+                  "tools": [
+                    "rag_query",
+                    "rag_list_files"
+                  ],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "tool-knowledge",
+              "type": "tool",
+              "position": {
+                "x": 1160,
+                "y": 630
+              },
+              "data": {
+                "label": "Knowledge Source",
+                "config": {
+                  "type": "knowledge",
+                  "knowledge_enabled": true,
+                  "collections": [
+                    "handbook"
+                  ],
+                  "top_k": 5
+                }
+              }
+            },
+            {
+              "id": "tool-rag-query",
+              "type": "tool",
+              "position": {
+                "x": 900,
+                "y": 630
+              },
+              "data": {
+                "label": "rag_query",
+                "config": {
+                  "id": "rag_query",
+                  "name": "rag_query",
+                  "description": "Query the RAG pipeline to retrieve relevant documents and generate answers. Parameters: collection (string), query (string), top_k (integer, default 5), rerank (boolean, default true).",
+                  "entrypoint": "src.tools.rag_pipeline:query_rag",
+                  "enabled": true
+                }
+              }
+            },
+            {
+              "id": "calculator_agent",
+              "type": "agent",
+              "position": {
+                "x": 900,
+                "y": 750
+              },
+              "data": {
+                "label": "CalculatorAgent",
+                "description": "Evaluates arithmetic reliably instead of guessing",
+                "config": {
+                  "id": "calculator_agent",
+                  "agent_id": "calculator_agent",
+                  "name": "CalculatorAgent",
+                  "type": "conversable",
+                  "instruction": "You handle arithmetic.\n\nAVAILABLE TOOLS\n- calculate(expression) \u2014 evaluates a mathematical expression.\n\nAlways use the tool rather than computing in your head, including for simple sums. Show the expression you evaluated alongside the result, and state the units.",
+                  "system_message": "You handle arithmetic.\n\nAVAILABLE TOOLS\n- calculate(expression) \u2014 evaluates a mathematical expression.\n\nAlways use the tool rather than computing in your head, including for simple sums. Show the expression you evaluated alongside the result, and state the units.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.1,
+                    "max_tokens": 800
+                  },
+                  "tools": [
+                    "calculate"
+                  ],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "tool-calculate",
+              "type": "tool",
+              "position": {
+                "x": 900,
+                "y": 980
+              },
+              "data": {
+                "label": "calculate",
+                "config": {
+                  "id": "calculate",
+                  "name": "calculate",
+                  "description": "Safely evaluate an arithmetic expression and return the numeric result. Supports +, -, *, /, //, %, ** and parentheses.\n\nParameters:\n  - expression (required): The arithmetic expression to evaluate, e.g. '2 * (3 + 4)'",
+                  "entrypoint": "src.tools.calculator:calculate",
+                  "enabled": true
+                }
+              }
+            },
+            {
+              "id": "output-final",
+              "type": "output",
+              "position": {
+                "x": 1360,
+                "y": 392
+              },
+              "data": {
+                "label": "Answer",
+                "config": {
+                  "type": "output"
+                }
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "xy-edge__trigger-chat-triage_agent",
+              "source": "trigger-chat",
+              "target": "triage_agent",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__tool-memoryattach-triage_agentmemory",
+              "source": "tool-memory",
+              "sourceHandle": "attach",
+              "target": "triage_agent",
+              "targetHandle": "memory",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__triage_agent-router-skills",
+              "source": "triage_agent",
+              "target": "router-skills",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__router-skills-search_assistant",
+              "source": "router-skills",
+              "target": "search_assistant",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__router-skills-rag_assistant",
+              "source": "router-skills",
+              "target": "rag_assistant",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__router-skills-calculator_agent",
+              "source": "router-skills",
+              "target": "calculator_agent",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__tool-web-searchattach-search_assistanttools",
+              "source": "tool-web-search",
+              "sourceHandle": "attach",
+              "target": "search_assistant",
+              "targetHandle": "tools",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__tool-rag-queryattach-rag_assistanttools",
+              "source": "tool-rag-query",
+              "sourceHandle": "attach",
+              "target": "rag_assistant",
+              "targetHandle": "tools",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__tool-knowledgeattach-rag_assistantknowledge",
+              "source": "tool-knowledge",
+              "sourceHandle": "attach",
+              "target": "rag_assistant",
+              "targetHandle": "knowledge",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__tool-calculateattach-calculator_agenttools",
+              "source": "tool-calculate",
+              "sourceHandle": "attach",
+              "target": "calculator_agent",
+              "targetHandle": "tools",
+              "type": "straight",
+              "style": {
+                "stroke": "#94a3b8",
+                "strokeWidth": 1.5,
+                "strokeDasharray": "6 4"
+              }
+            },
+            {
+              "id": "xy-edge__search_assistant-output-final",
+              "source": "search_assistant",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__rag_assistant-output-final",
+              "source": "rag_assistant",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__calculator_agent-output-final",
+              "source": "calculator_agent",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            }
+          ],
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 0.85
+          }
+        }
+      }
+    },
+    {
+      "id": "content_pipeline",
+      "name": "Content Pipeline",
+      "description": "Outline, draft and edit in three stages, each agent seeing the previous stage's output. A guardrail rejects an empty result. Needs nothing but a provider key.",
+      "pattern": "sequential",
+      "entry_agent_id": "content_outliner",
+      "max_turns": 10,
+      "enabled": true,
+      "workflow_type": "sequential",
+      "persistence": "postgres",
+      "runtime": "crewai",
+      "process": "sequential",
+      "execution_strategy": "sequential",
+      "topology": {
+        "type": "sequential",
+        "nodes": [
+          {
+            "id": "content_outliner",
+            "agent_id": "content_outliner",
+            "description": "Plans the structure",
+            "position": {
+              "x": 300,
+              "y": 170
+            }
+          },
+          {
+            "id": "content_drafter",
+            "agent_id": "content_drafter",
+            "description": "Writes the draft",
+            "position": {
+              "x": 660,
+              "y": 170
+            }
+          },
+          {
+            "id": "content_editor",
+            "agent_id": "content_editor",
+            "description": "Edits for publication",
+            "position": {
+              "x": 1020,
+              "y": 170
+            }
+          }
+        ],
+        "edges": [
+          {
+            "from_node": "content_outliner",
+            "to_node": "content_drafter",
+            "source": "content_outliner",
+            "target": "content_drafter",
+            "context_strategy": "full"
+          },
+          {
+            "from_node": "content_drafter",
+            "to_node": "content_editor",
+            "source": "content_drafter",
+            "target": "content_editor",
+            "context_strategy": "full"
+          }
+        ],
+        "entry_node": "content_outliner"
+      },
+      "tasks": [
+        {
+          "id": "outline",
+          "node_id": "content_outliner",
+          "agent_id": "content_outliner",
+          "description": "Produce an outline for what the user asked for: working title, audience and takeaway, then 3-6 sections with their purpose and key points. Outline only, no prose.",
+          "expected_output": "A structured outline with title, audience, takeaway and sections."
+        },
+        {
+          "id": "draft",
+          "node_id": "content_drafter",
+          "agent_id": "content_drafter",
+          "description": "Write the full first draft following the outline section by section. Mark anything needing a source or number as [check] rather than inventing it.",
+          "expected_output": "A complete draft in markdown, following the outline's structure."
+        },
+        {
+          "id": "edit",
+          "node_id": "content_editor",
+          "agent_id": "content_editor",
+          "description": "Edit the draft to publication standard and return it in full, followed by Editor's notes listing your changes and every remaining [check].",
+          "expected_output": "The edited piece in full, plus Editor's notes."
+        }
+      ],
+      "memory": {
+        "enabled": false,
+        "retention": "session"
+      },
+      "knowledge": {
+        "enabled": false,
+        "collections": [],
+        "top_k": 5
+      },
+      "guardrails": {
+        "enabled": true,
+        "human_review": false,
+        "output_schema": "text"
+      },
+      "tracing": {
+        "enabled": true,
+        "amp_enabled": false,
+        "event_listeners": [
+          "crew",
+          "agent",
+          "task",
+          "tool",
+          "llm",
+          "memory",
+          "knowledge"
+        ]
+      },
+      "event_listeners": [],
+      "mcp_servers": [],
+      "output_schema": "text",
+      "deployment_auth_mode": "public",
+      "execution_config": {
+        "max_turns": 10,
+        "timeout_seconds": 180
+      },
+      "metadata": {
+        "use_case": "Any multi-stage authoring job \u2014 posts, docs, release notes, reports.",
+        "setup": [
+          "Set an LLM provider API key (that is all this workflow needs)."
+        ],
+        "visual_canvas": {
+          "nodes": [
+            {
+              "id": "trigger-chat",
+              "type": "trigger",
+              "position": {
+                "x": 40,
+                "y": 200
+              },
+              "data": {
+                "label": "On Chat",
+                "config": {
+                  "trigger_type": "chat",
+                  "label": "On Chat",
+                  "workflow_id": "content_pipeline"
+                }
+              }
+            },
+            {
+              "id": "content_outliner",
+              "type": "agent",
+              "position": {
+                "x": 300,
+                "y": 170
+              },
+              "data": {
+                "label": "ContentOutliner",
+                "description": "Plans the structure of a piece before anything is written",
+                "config": {
+                  "id": "content_outliner",
+                  "agent_id": "content_outliner",
+                  "name": "ContentOutliner",
+                  "type": "conversable",
+                  "instruction": "You plan written content. Given a topic and audience, produce an outline only \u2014 never prose.\n\nReturn: a working title, the audience and what they should take away, then 3-6 sections, each with a one-line purpose and the two or three points it must make. Flag anything you would need to check before drafting.",
+                  "system_message": "You plan written content. Given a topic and audience, produce an outline only \u2014 never prose.\n\nReturn: a working title, the audience and what they should take away, then 3-6 sections, each with a one-line purpose and the two or three points it must make. Flag anything you would need to check before drafting.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.6,
+                    "max_tokens": 1200
+                  },
+                  "tools": [],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "content_drafter",
+              "type": "agent",
+              "position": {
+                "x": 660,
+                "y": 170
+              },
+              "data": {
+                "label": "ContentDrafter",
+                "description": "Writes the first full draft from an outline",
+                "config": {
+                  "id": "content_drafter",
+                  "agent_id": "content_drafter",
+                  "name": "ContentDrafter",
+                  "type": "conversable",
+                  "instruction": "You write the first draft from an outline.\n\nFollow the outline's structure section by section. Write in plain, direct prose \u2014 concrete over abstract, active over passive, no filler openings. Keep paragraphs short. Do not add sections the outline does not have, and do not invent facts or statistics: write [check] where a number or citation is needed.",
+                  "system_message": "You write the first draft from an outline.\n\nFollow the outline's structure section by section. Write in plain, direct prose \u2014 concrete over abstract, active over passive, no filler openings. Keep paragraphs short. Do not add sections the outline does not have, and do not invent facts or statistics: write [check] where a number or citation is needed.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.7,
+                    "max_tokens": 3000
+                  },
+                  "tools": [],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "content_editor",
+              "type": "agent",
+              "position": {
+                "x": 1020,
+                "y": 170
+              },
+              "data": {
+                "label": "ContentEditor",
+                "description": "Tightens the draft and returns publication-ready copy",
+                "config": {
+                  "id": "content_editor",
+                  "agent_id": "content_editor",
+                  "name": "ContentEditor",
+                  "type": "conversable",
+                  "instruction": "You edit drafts for publication.\n\nCut anything that does not earn its place. Fix flabby sentences, mixed tense and inconsistent terminology. Keep the author's voice \u2014 do not rewrite for the sake of it.\n\nReturn the edited piece in full, then a short 'Editor's notes' list covering what you changed and every remaining [check] the author still owes.",
+                  "system_message": "You edit drafts for publication.\n\nCut anything that does not earn its place. Fix flabby sentences, mixed tense and inconsistent terminology. Keep the author's voice \u2014 do not rewrite for the sake of it.\n\nReturn the edited piece in full, then a short 'Editor's notes' list covering what you changed and every remaining [check] the author still owes.",
+                  "model_config": {
+                    "provider_id": "openrouter",
+                    "model": "google/gemini-3.5-flash-lite",
+                    "temperature": 0.4,
+                    "max_tokens": 3000
+                  },
+                  "tools": [],
+                  "human_input_mode": "NEVER",
+                  "is_selector": false
+                }
+              }
+            },
+            {
+              "id": "guardrail-final",
+              "type": "router",
+              "position": {
+                "x": 1380,
+                "y": 190
+              },
+              "data": {
+                "label": "Guardrail",
+                "config": {
+                  "type": "guardrail",
+                  "guardrails_enabled": true,
+                  "output_schema": "text",
+                  "human_review": false
+                }
+              }
+            },
+            {
+              "id": "output-final",
+              "type": "output",
+              "position": {
+                "x": 1620,
+                "y": 200
+              },
+              "data": {
+                "label": "Answer",
+                "config": {
+                  "type": "output"
+                }
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "xy-edge__trigger-chat-content_outliner",
+              "source": "trigger-chat",
+              "target": "content_outliner",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__content_outliner-content_drafter",
+              "source": "content_outliner",
+              "target": "content_drafter",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__content_drafter-content_editor",
+              "source": "content_drafter",
+              "target": "content_editor",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__content_editor-guardrail-final",
+              "source": "content_editor",
+              "target": "guardrail-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            },
+            {
+              "id": "xy-edge__guardrail-final-output-final",
+              "source": "guardrail-final",
+              "target": "output-final",
+              "type": "smoothstep",
+              "animated": true,
+              "style": {
+                "stroke": "#64748b",
+                "strokeWidth": 2
+              },
+              "markerEnd": {
+                "type": "arrowclosed",
+                "color": "#64748b"
+              }
+            }
+          ],
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 0.85
+          }
+        }
+      }
     }
   ]
 }

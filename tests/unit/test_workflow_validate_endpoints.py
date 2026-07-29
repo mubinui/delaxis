@@ -36,7 +36,7 @@ class TestWorkflowValidate:
         assert set(body["errors"][0]) >= {"field", "message", "error_type"}
 
     def test_valid_workflow_passes(self, client):
-        response = client.post("/api/v1/workflows/demo_multi_agent/validate")
+        response = client.post("/api/v1/workflows/support_triage/validate")
         assert response.status_code == 200
         assert response.json()["valid"] is True
 

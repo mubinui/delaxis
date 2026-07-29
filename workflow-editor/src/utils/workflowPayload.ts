@@ -38,30 +38,124 @@ export function getAgentBindings(nodes: VisualNode[]): AgentBinding[] {
         }));
 }
 
-const inferPattern = (nodes: VisualNode[], edges: VisualEdge[]) => {
-    const hasRouter = nodes.some((node) => node.type === 'router' || node.data?.config?.is_selector);
+/** A Guardrail node is a `router` node distinguished by its config type. */
+const isGuardrailNode = (node: VisualNode) =>
+    node.data?.config?.type === 'guardrail' || Boolean(node.data?.config?.guardrails_enabled);
+
+/** Flow Router: a `router` node that is not a Guardrail. */
+const isFlowRouter = (node: VisualNode) => node.type === 'router' && !isGuardrailNode(node);
+
+/**
+ * Nodes the flow passes *through* rather than stopping at. They carry no agent,
+ * so they cannot be topology nodes — but the connections drawn through them are
+ * real, and used to be discarded along with the node (a canvas wired
+ * `agent → router → agent` saved as two unconnected agents).
+ */
+const isPassThrough = (node: VisualNode) => node.type === 'router';
+
+/** Flow edges only: attachment edges bind a tool to an agent, they are not flow. */
+const isFlowEdge = (edge: VisualEdge) => !isAuxHandle(edge.targetHandle);
+
+export interface CompiledLink {
+    from: string;
+    to: string;
+    /** The hop went through a Flow Router, so the source is a branching point. */
+    viaRouter: boolean;
+}
+
+/**
+ * Agent→agent links, contracting every pass-through node on the way.
+ *
+ * `a → router → {b, c}` compiles to `a → b` and `a → c`, both flagged
+ * `viaRouter` so the caller can turn `a` into a selector.
+ */
+export function compileFlowLinks(nodes: VisualNode[], edges: VisualEdge[]): CompiledLink[] {
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const flowEdges = edges.filter(isFlowEdge);
+    const agentIds = new Set(nodes.filter((node) => node.type === 'agent').map((node) => node.id));
+
+    const reachableAgents = (fromId: string, viaRouter: boolean, visited: Set<string>): CompiledLink[] => {
+        const links: CompiledLink[] = [];
+        for (const edge of flowEdges.filter((candidate) => candidate.source === fromId)) {
+            const target = nodeById.get(edge.target);
+            if (!target || visited.has(target.id)) continue;
+            if (agentIds.has(target.id)) {
+                links.push({ from: '', to: target.id, viaRouter });
+                continue;
+            }
+            if (!isPassThrough(target)) continue;
+            // Guardrails do not branch; only a Flow Router marks its source a selector.
+            const nextVia = viaRouter || isFlowRouter(target);
+            links.push(...reachableAgents(target.id, nextVia, new Set([...visited, target.id])));
+        }
+        return links;
+    };
+
+    const compiled: CompiledLink[] = [];
+    const seen = new Set<string>();
+    for (const node of nodes) {
+        if (node.type !== 'agent') continue;
+        for (const link of reachableAgents(node.id, false, new Set([node.id]))) {
+            const key = `${node.id}->${link.to}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            compiled.push({ from: node.id, to: link.to, viaRouter: link.viaRouter });
+        }
+    }
+    return compiled;
+}
+
+/** Agent node ids that branch through a Flow Router, i.e. real selectors. */
+const routerSelectorIds = (links: CompiledLink[]) => {
+    const branches = new Map<string, number>();
+    links.filter((link) => link.viaRouter).forEach((link) => {
+        branches.set(link.from, (branches.get(link.from) ?? 0) + 1);
+    });
+    return new Set([...branches].filter(([, count]) => count >= 2).map(([id]) => id));
+};
+
+const inferPattern = (nodes: VisualNode[], links: CompiledLink[], selectors: Set<string>) => {
+    const hasSelector = selectors.size > 0 || nodes.some((node) => node.data?.config?.is_selector);
     const hasLoop = nodes.some((node) => node.data?.config?.type === 'LoopAgent');
     const agentCount = nodes.filter((node) => node.type === 'agent').length;
-    const branchSources = new Set<string>();
-
-    edges.forEach((edge) => {
-        if (edges.filter((candidate) => candidate.source === edge.source).length > 1) {
-            branchSources.add(edge.source);
-        }
-    });
+    const branchSources = new Set(
+        links.filter((link) => links.filter((other) => other.from === link.from).length > 1).map((link) => link.from),
+    );
 
     if (hasLoop) return 'loop';
-    if (hasRouter) return 'selector';
+    if (hasSelector) return 'selector';
     if (branchSources.size > 0) return 'parallel';
     if (agentCount <= 1) return 'single';
     return 'sequential';
 };
 
-const findEntryNode = (nodes: VisualNode[], edges: VisualEdge[]) => {
+const findEntryNode = (nodes: VisualNode[], edges: VisualEdge[], links: CompiledLink[]) => {
     const agentNodes = nodes.filter((node) => node.type === 'agent');
-    const triggerEdge = edges.find((edge) => nodes.find((node) => node.id === edge.source)?.type === 'trigger');
-    const targetAgent = triggerEdge ? agentNodes.find((node) => node.id === triggerEdge.target) : null;
-    return targetAgent ?? agentNodes.find((node) => !edges.some((edge) => edge.target === node.id)) ?? agentNodes[0];
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const flowEdges = edges.filter(isFlowEdge);
+
+    // The first agent a trigger reaches, walking through any pass-through nodes.
+    const fromTrigger = (startId: string, visited: Set<string>): VisualNode | null => {
+        for (const edge of flowEdges.filter((candidate) => candidate.source === startId)) {
+            const target = nodeById.get(edge.target);
+            if (!target || visited.has(target.id)) continue;
+            if (target.type === 'agent') return target;
+            if (isPassThrough(target)) {
+                const found = fromTrigger(target.id, new Set([...visited, target.id]));
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+
+    for (const trigger of nodes.filter((node) => node.type === 'trigger')) {
+        const entry = fromTrigger(trigger.id, new Set([trigger.id]));
+        if (entry) return entry;
+    }
+
+    // Otherwise the agent nothing else feeds into.
+    const hasUpstream = new Set(links.map((link) => link.to));
+    return agentNodes.find((node) => !hasUpstream.has(node.id)) ?? agentNodes[0];
 };
 
 const processForPattern = (pattern: string) => (
@@ -97,8 +191,10 @@ export function buildWorkflowPayload(options: {
 }) {
     const id = slugify(options.id || options.name, 'workflow');
     const agentNodes = options.nodes.filter((node) => node.type === 'agent');
-    const entryNode = findEntryNode(options.nodes, options.edges);
-    const pattern = inferPattern(options.nodes, options.edges);
+    const links = compileFlowLinks(options.nodes, options.edges);
+    const selectorIds = routerSelectorIds(links);
+    const entryNode = findEntryNode(options.nodes, options.edges, links);
+    const pattern = inferPattern(options.nodes, links, selectorIds);
 
     const backendNodes = agentNodes.map((node) => ({
         id: node.id,
@@ -107,7 +203,11 @@ export function buildWorkflowPayload(options: {
             x: node.position.x,
             y: node.position.y,
         },
-        config: node.data?.config ?? {},
+        // An agent that fans out through a Flow Router really is a selector, so
+        // the backend gives it delegation over its branches.
+        config: selectorIds.has(node.id)
+            ? { ...(node.data?.config ?? {}), is_selector: true }
+            : node.data?.config ?? {},
     }));
 
     const agentNodeIds = new Set(agentNodes.map((node) => node.id));
@@ -135,12 +235,13 @@ export function buildWorkflowPayload(options: {
         }
     }
 
-    const connections = options.edges
-        .filter((edge) => !isAuxHandle(edge.targetHandle))
-        .filter((edge) => agentNodeIds.has(edge.source) && agentNodeIds.has(edge.target))
-        .map((edge) => ({
-            from_node: edge.source,
-            to_node: edge.target,
+    const connections = links
+        .filter((link) => agentNodeIds.has(link.from) && agentNodeIds.has(link.to))
+        // The backend validator only accepts 'sequential' | 'parallel'; branch
+        // selection is expressed by is_selector on the source node, not here.
+        .map((link) => ({
+            from_node: link.from,
+            to_node: link.to,
             type: 'sequential',
         }));
 
@@ -160,6 +261,9 @@ export function buildWorkflowPayload(options: {
             description: node.config?.description ?? '',
             position: node.position,
             config: node.config,
+            // AgentNode.is_router — the backend grants delegation over the
+            // branches this node fans out to.
+            ...(selectorIds.has(node.id) ? { is_router: true } : {}),
             tools: toolAttachments.get(node.id) ?? [],
             ...(memoryAttached.has(node.id) ? { memory: true } : {}),
             ...(knowledgeAttached.has(node.id) ? { knowledge: true } : {}),
@@ -172,11 +276,20 @@ export function buildWorkflowPayload(options: {
     const tasks = agentNodes.map(taskForNode);
     // Handle attachments win; the presence scan keeps legacy canvases (memory/
     // knowledge nodes sitting in the main flow) behaving as before.
-    const memoryEnabled = memoryAttached.size > 0
-        || options.nodes.some((node) => node.data?.config?.type === 'memory' || node.data?.config?.memory_enabled);
-    const knowledgeEnabled = knowledgeAttached.size > 0
-        || options.nodes.some((node) => node.data?.config?.type === 'knowledge' || node.data?.config?.knowledge_enabled);
-    const guardrailsEnabled = options.nodes.some((node) => node.data?.config?.type === 'guardrail' || node.data?.config?.guardrails_enabled);
+    const memoryNodes = options.nodes.filter((node) => node.data?.config?.type === 'memory' || node.data?.config?.memory_enabled);
+    const knowledgeNodes = options.nodes.filter((node) => node.data?.config?.type === 'knowledge' || node.data?.config?.knowledge_enabled);
+    const guardrailNodes = options.nodes.filter((node) => node.type === 'router' && isGuardrailNode(node));
+
+    const memoryEnabled = memoryAttached.size > 0 || memoryNodes.length > 0;
+    const knowledgeEnabled = knowledgeAttached.size > 0 || knowledgeNodes.length > 0;
+
+    // Each of these used to be hardcoded, so the node's own settings were
+    // discarded — a Guardrail node in particular changed nothing at all, since
+    // guardrails were written as `enabled || true`.
+    const memoryConfig = memoryNodes[0]?.data?.config ?? {};
+    const knowledgeConfig = knowledgeNodes[0]?.data?.config ?? {};
+    const guardrailConfig = guardrailNodes[0]?.data?.config ?? {};
+    const outputSchema = String(guardrailConfig.output_schema ?? 'text');
 
     const create = {
         id,
@@ -197,17 +310,21 @@ export function buildWorkflowPayload(options: {
             // Was `memoryEnabled || true` (always on); enabled now actually
             // reflects attached/present memory nodes.
             enabled: memoryEnabled,
-            retention: 'session',
+            retention: String(memoryConfig.retention ?? 'session'),
         },
         knowledge: {
             enabled: knowledgeEnabled,
-            collections: [],
-            top_k: 5,
+            collections: Array.isArray(knowledgeConfig.collections)
+                ? knowledgeConfig.collections.map(String)
+                : [],
+            top_k: Number(knowledgeConfig.top_k ?? 5),
         },
         guardrails: {
-            enabled: guardrailsEnabled || true,
-            human_review: false,
-            output_schema: 'text',
+            // A Guardrail node now actually switches this on, and carries its
+            // own schema/review settings, instead of being decorative.
+            enabled: guardrailNodes.length > 0,
+            human_review: Boolean(guardrailConfig.human_review),
+            output_schema: outputSchema,
         },
         tracing: {
             enabled: true,
@@ -216,7 +333,7 @@ export function buildWorkflowPayload(options: {
         },
         event_listeners: [],
         mcp_servers: [],
-        output_schema: 'text',
+        output_schema: outputSchema,
         deployment_auth_mode: 'private',
         nodes: backendNodes,
         connections,

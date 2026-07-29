@@ -142,9 +142,17 @@ class CrewAIWorkflowRuntime:
         # Canvas attachments (Tools/Memory/Knowledge handles) fold into the
         # agent behind each node. The same agent used by several nodes gets
         # the union of their attachments.
-        extra_tools, wants_memory, wants_knowledge = self._node_attachments(ordered_nodes)
+        extra_tools, wants_memory, wants_knowledge, router_agent_ids = self._node_attachments(ordered_nodes)
         attached_knowledge_sources = (
             self._resolve_knowledge_sources(workflow, force=True) if wants_knowledge else []
+        )
+        # Retrieval over the configured collections. A Knowledge node used to
+        # produce only a StringKnowledgeSource echoing the workflow description,
+        # so its collections/top_k settings did nothing; this is the part that
+        # actually searches the corpus.
+        knowledge_tools = self._knowledge_retrieval_tools(workflow)
+        knowledge_everywhere = (
+            not wants_knowledge and bool(getattr(getattr(workflow, "knowledge", None), "enabled", False))
         )
 
         crew_agents: list[Any] = []
@@ -166,6 +174,8 @@ class CrewAIWorkflowRuntime:
                 extra_tool_ids=extra_tools.get(agent_id, []),
                 memory_attached=agent_id in wants_memory,
                 knowledge_sources=attached_knowledge_sources if agent_id in wants_knowledge else None,
+                knowledge_tools=knowledge_tools if (knowledge_everywhere or agent_id in wants_knowledge) else None,
+                delegates=agent_id in router_agent_ids,
                 model_override=model_override,
             )
             crew_agents.append(crew_agent)
@@ -311,11 +321,17 @@ class CrewAIWorkflowRuntime:
     @staticmethod
     def _node_attachments(
         ordered_nodes: list[Any],
-    ) -> tuple[dict[str, list[str]], set[str], set[str]]:
-        """Fold canvas handle attachments (tools/memory/knowledge) per agent id."""
+    ) -> tuple[dict[str, list[str]], set[str], set[str], set[str]]:
+        """Fold canvas handle attachments (tools/memory/knowledge) per agent id.
+
+        Also returns the agents whose node is marked ``is_router`` — a Flow
+        Router on the canvas fans out through them, so they delegate to their
+        branches instead of just running first.
+        """
         extra_tools: dict[str, list[str]] = {}
         wants_memory: set[str] = set()
         wants_knowledge: set[str] = set()
+        routers: set[str] = set()
         for node in ordered_nodes:
             agent_id = node.agent_id
             for tool_id in getattr(node, "tools", None) or []:
@@ -326,7 +342,62 @@ class CrewAIWorkflowRuntime:
                 wants_memory.add(agent_id)
             if getattr(node, "knowledge", None):
                 wants_knowledge.add(agent_id)
-        return extra_tools, wants_memory, wants_knowledge
+            if getattr(node, "is_router", False):
+                routers.add(agent_id)
+        return extra_tools, wants_memory, wants_knowledge, routers
+
+    def _knowledge_retrieval_tools(self, workflow: WorkflowConfig) -> list[Any]:
+        """A ``search_knowledge`` tool bound to the workflow's collections.
+
+        This is what makes a Knowledge Source node do real retrieval: it pins
+        the collections and ``top_k`` configured on the node, so the agent only
+        supplies a query. Returns nothing when the RAG service is off or no
+        collection is configured, rather than handing the agent a tool that can
+        only fail.
+        """
+        knowledge = getattr(workflow, "knowledge", None)
+        collections = [str(c) for c in (getattr(knowledge, "collections", None) or []) if str(c).strip()]
+        if not collections:
+            return []
+
+        try:
+            from crewai.tools import tool as crewai_tool
+
+            from src.config.settings import get_settings
+            from src.tools.rag_pipeline import query_rag
+        except Exception as exc:
+            logger.warning("knowledge_retrieval_unavailable", error=str(exc))
+            return []
+
+        if not get_settings().external_services.rag_pipeline_enabled:
+            logger.warning("knowledge_retrieval_skipped", reason="RAG_PIPELINE_ENABLED is false")
+            return []
+
+        top_k = int(getattr(knowledge, "top_k", 5) or 5)
+
+        def search_knowledge(query: str) -> str:
+            """Search the workflow's knowledge collections for passages relevant to a query. Returns the matching passages with their source and relevance score."""
+            passages: list[str] = []
+            for collection in collections:
+                try:
+                    result = asyncio.run(query_rag(query=query, collection=collection, top_k=top_k))
+                except Exception as exc:  # a failing collection must not kill the run
+                    logger.warning("knowledge_query_failed", collection=collection, error=str(exc))
+                    continue
+                if not result.get("success"):
+                    logger.warning("knowledge_query_rejected", collection=collection, error=result.get("error"))
+                    continue
+                for item in result.get("results", []):
+                    text = str(item.get("text", "")).strip()
+                    if not text:
+                        continue
+                    passages.append(f"[{collection} · score {item.get('score', 0):.3f}] {text}")
+            if not passages:
+                return "No relevant passages found in the configured knowledge collections."
+            return "\n\n".join(passages[: top_k * len(collections)])
+
+        logger.info("knowledge_retrieval_enabled", collections=collections, top_k=top_k)
+        return [crewai_tool("search_knowledge")(search_knowledge)]
 
     def _resolve_knowledge_sources(self, workflow: WorkflowConfig, force: bool = False) -> list[Any]:
         """Dynamically build CrewAI Knowledge source instances if configured.
@@ -423,6 +494,8 @@ class CrewAIWorkflowRuntime:
         extra_tool_ids: list[str] | None = None,
         memory_attached: bool = False,
         knowledge_sources: list[Any] | None = None,
+        knowledge_tools: list[Any] | None = None,
+        delegates: bool = False,
         model_override: dict[str, Any] | None = None,
     ) -> Any:
         model_config = self._effective_model_config(config)
@@ -434,6 +507,7 @@ class CrewAIWorkflowRuntime:
             if tool_id not in tool_ids:
                 tool_ids.append(tool_id)
         tools = self._get_crewai_tools(tool_ids, stack, run_tool_cache, emitter=emitter)
+        tools = tools + list(knowledge_tools or [])
 
         agent_kwargs: dict[str, Any] = {
             "role": config.name,
@@ -443,6 +517,10 @@ class CrewAIWorkflowRuntime:
             "tools": tools,
         }
         agent_kwargs.update(self._agent_params(config, model_config))
+        if delegates:
+            # A canvas Flow Router branching off this node means it must be able
+            # to hand work to those branches.
+            agent_kwargs["allow_delegation"] = True
         if memory_attached:
             agent_kwargs["memory"] = True
         if knowledge_sources:

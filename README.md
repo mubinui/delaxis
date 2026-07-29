@@ -29,6 +29,7 @@ No install, no API key — the real Studio running against an in-browser stub of
 - [How it works](#how-it-works)
 - [Configuration reference](#configuration-reference)
 - [API](#api)
+- [Embedding a chatbot](docs/integration.md) — widget, iframe, or direct API
 - [Project layout](#project-layout)
 - [Development](#development)
 - [Production deployment](#production-deployment)
@@ -44,7 +45,7 @@ Open Agent Kit is a self-hosted platform for building multi-agent AI application
 - 🤖 **CrewAI runtime** — workflows execute on [CrewAI](https://crewai.com), with any LLM via LiteLLM (OpenAI, Gemini, Grok, Claude, OpenRouter, self-hosted vLLM, local Ollama)
 - 🛠️ **Tools out of the box** — web search, RAG, a calculator, Gmail, and any REST API via Swagger/OpenAPI import
 - ⚡ **Live LLM tester** — validate keys, models, latency, and cost before wiring them into agents
-- 🚀 **Flash deployments** — publish any workflow as a standalone chat page served at `/d/<name>/`, embeddable anywhere with an iframe
+- 🚀 **Flash deployments** — publish any workflow as a standalone chat page at `/d/<name>/`, with conversation history, starter prompts and a settings drawer; embed it anywhere with one script tag
 - 🔐 **Optional auth** — local users + API keys (SQL-backed), or Keycloak SSO
 - 📦 **One container** — API, Studio UI, and SQLite persistence in a single Docker image
 
@@ -134,7 +135,7 @@ npm run dev                                    # Vite dev server on :5173, proxi
 CLI chat:
 
 ```bash
-uv run oak --workflow demo_multi_agent --message "What is 2 + 2 * 5?"
+uv run oak --workflow support_triage --message "What is 2 + 2 * 5?"
 ```
 
 ## Choosing an LLM provider
@@ -226,12 +227,26 @@ Use the **Live API** tester in the Studio to verify a key, model, latency, and c
 | **Agent** | A CrewAI agent — role, goal, backstory, model config, and a list of tools. |
 | **Tool** | Something an agent can call. Built in: `web_search`, `calculate`, `get_weather`, the `rag_*` family, Gmail. Add your own as a Python function, a REST endpoint, an MCP server, or a Swagger/OpenAPI import. |
 | **Trigger** | How a workflow is invoked — `chat`, `webhook`, or `manual` — each with its own auth mode (`public`, `api_key`, `jwt`). |
-| **Deployment** | A flash-published chat page at `/d/<name>/`, embeddable via iframe. |
+| **Deployment** | A flash-published chat page at `/d/<name>/`, embeddable with one script tag. See [docs/integration.md](docs/integration.md). |
 | **Prompt** | A reusable, versioned template with variables. |
 
-Canvas node types: Manual Trigger, Chat Trigger, Webhook, CrewAI Agent, CrewAI Task, Flow Router, Memory Store, Knowledge Source, Guardrail, MCP Server, Database (NL2SQL), Gmail, Output.
+Canvas node types: Manual Trigger, Chat Trigger, Webhook, CrewAI Agent, CrewAI Task, Flow Router, Memory Store, Knowledge Source, Guardrail, MCP Server, Database (NL2SQL), Gmail, Output. The Studio's **Help** panel explains every one of them and what it compiles to on save.
 
-The bundled **demo_multi_agent** workflow routes user questions between three specialists — web search, knowledge base (RAG), and calculator — and is a good starting template.
+### Starter workflows
+
+`configs/workflows.json` ships six workflows that run as-is. Open one in the Studio and
+adapt it rather than starting from an empty canvas.
+
+| Workflow | Pattern | What it shows | Needs |
+|---|---|---|---|
+| `assistant_chat` | single | One agent with session memory — the smallest thing worth deploying | a provider key |
+| `web_research_chat` | single | Web search with citations before answering | a provider key |
+| `research_brief` | sequential | Gather → write, with a guardrail on the final answer | a provider key |
+| `content_pipeline` | sequential | Outline → draft → edit, three agents handing off | a provider key |
+| `docs_qa` | single | RAG pinned to a named collection | a RAG service |
+| `support_triage` | selector | A triage agent delegating to three specialists | a provider key |
+
+Each carries `metadata.setup` listing exactly what it needs beyond an API key.
 
 ## How it works
 
@@ -309,7 +324,7 @@ The full interactive reference lives at `/docs`. The essentials:
 # Create a session for a workflow
 curl -X POST localhost:8000/api/v1/sessions \
   -H 'Content-Type: application/json' \
-  -d '{"workflow_id": "demo_multi_agent"}'
+  -d '{"workflow_id": "support_triage"}'
 
 # Chat
 curl -X POST localhost:8000/api/v1/sessions/<session_id>/messages \
@@ -317,7 +332,7 @@ curl -X POST localhost:8000/api/v1/sessions/<session_id>/messages \
   -d '{"message": "What is the weather in Berlin?"}'
 
 # Stream a run as Server-Sent Events
-curl -N -X POST localhost:8000/api/v1/workflows/demo_multi_agent/execute/stream \
+curl -N -X POST localhost:8000/api/v1/workflows/support_triage/execute/stream \
   -H 'Content-Type: application/json' \
   -d '{"message": "What is (12 + 8) * 3?"}'
 ```
