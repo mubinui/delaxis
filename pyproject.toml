@@ -1,6 +1,6 @@
 [project]
 name = "delaxis"
-version = "0.5.0"
+version = "0.5.1"
 description = "Delaxis - open-source multi-agent development kit with a visual studio, live LLM testing, live voice, and deployable chatbots"
 authors = [
     {name = "Mubin Ul Islam", email = "uic.mubin@gmail.com"}
