@@ -36,7 +36,10 @@ def test_api_key_masking(api_key):
     elif len(api_key) <= 4:
         # Short keys should be fully masked
         assert masked == "*" * len(api_key)
-        assert api_key not in masked or api_key == ""
+        # The mask must not leak the key. A key that is itself all asterisks is
+        # equal to its own mask, which leaks nothing — so it is not a violation,
+        # and the earlier `api_key not in masked` form failed on inputs like "*".
+        assert set(masked) <= {"*"}
     else:
         # Keys longer than 4 chars should show last 4
         assert masked is not None
