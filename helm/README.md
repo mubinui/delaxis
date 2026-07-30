@@ -1,19 +1,19 @@
-# Open Agent Kit Helm Chart
+# Delaxis Helm Chart
 
-Helm chart for deploying the Open Agent Kit on Kubernetes.
+Helm chart for deploying the Delaxis on Kubernetes.
 
 ## TL;DR
 
 ```bash
-helm install open-agent-kit ./open-agent-kit \
-  --namespace open-agent-kit \
+helm install delaxis ./delaxis \
+  --namespace delaxis \
   --create-namespace \
   --set secrets.openrouterApiKey=your-key
 ```
 
 ## Introduction
 
-This chart bootstraps an Open Agent Kit deployment on a Kubernetes cluster using the Helm package manager.
+This chart bootstraps an Delaxis deployment on a Kubernetes cluster using the Helm package manager.
 
 ## Prerequisites
 
@@ -26,17 +26,17 @@ This chart bootstraps an Open Agent Kit deployment on a Kubernetes cluster using
 ### From Local Directory
 
 ```bash
-helm install open-agent-kit ./open-agent-kit \
-  --namespace open-agent-kit \
+helm install delaxis ./delaxis \
+  --namespace delaxis \
   --create-namespace \
-  --values ./open-agent-kit/values-prod.yaml
+  --values ./delaxis/values-prod.yaml
 ```
 
 ### With Custom Values
 
 ```bash
-helm install open-agent-kit ./open-agent-kit \
-  --namespace open-agent-kit \
+helm install delaxis ./delaxis \
+  --namespace delaxis \
   --create-namespace \
   --set image.tag=v1.0.0 \
   --set replicaCount=5 \
@@ -46,19 +46,19 @@ helm install open-agent-kit ./open-agent-kit \
 ### Development Environment
 
 ```bash
-helm install oak-dev ./open-agent-kit \
-  --namespace oak-dev \
+helm install delaxis-dev ./delaxis \
+  --namespace delaxis-dev \
   --create-namespace \
-  --values ./open-agent-kit/values-dev.yaml
+  --values ./delaxis/values-dev.yaml
 ```
 
 ### Production Environment
 
 ```bash
-helm install oak-prod ./open-agent-kit \
-  --namespace oak-prod \
+helm install delaxis-prod ./delaxis \
+  --namespace delaxis-prod \
   --create-namespace \
-  --values ./open-agent-kit/values-prod.yaml \
+  --values ./delaxis/values-prod.yaml \
   --set secrets.openrouterApiKey=$OPENROUTER_API_KEY \
   --set secrets.openaiApiKey=$OPENAI_API_KEY \
   --set secrets.jwtSecretKey=$JWT_SECRET \
@@ -68,7 +68,7 @@ helm install oak-prod ./open-agent-kit \
 ## Uninstalling the Chart
 
 ```bash
-helm uninstall open-agent-kit -n open-agent-kit
+helm uninstall delaxis -n delaxis
 ```
 
 This removes all the Kubernetes components associated with the chart and deletes the release.
@@ -80,7 +80,7 @@ This removes all the Kubernetes components associated with the chart and deletes
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `replicaCount` | Number of replicas | `3` |
-| `image.repository` | Image repository | `open-agent-kit` |
+| `image.repository` | Image repository | `delaxis` |
 | `image.tag` | Image tag | `latest` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 
@@ -107,8 +107,8 @@ This removes all the Kubernetes components associated with the chart and deletes
 |-----------|-------------|---------|
 | `ingress.enabled` | Enable ingress | `true` |
 | `ingress.className` | Ingress class name | `nginx` |
-| `ingress.hosts[0].host` | Hostname | `oak.example.com` |
-| `ingress.tls[0].secretName` | TLS secret name | `oak-tls` |
+| `ingress.hosts[0].host` | Hostname | `delaxis.example.com` |
+| `ingress.tls[0].secretName` | TLS secret name | `delaxis-tls` |
 
 ### Resource Configuration
 
@@ -136,7 +136,7 @@ This removes all the Kubernetes components associated with the chart and deletes
 | `postgresql.enabled` | Enable PostgreSQL | `true` |
 | `postgresql.auth.username` | Database username | `orchestrator` |
 | `postgresql.auth.password` | Database password | `orchestrator_pass` |
-| `postgresql.auth.database` | Database name | `oak` |
+| `postgresql.auth.database` | Database name | `delaxis` |
 | `postgresql.primary.persistence.size` | Storage size | `20Gi` |
 
 ### Redis Configuration
@@ -177,26 +177,26 @@ This removes all the Kubernetes components associated with the chart and deletes
 ### Minimal Installation
 
 ```bash
-helm install open-agent-kit ./open-agent-kit \
+helm install delaxis ./delaxis \
   --set secrets.openrouterApiKey=sk-or-v1-xxxxx
 ```
 
 ### Production Installation with External Secrets
 
 ```bash
-helm install oak-prod ./open-agent-kit \
-  --namespace oak-prod \
+helm install delaxis-prod ./delaxis \
+  --namespace delaxis-prod \
   --create-namespace \
-  --values ./open-agent-kit/values-prod.yaml \
+  --values ./delaxis/values-prod.yaml \
   --set externalSecrets.enabled=true \
   --set externalSecrets.backend=aws-secrets-manager \
-  --set externalSecrets.secretName=oak/prod/secrets
+  --set externalSecrets.secretName=delaxis/prod/secrets
 ```
 
 ### High Availability Setup
 
 ```bash
-helm install open-agent-kit ./open-agent-kit \
+helm install delaxis ./delaxis \
   --set replicaCount=5 \
   --set autoscaling.minReplicas=5 \
   --set autoscaling.maxReplicas=20 \
@@ -209,10 +209,10 @@ helm install open-agent-kit ./open-agent-kit \
 ### Development Setup (Minimal Resources)
 
 ```bash
-helm install oak-dev ./open-agent-kit \
-  --namespace oak-dev \
+helm install delaxis-dev ./delaxis \
+  --namespace delaxis-dev \
   --create-namespace \
-  --values ./open-agent-kit/values-dev.yaml
+  --values ./delaxis/values-dev.yaml
 ```
 
 ## Upgrading
@@ -220,17 +220,17 @@ helm install oak-dev ./open-agent-kit \
 ### Upgrade to New Version
 
 ```bash
-helm upgrade open-agent-kit ./open-agent-kit \
-  --namespace open-agent-kit \
-  --values ./open-agent-kit/values-prod.yaml \
+helm upgrade delaxis ./delaxis \
+  --namespace delaxis \
+  --values ./delaxis/values-prod.yaml \
   --reuse-values
 ```
 
 ### Upgrade with New Image
 
 ```bash
-helm upgrade open-agent-kit ./open-agent-kit \
-  --namespace open-agent-kit \
+helm upgrade delaxis ./delaxis \
+  --namespace delaxis \
   --set image.tag=v1.1.0 \
   --reuse-values
 ```
@@ -238,8 +238,8 @@ helm upgrade open-agent-kit ./open-agent-kit \
 ### Upgrade Configuration Only
 
 ```bash
-helm upgrade open-agent-kit ./open-agent-kit \
-  --namespace open-agent-kit \
+helm upgrade delaxis ./delaxis \
+  --namespace delaxis \
   --set config.maxConcurrentSessions=500 \
   --reuse-values
 ```
@@ -248,13 +248,13 @@ helm upgrade open-agent-kit ./open-agent-kit \
 
 ```bash
 # View release history
-helm history open-agent-kit -n open-agent-kit
+helm history delaxis -n delaxis
 
 # Rollback to previous version
-helm rollback open-agent-kit -n open-agent-kit
+helm rollback delaxis -n delaxis
 
 # Rollback to specific revision
-helm rollback open-agent-kit 3 -n open-agent-kit
+helm rollback delaxis 3 -n delaxis
 ```
 
 ## Verification
@@ -263,20 +263,20 @@ helm rollback open-agent-kit 3 -n open-agent-kit
 
 ```bash
 # Get release status
-helm status open-agent-kit -n open-agent-kit
+helm status delaxis -n delaxis
 
 # Get all resources
-helm get all open-agent-kit -n open-agent-kit
+helm get all delaxis -n delaxis
 
 # Get values
-helm get values open-agent-kit -n open-agent-kit
+helm get values delaxis -n delaxis
 ```
 
 ### Test Deployment
 
 ```bash
 # Port forward to service
-kubectl port-forward -n open-agent-kit svc/open-agent-kit 8000:8000
+kubectl port-forward -n delaxis svc/delaxis 8000:8000
 
 # Test health endpoint
 curl http://localhost:8000/health
@@ -311,14 +311,14 @@ resources:
 
 ingress:
   hosts:
-    - host: oak.mycompany.com
+    - host: delaxis.mycompany.com
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: mycompany-tls
       hosts:
-        - oak.mycompany.com
+        - delaxis.mycompany.com
 
 postgresql:
   primary:
@@ -333,8 +333,8 @@ secrets:
 Install with custom values:
 
 ```bash
-helm install open-agent-kit ./open-agent-kit \
-  --namespace open-agent-kit \
+helm install delaxis ./delaxis \
+  --namespace delaxis \
   --create-namespace \
   --values my-values.yaml
 ```
@@ -345,29 +345,29 @@ helm install open-agent-kit ./open-agent-kit \
 
 ```bash
 # Application logs
-kubectl logs -n open-agent-kit -l app.kubernetes.io/name=open-agent-kit -f
+kubectl logs -n delaxis -l app.kubernetes.io/name=delaxis -f
 
 # PostgreSQL logs
-kubectl logs -n open-agent-kit -l app=postgres -f
+kubectl logs -n delaxis -l app=postgres -f
 
 # Redis logs
-kubectl logs -n open-agent-kit -l app=redis -f
+kubectl logs -n delaxis -l app=redis -f
 ```
 
 ### Debug Deployment
 
 ```bash
 # Get pod status
-kubectl get pods -n open-agent-kit
+kubectl get pods -n delaxis
 
 # Describe pod
-kubectl describe pod -n open-agent-kit <pod-name>
+kubectl describe pod -n delaxis <pod-name>
 
 # Get events
-kubectl get events -n open-agent-kit --sort-by='.lastTimestamp'
+kubectl get events -n delaxis --sort-by='.lastTimestamp'
 
 # Execute shell in pod
-kubectl exec -n open-agent-kit -it deployment/open-agent-kit -- /bin/sh
+kubectl exec -n delaxis -it deployment/delaxis -- /bin/sh
 ```
 
 ### Common Issues

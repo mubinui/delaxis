@@ -29,7 +29,7 @@ async def health_check(request: Request) -> HealthResponse:
     """
     return HealthResponse(
         status="healthy",
-        service="open-agent-kit",
+        service="delaxis",
         version="0.1.0",
     )
 
@@ -78,7 +78,7 @@ async def readiness_check(request: Request) -> Dict[str, Any]:
     
     return {
         "status": "ready" if all_ok else "not_ready",
-        "service": "open-agent-kit",
+        "service": "delaxis",
         "version": "0.1.0",
         "timestamp": time.time(),
         "checks": checks,
@@ -103,7 +103,7 @@ async def liveness_check(request: Request) -> Dict[str, Any]:
     """
     return {
         "status": "alive",
-        "service": "open-agent-kit",
+        "service": "delaxis",
         "version": "0.1.0",
         "timestamp": time.time(),
     }

@@ -34,7 +34,7 @@ def configure_tracing() -> None:
     # Create resource with service information
     resource = Resource.create(
         {
-            "service.name": "open-agent-kit",
+            "service.name": "delaxis",
             "service.version": "0.1.0",
             "deployment.environment": settings.app.environment,
         }

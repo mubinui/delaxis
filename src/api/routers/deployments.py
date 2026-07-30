@@ -8,7 +8,6 @@ They are written under ``data/deployments/<id>/`` and served same-origin at
 from __future__ import annotations
 
 import json
-import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +27,7 @@ from src.api.chatbot_page import (
     theme_presets,
     validate_page,
 )
+from src.config.env_compat import env
 
 router = APIRouter(prefix="/api/v1/deployments", tags=["deployments"])
 
@@ -35,9 +35,9 @@ router = APIRouter(prefix="/api/v1/deployments", tags=["deployments"])
 pages_router = APIRouter(tags=["deployments"])
 
 # Anchored to the repo root so deployments resolve regardless of the CWD the
-# app was started from; OAK_DATA_DIR overrides for containers/tests.
+# app was started from; DELAXIS_DATA_DIR overrides for containers/tests.
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DATA_DIR = Path(os.environ.get("OAK_DATA_DIR", str(_PROJECT_ROOT / "data")))
+DATA_DIR = Path(env("DELAXIS_DATA_DIR", str(_PROJECT_ROOT / "data")) or str(_PROJECT_ROOT / "data"))
 CONFIG_PATH = DATA_DIR / "deployments.json"
 DEPLOYMENTS_DIR = DATA_DIR / "deployments"
 DeploymentStatus = Literal["active", "error"]

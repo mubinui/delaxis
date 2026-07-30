@@ -1,4 +1,4 @@
-"""Open Agent Kit command-line chat client.
+"""Delaxis command-line chat client.
 
 Runs an interactive (or single-message) chat session against a configured
 workflow using the same SessionManager the API uses.
@@ -89,7 +89,7 @@ async def interactive_chat(workflow_id: str | None = None) -> None:
     workflow_id = _resolve_workflow_id(workflow_id)
 
     print("=" * 60)
-    print("Open Agent Kit — CLI Chat")
+    print("Delaxis — CLI Chat")
     print("=" * 60)
     print(f"\nWorkflow: {workflow_id}")
     print("\nCommands:")
@@ -163,7 +163,7 @@ async def single_message_mode(message: str, workflow_id: str | None = None) -> N
 
 def main() -> None:
     """Main entry point."""
-    parser = argparse.ArgumentParser(prog="oak", description="Open Agent Kit CLI chat")
+    parser = argparse.ArgumentParser(prog="delaxis", description="Delaxis CLI chat")
     parser.add_argument("--message", "-m", nargs="+", help="Send a single message and exit")
     parser.add_argument("--workflow", "-w", help="Workflow id to chat with (default: first enabled)")
     parser.add_argument("message_words", nargs="*", help="Message text (same as --message)")

@@ -1,14 +1,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "open-agent-kit.name" -}}
+{{- define "delaxis.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "open-agent-kit.fullname" -}}
+{{- define "delaxis.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +24,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "open-agent-kit.chart" -}}
+{{- define "delaxis.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "open-agent-kit.labels" -}}
-helm.sh/chart: {{ include "open-agent-kit.chart" . }}
-{{ include "open-agent-kit.selectorLabels" . }}
+{{- define "delaxis.labels" -}}
+helm.sh/chart: {{ include "delaxis.chart" . }}
+{{ include "delaxis.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -43,17 +43,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "open-agent-kit.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "open-agent-kit.name" . }}
+{{- define "delaxis.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "delaxis.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "open-agent-kit.serviceAccountName" -}}
+{{- define "delaxis.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "open-agent-kit.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "delaxis.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -62,7 +62,7 @@ Create the name of the service account to use
 {{/*
 Database URL
 */}}
-{{- define "open-agent-kit.databaseUrl" -}}
+{{- define "delaxis.databaseUrl" -}}
 {{- if .Values.postgresql.enabled }}
 postgresql://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@postgres-service:5432/{{ .Values.postgresql.auth.database }}
 {{- else }}
@@ -73,7 +73,7 @@ postgresql://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.p
 {{/*
 Redis URL
 */}}
-{{- define "open-agent-kit.redisUrl" -}}
+{{- define "delaxis.redisUrl" -}}
 {{- if .Values.redis.enabled }}
 redis://redis-service:6379/0
 {{- else }}
@@ -84,7 +84,7 @@ redis://redis-service:6379/0
 {{/*
 RabbitMQ URL
 */}}
-{{- define "open-agent-kit.rabbitmqUrl" -}}
+{{- define "delaxis.rabbitmqUrl" -}}
 {{- if .Values.rabbitmq.enabled }}
 amqp://{{ .Values.rabbitmq.auth.username }}:{{ .Values.rabbitmq.auth.password }}@rabbitmq-service:5672/
 {{- else }}

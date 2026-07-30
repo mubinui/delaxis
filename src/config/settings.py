@@ -214,7 +214,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Database URL for platform persistence (SQLite by default)."""
-        return self.memory.database_url or "sqlite:///./data/oak.db"
+        return self.memory.database_url or "sqlite:///./data/delaxis.db"
 
 
 # Global settings instance

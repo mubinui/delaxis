@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "_schema": "oak-crewai-agents",
+  "_schema": "delaxis-crewai-agents",
   "_comment": "Agents used by the starter workflows in workflows.json. Edit them here, in the Studio, or through the REST API.",
   "last_updated": "2026-07-29T00:00:00Z",
   "_model_default": {

@@ -1,4 +1,4 @@
-"""CrewAI agent factory for Open Agent Kit."""
+"""CrewAI agent factory for Delaxis."""
 
 from __future__ import annotations
 

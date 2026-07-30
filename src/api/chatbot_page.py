@@ -245,12 +245,12 @@ def all_theme_css(theme: str) -> str:
 
     Emitting all of them is what lets a visitor switch theme from the page's
     settings without a round trip — the picker only has to set
-    ``data-oak-theme`` on <html>.
+    ``data-delaxis-theme`` on <html>.
     """
     blocks = [theme_css(theme)]
     for theme_id, variables in THEMES.items():
         lines = "\n".join(f"      --{name}: {value};" for name, value in variables.items())
-        blocks.append(f'[data-oak-theme="{theme_id}"] {{\n{lines}\n    }}')
+        blocks.append(f'[data-delaxis-theme="{theme_id}"] {{\n{lines}\n    }}')
     return "\n    ".join(blocks)
 
 
@@ -562,10 +562,10 @@ def validate_page(html: str) -> list[str]:
     return warnings
 
 
-EMBED_TEMPLATE = r"""/* Open Agent Kit embed widget for the "__DEPLOYMENT_ID__" deployment.
+EMBED_TEMPLATE = r"""/* Delaxis embed widget for the "__DEPLOYMENT_ID__" deployment.
  *
  * Usage on any page:
- *   <script src="https://your-oak-host/d/__DEPLOYMENT_ID__/embed.js" defer></script>
+ *   <script src="https://your-delaxis-host/d/__DEPLOYMENT_ID__/embed.js" defer></script>
  *
  * Options are read from the script tag's data- attributes:
  *   data-position="right|left"   which corner the launcher sits in
@@ -589,34 +589,34 @@ EMBED_TEMPLATE = r"""/* Open Agent Kit embed widget for the "__DEPLOYMENT_ID__" 
   var accent = data.accent || '__ACCENT__';
 
   // A single id keeps a double-included script from stacking two launchers.
-  if (document.getElementById('oak-embed-__DEPLOYMENT_ID__')) return;
+  if (document.getElementById('delaxis-embed-__DEPLOYMENT_ID__')) return;
 
   var root = document.createElement('div');
-  root.id = 'oak-embed-__DEPLOYMENT_ID__';
+  root.id = 'delaxis-embed-__DEPLOYMENT_ID__';
 
   var style = document.createElement('style');
   style.textContent = [
-    '#oak-embed-__DEPLOYMENT_ID__ .oak-launcher{position:fixed;bottom:20px;' + side + ':20px;z-index:2147483000;',
+    '#delaxis-embed-__DEPLOYMENT_ID__ .delaxis-launcher{position:fixed;bottom:20px;' + side + ':20px;z-index:2147483000;',
     'width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;color:#fff;background:' + accent + ';',
     'box-shadow:0 10px 30px rgba(0,0,0,.28);display:grid;place-items:center;transition:transform .15s}',
-    '#oak-embed-__DEPLOYMENT_ID__ .oak-launcher:hover{transform:scale(1.06)}',
-    '#oak-embed-__DEPLOYMENT_ID__ .oak-panel{position:fixed;bottom:88px;' + side + ':20px;z-index:2147483000;',
+    '#delaxis-embed-__DEPLOYMENT_ID__ .delaxis-launcher:hover{transform:scale(1.06)}',
+    '#delaxis-embed-__DEPLOYMENT_ID__ .delaxis-panel{position:fixed;bottom:88px;' + side + ':20px;z-index:2147483000;',
     'width:' + width + 'px;height:' + height + 'px;max-width:calc(100vw - 32px);max-height:calc(100vh - 120px);',
     'border:0;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.35);display:none}',
-    '#oak-embed-__DEPLOYMENT_ID__.oak-open .oak-panel{display:block}',
-    '@media (max-width:520px){#oak-embed-__DEPLOYMENT_ID__ .oak-panel{',
+    '#delaxis-embed-__DEPLOYMENT_ID__.delaxis-open .delaxis-panel{display:block}',
+    '@media (max-width:520px){#delaxis-embed-__DEPLOYMENT_ID__ .delaxis-panel{',
     'inset:0;width:100%;height:100%;max-width:none;max-height:none;border-radius:0}}',
   ].join('');
 
   var frame = document.createElement('iframe');
-  frame.className = 'oak-panel';
+  frame.className = 'delaxis-panel';
   frame.title = label;
   frame.setAttribute('loading', 'lazy');
   // The page needs storage for its conversation list, and forms for the composer.
   frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-same-origin allow-popups');
 
   var button = document.createElement('button');
-  button.className = 'oak-launcher';
+  button.className = 'delaxis-launcher';
   button.type = 'button';
   button.setAttribute('aria-label', label);
   button.title = label;
@@ -625,8 +625,8 @@ EMBED_TEMPLATE = r"""/* Open Agent Kit embed widget for the "__DEPLOYMENT_ID__" 
     + '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l2-4.9A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg>';
 
   function toggle(open) {
-    var isOpen = open === undefined ? !root.classList.contains('oak-open') : open;
-    root.classList.toggle('oak-open', isOpen);
+    var isOpen = open === undefined ? !root.classList.contains('delaxis-open') : open;
+    root.classList.toggle('delaxis-open', isOpen);
     button.setAttribute('aria-expanded', String(isOpen));
     // Loading on first open keeps the host page's initial render untouched.
     if (isOpen && !frame.src) frame.src = src;
@@ -645,12 +645,14 @@ EMBED_TEMPLATE = r"""/* Open Agent Kit embed widget for the "__DEPLOYMENT_ID__" 
   if (data.open === 'true') toggle(true);
 
   // Minimal programmatic control for host pages that want their own button.
-  window.OakChat = window.OakChat || {};
-  window.OakChat['__DEPLOYMENT_ID__'] = {
+  window.DelaxisChat = window.DelaxisChat || {};
+  window.DelaxisChat['__DEPLOYMENT_ID__'] = {
     open: function () { toggle(true); },
     close: function () { toggle(false); },
     toggle: function () { toggle(); },
   };
+  // Pre-rename alias: host pages already shipping window.OakChat keep working.
+  window.OakChat = window.DelaxisChat;
 })();
 """
 
@@ -917,7 +919,7 @@ PAGE_TEMPLATE = r"""<!doctype html>
     // --- Local persistence -------------------------------------------------
     // Only ids and titles live here; the messages themselves come from the API,
     // which stays the single source of truth across devices and reloads.
-    const KEY = (name) => 'oak:' + deployment + ':' + name;
+    const KEY = (name) => 'delaxis:' + deployment + ':' + name;
     const store = {
       read(name, fallback) {
         try { const raw = localStorage.getItem(KEY(name)); return raw ? JSON.parse(raw) : fallback; }
@@ -1229,7 +1231,7 @@ PAGE_TEMPLATE = r"""<!doctype html>
 
     // --- Settings ----------------------------------------------------------
     function applySettings() {
-      if (settings.theme) document.documentElement.setAttribute('data-oak-theme', settings.theme);
+      if (settings.theme) document.documentElement.setAttribute('data-delaxis-theme', settings.theme);
       el.hint.textContent = settings.enterSends
         ? 'Enter to send · Shift + Enter for a new line'
         : 'Shift + Enter to send';

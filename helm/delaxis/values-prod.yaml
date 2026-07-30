@@ -33,19 +33,19 @@ ingress:
     nginx.ingress.kubernetes.io/limit-rps: "500"
     nginx.ingress.kubernetes.io/rate-limit: "100"
   hosts:
-    - host: oak.example.com
+    - host: delaxis.example.com
       paths:
         - path: /
           pathType: Prefix
-    - host: api.oak.example.com
+    - host: api.delaxis.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: oak-prod-tls
+    - secretName: delaxis-prod-tls
       hosts:
-        - oak.example.com
-        - api.oak.example.com
+        - delaxis.example.com
+        - api.delaxis.example.com
 
 postgresql:
   primary:
@@ -91,7 +91,7 @@ externalSecrets:
   enabled: true
   backend: aws-secrets-manager
   region: us-east-1
-  secretName: oak/prod/secrets
+  secretName: delaxis/prod/secrets
 
 networkPolicy:
   enabled: true
@@ -111,7 +111,7 @@ affinity:
         - key: app.kubernetes.io/name
           operator: In
           values:
-          - open-agent-kit
+          - delaxis
       topologyKey: kubernetes.io/hostname
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:

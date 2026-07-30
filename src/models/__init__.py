@@ -1,4 +1,4 @@
-"""Model helpers for Open Agent Kit."""
+"""Model helpers for Delaxis."""
 
 from src.models.openai_llm import normalize_openai_model_name
 

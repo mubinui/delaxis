@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowRight, Layers, Rocket, Zap } from 'lucide-react';
-import { OakLogo } from './OakLogo';
+import { DelaxisLogo } from './DelaxisLogo';
 import { api } from '../api/client';
 
 interface LandingPageProps {
@@ -96,9 +96,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Nav */}
             <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-8 py-6">
                 <div className="flex items-center gap-3">
-                    <OakLogo className="h-8 w-8 rounded-lg" />
+                    <DelaxisLogo className="h-8 w-8 rounded-lg" />
                     <div className="leading-tight">
-                        <div className="text-sm font-semibold tracking-tight text-white">Open Agent Kit</div>
+                        <div className="text-sm font-semibold tracking-tight text-white">Delaxis</div>
                         <div className="text-[11px] text-slate-500">Multi-agent development studio</div>
                     </div>
                 </div>
@@ -191,7 +191,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Footer */}
             <footer className="relative z-10 border-t border-white/5">
                 <div className="mx-auto flex w-full max-w-6xl flex-col justify-between gap-3 px-8 py-6 text-xs text-slate-500 sm:flex-row">
-                    <span>© {new Date().getFullYear()} Open Agent Kit · MIT License</span>
+                    <span>© {new Date().getFullYear()} Delaxis · MIT License</span>
                     <span>Open source, self-hosted, and yours to extend.</span>
                 </div>
             </footer>

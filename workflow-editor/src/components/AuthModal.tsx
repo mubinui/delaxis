@@ -16,7 +16,7 @@ interface ApiKeyInfo {
     expires_at?: string | null;
 }
 
-const TOKEN_KEY = 'oak-access-token';
+const TOKEN_KEY = 'delaxis-access-token';
 
 export const getStoredToken = (): string | null => sessionStorage.getItem(TOKEN_KEY);
 
@@ -194,8 +194,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                             <>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                                     Sign in with a local account. The first admin account is created from the
-                                    <span className="font-mono"> OAK_ADMIN_USERNAME</span> /
-                                    <span className="font-mono"> OAK_ADMIN_PASSWORD</span> environment variables.
+                                    <span className="font-mono"> DELAXIS_ADMIN_USERNAME</span> /
+                                    <span className="font-mono"> DELAXIS_ADMIN_PASSWORD</span> environment variables.
                                     In development mode, all endpoints work without signing in.
                                 </p>
                                 <div>
@@ -238,7 +238,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2">
                             <Key className="w-4 h-4 mt-0.5 shrink-0" />
                             <span className="leading-relaxed">
-                                API keys authenticate programmatic access (Authorization: Bearer oak_…). The
+                                API keys authenticate programmatic access (Authorization: Bearer dlx_…). The
                                 plaintext key is shown exactly once at creation.
                             </span>
                         </div>

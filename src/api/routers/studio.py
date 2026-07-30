@@ -70,7 +70,7 @@ async def get_studio_state() -> dict[str, Any]:
 
     return {
         "runtime": "crewai",
-        "product": "Open Agent Kit",
+        "product": "Delaxis",
         "counts": {
             "workflows": len(workflows),
             "agents": len(agents),

@@ -1,12 +1,12 @@
 # Grafana Dashboards
 
-This directory contains Grafana dashboard templates for monitoring the Open Agent Kit.
+This directory contains Grafana dashboard templates for monitoring the Delaxis.
 
 ## Available Dashboards
 
-### open-agent-kit.json
+### delaxis.json
 
-Main dashboard for monitoring the Open Agent Kit with the following panels:
+Main dashboard for monitoring the Delaxis with the following panels:
 
 #### HTTP Metrics
 - **HTTP Request Rate**: Requests per second across all endpoints
@@ -30,14 +30,14 @@ Main dashboard for monitoring the Open Agent Kit with the following panels:
 
 ### Prerequisites
 
-1. Prometheus configured to scrape metrics from the Open Agent Kit at `/metrics` endpoint
+1. Prometheus configured to scrape metrics from the Delaxis at `/metrics` endpoint
 2. Grafana instance with Prometheus datasource configured
 
 ### Import Dashboard
 
 1. Open Grafana UI
 2. Navigate to Dashboards → Import
-3. Upload `open-agent-kit.json` or paste its contents
+3. Upload `delaxis.json` or paste its contents
 4. Select your Prometheus datasource
 5. Click Import
 
@@ -47,7 +47,7 @@ Add the following to your Prometheus configuration:
 
 ```yaml
 scrape_configs:
-  - job_name: 'open-agent-kit'
+  - job_name: 'delaxis'
     static_configs:
       - targets: ['localhost:8000']
     metrics_path: '/metrics'
@@ -89,7 +89,7 @@ The dashboard can be customized to add:
 ### No Data Showing
 
 1. Verify Prometheus is scraping the `/metrics` endpoint
-2. Check that the Open Agent Kit is running and exposing metrics
+2. Check that the Delaxis is running and exposing metrics
 3. Verify the Prometheus datasource is configured correctly in Grafana
 4. Check the time range in the dashboard
 

@@ -7,7 +7,7 @@ const resolveSrc = (path: string) => fileURLToPath(new URL(path, import.meta.url
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // The studio is served at the root of the Open Agent Kit API server, but the
+  // The studio is served at the root of the Delaxis API server, but the
   // GitHub Pages demo lives under /<repo>/ — the workflow sets VITE_BASE_PATH.
   base: process.env.VITE_BASE_PATH ?? '/',
   resolve: {

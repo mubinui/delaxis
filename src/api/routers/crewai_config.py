@@ -127,7 +127,7 @@ async def update_crewai_config(body: CrewAIConfig) -> CrewAIConfig:
     if body.runtime != "crewai":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Open Agent Kit is CrewAI-only; runtime must be 'crewai'.",
+            detail="Delaxis is CrewAI-only; runtime must be 'crewai'.",
         )
     return _save_config(body)
 

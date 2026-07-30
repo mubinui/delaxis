@@ -1,4 +1,4 @@
-"""SQLAlchemy database schema for Open Agent Kit.
+"""SQLAlchemy database schema for Delaxis.
 
 All tables share one declarative Base so Alembic autogenerate sees the full
 metadata. Column types are dialect-neutral: they work on SQLite (the

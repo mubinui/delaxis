@@ -45,7 +45,7 @@ class RuntimeToolFactory(ABC):
 # ---------------------------------------------------------------------------
 
 class McpToolFactory(RuntimeToolFactory):
-    """One OAK tool config == one MCP server; expands into that server's tools."""
+    """One Delaxis tool config == one MCP server; expands into that server's tools."""
 
     def _server_params(self) -> Any:
         settings = self.settings
@@ -147,13 +147,13 @@ class McpToolFactory(RuntimeToolFactory):
 # Database (NL2SQL)
 # ---------------------------------------------------------------------------
 
-def _make_oak_nl2sql_class() -> type:
-    """Build the OakNL2SQLTool class lazily so importing this module never
+def _make_delaxis_nl2sql_class() -> type:
+    """Build the DelaxisNL2SQLTool class lazily so importing this module never
     requires crewai_tools/sqlalchemy."""
     from crewai_tools import NL2SQLTool
     from sqlalchemy import create_engine, inspect as sa_inspect
 
-    class OakNL2SQLTool(NL2SQLTool):
+    class DelaxisNL2SQLTool(NL2SQLTool):
         """Dialect-neutral NL2SQL: introspects schema via sqlalchemy.inspect().
 
         The stock NL2SQLTool queries information_schema with Postgres-specific
@@ -191,7 +191,7 @@ def _make_oak_nl2sql_class() -> type:
             if schema_summary:
                 self.description = f"{self.description} Available tables: {schema_summary}."
 
-    return OakNL2SQLTool
+    return DelaxisNL2SQLTool
 
 
 class DatabaseToolFactory(RuntimeToolFactory):
@@ -208,8 +208,8 @@ class DatabaseToolFactory(RuntimeToolFactory):
         return str(self.settings["db_uri"])
 
     def _build_tool(self) -> Any:
-        oak_cls = _make_oak_nl2sql_class()
-        return oak_cls(
+        delaxis_cls = _make_delaxis_nl2sql_class()
+        return delaxis_cls(
             name=self.name,
             description=self.description
             or "Convert natural language to SQL and run it against the configured database.",

@@ -1,12 +1,12 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: open-agent-kit-netpol
-  namespace: open-agent-kit
+  name: delaxis-netpol
+  namespace: delaxis
 spec:
   podSelector:
     matchLabels:
-      app: open-agent-kit
+      app: delaxis
   policyTypes:
   - Ingress
   - Egress
@@ -72,7 +72,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: postgres-netpol
-  namespace: open-agent-kit
+  namespace: delaxis
 spec:
   podSelector:
     matchLabels:
@@ -80,11 +80,11 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  # Only allow from the Open Agent Kit service
+  # Only allow from the Delaxis service
   - from:
     - podSelector:
         matchLabels:
-          app: open-agent-kit
+          app: delaxis
     ports:
     - protocol: TCP
       port: 5432
@@ -94,7 +94,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: redis-netpol
-  namespace: open-agent-kit
+  namespace: delaxis
 spec:
   podSelector:
     matchLabels:
@@ -102,11 +102,11 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  # Only allow from the Open Agent Kit service
+  # Only allow from the Delaxis service
   - from:
     - podSelector:
         matchLabels:
-          app: open-agent-kit
+          app: delaxis
     ports:
     - protocol: TCP
       port: 6379
@@ -116,7 +116,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: rabbitmq-netpol
-  namespace: open-agent-kit
+  namespace: delaxis
 spec:
   podSelector:
     matchLabels:
@@ -124,11 +124,11 @@ spec:
   policyTypes:
   - Ingress
   ingress:
-  # Allow from the Open Agent Kit service
+  # Allow from the Delaxis service
   - from:
     - podSelector:
         matchLabels:
-          app: open-agent-kit
+          app: delaxis
     ports:
     - protocol: TCP
       port: 5672

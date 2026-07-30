@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: open-agent-kit-config
-  namespace: open-agent-kit
+  name: delaxis-config
+  namespace: delaxis
   labels:
-    app: open-agent-kit
+    app: delaxis
 data:
   # Application Settings
   LOG_LEVEL: "INFO"
@@ -14,7 +14,7 @@ data:
   # Database Configuration
   DATABASE_HOST: "postgres-service"
   DATABASE_PORT: "5432"
-  DATABASE_NAME: "oak"
+  DATABASE_NAME: "delaxis"
   
   # Redis Configuration
   REDIS_HOST: "redis-service"
@@ -38,7 +38,7 @@ data:
   RAG_PIPELINE_DEFAULT_COLLECTION: "knowledge_base"
   
   # Observability
-  OTEL_SERVICE_NAME: "open-agent-kit"
+  OTEL_SERVICE_NAME: "delaxis"
   METRICS_PORT: "9090"
   
   # API Configuration

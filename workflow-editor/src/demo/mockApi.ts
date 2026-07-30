@@ -513,7 +513,7 @@ const routes: [string, RegExp, Handler][] = [
     ['GET', /^\/auth\/api-keys$/, () => json(state.apiKeys)],
     ['POST', /^\/auth\/api-keys$/, (_m, body) => {
         const id = `key_${Math.random().toString(36).slice(2, 10)}`;
-        const prefix = `oak_live_${Math.random().toString(36).slice(2, 6)}`;
+        const prefix = `dlx_live_${Math.random().toString(36).slice(2, 6)}`;
         upsert(state.apiKeys, { id, name: body.name ?? 'studio-key', prefix, created_at: nowIso(), last_used_at: null, revoked: false });
         return json({ id, name: body.name ?? 'studio-key', key: `${prefix}_${Math.random().toString(36).slice(2)}demo`, prefix }, 201);
     }],
@@ -571,8 +571,8 @@ const routes: [string, RegExp, Handler][] = [
 /** Replace `window.fetch` with the demo router. Safe to call more than once. */
 export const installDemoApi = () => {
     const realFetch = window.fetch.bind(window);
-    if ((window as Json).__oakDemoInstalled) return;
-    (window as Json).__oakDemoInstalled = true;
+    if ((window as Json).__delaxisDemoInstalled) return;
+    (window as Json).__delaxisDemoInstalled = true;
 
     window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
         const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;

@@ -1,6 +1,5 @@
 """FastAPI application lifecycle management."""
 
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,6 +8,7 @@ import structlog
 from fastapi import FastAPI
 
 from src.config.config_loader import get_config_loader
+from src.config.env_compat import env
 from src.config.llm_provider import get_provider_config
 from src.config.settings import get_settings
 from src.observability.tracing import configure_tracing, instrument_fastapi
@@ -16,13 +16,40 @@ from src.observability.tracing import configure_tracing, instrument_fastapi
 logger = structlog.get_logger(__name__)
 
 
+def _warn_on_legacy_database_file(url: str) -> None:
+    """Warn when the pre-rename SQLite file exists but the new one does not.
+
+    The default database moved from ``data/oak.db`` to ``data/delaxis.db`` in
+    the Delaxis rename. Without this warning the app would happily migrate a
+    brand-new empty database and the existing users, API keys and config
+    snapshots would look like they had vanished. Moving the file automatically
+    would be worse — silent data motion is harder to reason about than a loud
+    message — so this only tells the operator what to run.
+    """
+    if not url.startswith("sqlite"):
+        return
+    _, _, path_part = url.partition(":///")
+    if not path_part:
+        return
+    current = Path(path_part)
+    legacy = current.with_name("oak.db")
+    if current.exists() or not legacy.exists():
+        return
+    logger.warning(
+        "database_legacy_file_found",
+        legacy=str(legacy),
+        expected=str(current),
+        detail=f"Pre-rename database found. Run: mv {legacy} {current}",
+    )
+
+
 def _run_database_migrations() -> None:
     """Apply Alembic migrations so a fresh install works with zero setup.
 
-    Skippable via OAK_AUTO_MIGRATE=false (e.g. when migrations are managed
+    Skippable via DELAXIS_AUTO_MIGRATE=false (e.g. when migrations are managed
     externally in production).
     """
-    if os.environ.get("OAK_AUTO_MIGRATE", "true").lower() in ("0", "false", "no"):
+    if (env("DELAXIS_AUTO_MIGRATE", "true") or "true").lower() in ("0", "false", "no"):
         logger.info("database_auto_migration_skipped")
         return
 
@@ -39,6 +66,7 @@ def _run_database_migrations() -> None:
         url = settings.database_url
         url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
         url = url.replace("sqlite+aiosqlite://", "sqlite://", 1)
+        _warn_on_legacy_database_file(url)
         alembic_cfg.set_main_option("sqlalchemy.url", url)
 
         command.upgrade(alembic_cfg, "head")
@@ -52,7 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize and clean up application-wide services."""
     settings = get_settings()
     logger.info(
-        "open_agent_kit_starting",
+        "delaxis_starting",
         log_level=settings.app.log_level,
         environment=settings.app.environment,
     )
@@ -105,7 +133,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
-    logger.info("open_agent_kit_shutting_down")
+    logger.info("delaxis_shutting_down")
     try:
         config_loader = get_config_loader()
         config_loader.stop_file_watcher()

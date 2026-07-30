@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: redis
-  namespace: open-agent-kit
+  namespace: delaxis
   labels:
     app: redis
 spec:

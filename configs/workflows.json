@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "_schema": "oak-crewai-workflows",
+  "_schema": "delaxis-crewai-workflows",
   "_comment": "Starter workflows. Each one runs as shipped and is meant to be copied and adapted rather than studied \u2014 open one in the Studio, point it at your provider and edit. metadata.setup lists what each needs beyond an API key.",
   "last_updated": "2026-07-29T00:00:00Z",
   "workflows": [

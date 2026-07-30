@@ -1,1 +1,1 @@
-"""API routers for Open Agent Kit."""
+"""API routers for Delaxis."""

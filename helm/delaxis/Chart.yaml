@@ -1,0 +1,19 @@
+apiVersion: v2
+name: delaxis
+description: A Helm chart for Delaxis - an open-source multi-agent development kit built on CrewAI
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - multi-agent
+  - ai
+  - llm
+  - crewai
+  - agents
+home: https://github.com/mubinui/delaxis
+sources:
+  - https://github.com/mubinui/delaxis
+maintainers:
+  - name: Mubin Ul Islam
+    email: uic.mubin@gmail.com
+dependencies: []

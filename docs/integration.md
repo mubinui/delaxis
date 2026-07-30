@@ -37,7 +37,7 @@ curl http://localhost:8000/api/v1/deployments/<id>/integration
 ## 1. Floating widget (one script tag)
 
 ```html
-<script src="https://oak.example.com/d/support-chat/embed.js" defer></script>
+<script src="https://delaxis.example.com/d/support-chat/embed.js" defer></script>
 ```
 
 That injects a launcher button in the bottom-right corner; clicking it opens the chat in
@@ -47,7 +47,7 @@ untouched.
 Options go on the script tag:
 
 ```html
-<script src="https://oak.example.com/d/support-chat/embed.js" defer
+<script src="https://delaxis.example.com/d/support-chat/embed.js" defer
         data-position="left"
         data-label="Ask us anything"
         data-width="420" data-height="640"
@@ -65,17 +65,17 @@ Options go on the script tag:
 To drive it from your own button:
 
 ```html
-<button onclick="OakChat['support-chat'].open()">Talk to us</button>
+<button onclick="DelaxisChat['support-chat'].open()">Talk to us</button>
 ```
 
-`open()`, `close()` and `toggle()` are available on `window.OakChat['<deployment-id>']`.
+`open()`, `close()` and `toggle()` are available on `window.DelaxisChat['<deployment-id>']`.
 
 ---
 
 ## 2. Inline iframe
 
 ```html
-<iframe src="https://oak.example.com/d/support-chat/"
+<iframe src="https://delaxis.example.com/d/support-chat/"
         title="Support chatbot"
         style="width:100%;height:640px;border:0;border-radius:12px"
         allow="clipboard-write"></iframe>
@@ -93,7 +93,7 @@ The chat page is a thin client over two endpoints. Anything that can make HTTP r
 can do the same.
 
 ```bash
-BASE=https://oak.example.com
+BASE=https://delaxis.example.com
 
 # 1. Open a session, once per conversation
 SESSION=$(curl -s -X POST $BASE/api/v1/sessions \
@@ -205,7 +205,7 @@ endpoints through your own backend, attach the key there, and point the deployme
 
 `api_url: ""` (the default) means same origin: the app serving the page also serves the
 API, and nothing else is needed. The widget and iframe both work cross-origin because
-the browser only ever talks to the OAK origin from inside the frame.
+the browser only ever talks to the Delaxis origin from inside the frame.
 
 Set `api_url` only when the API lives somewhere else. Then the browser makes
 cross-origin calls, so the API must allow your page's origin — that is `FRONTEND_URL`,
@@ -227,7 +227,7 @@ cache, since it is meant to be loaded by third-party pages.
   database-backed store if you expect real traffic.
 - **Model cost** — the deployment pins the model, so put the cheap one there and keep
   the expensive one for internal workflows.
-- **Content Security Policy** — if your site sets one, allow the OAK origin in
+- **Content Security Policy** — if your site sets one, allow the Delaxis origin in
   `frame-src` (iframe/widget) and `script-src` (widget).
 - **The transcript is not private to the visitor.** Anyone who knows a session id can
   read it through `GET /sessions/{id}/history`. Ids are UUID4, but do not treat a public

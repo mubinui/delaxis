@@ -151,14 +151,14 @@ export const routeMessage = (message: string): RoutedAnswer => {
         toolArgs: { query: message, max_results: 3 },
         toolResult: {
             results: [
-                { title: 'Open Agent Kit — GitHub', url: 'https://github.com/mubinui/open-agent-kit' },
+                { title: 'Delaxis — GitHub', url: 'https://github.com/mubinui/delaxis' },
                 { title: 'CrewAI documentation', url: 'https://docs.crewai.com' },
             ],
         },
         response:
             `The \`search_assistant\` specialist picked this up and called the \`web_search\` tool for **"${message}"**.\n\n` +
             'Top results it would summarise:\n\n' +
-            '1. [Open Agent Kit — GitHub](https://github.com/mubinui/open-agent-kit)\n' +
+            '1. [Delaxis — GitHub](https://github.com/mubinui/delaxis)\n' +
             '2. [CrewAI documentation](https://docs.crewai.com)\n\n' +
             `Run the project locally with your own API key to get live search and a real model answer.${DEMO_NOTE}`,
     };

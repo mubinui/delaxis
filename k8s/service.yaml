@@ -1,16 +1,16 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: open-agent-kit
-  namespace: open-agent-kit
+  name: delaxis
+  namespace: delaxis
   labels:
-    app: open-agent-kit
+    app: delaxis
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
 spec:
   type: ClusterIP
   selector:
-    app: open-agent-kit
+    app: delaxis
   ports:
   - name: http
     port: 8000
@@ -30,7 +30,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-service
-  namespace: open-agent-kit
+  namespace: delaxis
   labels:
     app: postgres
 spec:
@@ -48,7 +48,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: redis-service
-  namespace: open-agent-kit
+  namespace: delaxis
   labels:
     app: redis
 spec:
@@ -66,7 +66,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: rabbitmq-service
-  namespace: open-agent-kit
+  namespace: delaxis
   labels:
     app: rabbitmq
 spec:

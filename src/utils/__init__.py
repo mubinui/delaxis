@@ -1,4 +1,4 @@
-"""Utility modules for Open Agent Kit."""
+"""Utility modules for Delaxis."""
 
 from src.utils.message_converter import MessageConverter
 

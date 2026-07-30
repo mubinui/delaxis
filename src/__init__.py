@@ -1,3 +1,3 @@
-"""Open Agent Kit multi-agent platform."""
+"""Delaxis multi-agent platform."""
 
 __version__ = "0.1.0"

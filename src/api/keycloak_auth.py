@@ -289,7 +289,7 @@ async def get_admin_token() -> str:
     """
     Obtain admin token from Keycloak using client_credentials grant.
 
-    This is used for Service2-style calls where Open Agent Kit
+    This is used for Service2-style calls where Delaxis
     needs to call downstream services with an admin/service account.
 
     Returns:

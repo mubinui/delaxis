@@ -1,4 +1,4 @@
-# Contributing to Open Agent Kit
+# Contributing to Delaxis
 
 Thanks for your interest in contributing! This document covers the essentials.
 
@@ -30,8 +30,8 @@ cd workflow-editor && npm run lint     # frontend lint (0 errors)
 npm run build                          # frontend must build
 ```
 
-If your change affects the Docker image, verify `docker build -t open-agent-kit .` succeeds
-and the container boots (`docker run -p 8000:8000 open-agent-kit`, then check `/health`).
+If your change affects the Docker image, verify `docker build -t delaxis .` succeeds
+and the container boots (`docker run -p 8000:8000 delaxis`, then check `/health`).
 
 ## Conventions
 
@@ -43,7 +43,7 @@ and the container boots (`docker run -p 8000:8000 open-agent-kit`, then check `/
   never hardcode hosts or ports.
 - **Database** — schema lives in `src/infrastructure/database/schema.py` (dialect-neutral:
   SQLite + PostgreSQL). Generate migrations with
-  `DATABASE_URL=sqlite:///./data/oak.db uv run alembic revision --autogenerate -m "..."`.
+  `DATABASE_URL=sqlite:///./data/delaxis.db uv run alembic revision --autogenerate -m "..."`.
 
 ## Reporting issues
 

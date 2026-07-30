@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for Open Agent Kit (OAK)
+# Multi-stage Dockerfile for Delaxis
 # Stage 1: Build the Studio SPA
 FROM node:22-alpine AS frontend
 
@@ -54,11 +54,11 @@ COPY alembic.ini ./
 COPY --from=frontend /fe/dist ./static
 
 # Create non-root user; /app/data holds the SQLite DB, sessions, and deployments
-RUN useradd -m -u 1000 oak && \
+RUN useradd -m -u 1000 delaxis && \
     mkdir -p /app/data && \
-    chown -R oak:oak /app
+    chown -R delaxis:delaxis /app
 
-USER oak
+USER delaxis
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

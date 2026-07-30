@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "open-agent-kit.fullname" . }}
+  name: {{ include "delaxis.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "open-agent-kit.labels" . | nindent 4 }}
+    {{- include "delaxis.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -34,7 +34,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "open-agent-kit.fullname" $ }}
+                name: {{ include "delaxis.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}

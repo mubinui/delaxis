@@ -860,7 +860,7 @@
   "schemaVersion": 38,
   "style": "dark",
   "tags": [
-    "open-agent-kit",
+    "delaxis",
     "agents",
     "llm"
   ],
@@ -892,8 +892,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Open Agent Kit",
-  "uid": "open-agent-kit",
+  "title": "Delaxis",
+  "uid": "delaxis",
   "version": 1,
   "weekStart": ""
 }

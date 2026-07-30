@@ -1,21 +1,21 @@
 <div align="center">
 
-# 🌳 Open Agent Kit (OAK)
+# 🌳 Delaxis
 
 **An open-source multi-agent development kit — design, test, and deploy AI agent workflows from one place.**
 
-[![Docker](https://img.shields.io/github/actions/workflow/status/mubinui/open-agent-kit/docker-release.yml?label=Docker%20Build)](../../actions/workflows/docker-release.yml)
+[![Docker](https://img.shields.io/github/actions/workflow/status/mubinui/delaxis/docker-release.yml?label=Docker%20Build)](../../actions/workflows/docker-release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![CrewAI](https://img.shields.io/badge/runtime-CrewAI-orange.svg)](https://crewai.com)
 
-### [▶ Try the live demo](https://mubinui.github.io/open-agent-kit/)
+### [▶ Try the live demo](https://mubinui.github.io/delaxis/)
 
 No install, no API key — the real Studio running against an in-browser stub of the API.
 
 </div>
 
-![Open Agent Kit Studio](docs/images/studio-canvas.png)
+![Delaxis Studio](docs/images/studio-canvas.png)
 
 ---
 
@@ -39,7 +39,7 @@ No install, no API key — the real Studio running against an in-browser stub of
 
 ## What it is
 
-Open Agent Kit is a self-hosted platform for building multi-agent AI applications:
+Delaxis is a self-hosted platform for building multi-agent AI applications:
 
 - 🎨 **Visual Studio** — a React Flow canvas for composing agent workflows (selector, sequential, parallel topologies) with drag-and-drop agents, tools, and triggers
 - 🤖 **CrewAI runtime** — workflows execute on [CrewAI](https://crewai.com), with any LLM via LiteLLM (OpenAI, Gemini, Grok, Claude, OpenRouter, self-hosted vLLM, local Ollama)
@@ -57,7 +57,7 @@ Everything is configuration-driven. Agents, workflows, tools, prompts, and provi
 |---|---|
 | ![Live LLM tester](docs/images/llm-tester.png) | ![Deployments](docs/images/deployments.png) |
 
-Every screenshot above is from the [live demo](https://mubinui.github.io/open-agent-kit/) — click through it yourself before installing anything.
+Every screenshot above is from the [live demo](https://mubinui.github.io/delaxis/) — click through it yourself before installing anything.
 
 ## Installation
 
@@ -77,30 +77,30 @@ Pull the prebuilt image from GitHub Container Registry:
 ```bash
 docker run -p 8000:8000 \
   -e OPENROUTER_API_KEY=sk-or-... \
-  -v oak_data:/app/data \
-  ghcr.io/mubinui/open-agent-kit:latest
+  -v delaxis_data:/app/data \
+  ghcr.io/mubinui/delaxis:latest
 ```
 
 Or build it yourself:
 
 ```bash
-git clone https://github.com/mubinui/open-agent-kit.git
-cd open-agent-kit
-docker build -t open-agent-kit .
+git clone https://github.com/mubinui/delaxis.git
+cd delaxis
+docker build -t delaxis .
 
 docker run -p 8000:8000 \
   -e OPENROUTER_API_KEY=sk-or-... \
-  -v oak_data:/app/data \
-  open-agent-kit
+  -v delaxis_data:/app/data \
+  delaxis
 ```
 
-Open **http://localhost:8000** — the Studio UI, API (`/docs`), and deployed chatbots are all served from this one container. On first boot the database schema is created automatically on the `oak_data` volume; no other services are required.
+Open **http://localhost:8000** — the Studio UI, API (`/docs`), and deployed chatbots are all served from this one container. On first boot the database schema is created automatically on the `delaxis_data` volume; no other services are required.
 
 ### Option 2 — Docker Compose
 
 ```bash
-git clone https://github.com/mubinui/open-agent-kit.git
-cd open-agent-kit
+git clone https://github.com/mubinui/delaxis.git
+cd delaxis
 cp .env.example .env        # add your API key
 docker compose up
 ```
@@ -113,7 +113,7 @@ docker compose --profile qdrant up       # Qdrant vector store
 docker compose --profile redis up        # Redis cache
 ```
 
-With the `postgres` profile, set `DATABASE_URL=postgresql://oak:oak_pass@postgres:5432/oak` in `.env`.
+With the `postgres` profile, set `DATABASE_URL=postgresql://delaxis:delaxis_pass@postgres:5432/delaxis` in `.env`.
 
 ### Option 3 — Local development
 
@@ -135,7 +135,7 @@ npm run dev                                    # Vite dev server on :5173, proxi
 CLI chat:
 
 ```bash
-uv run oak --workflow support_triage --message "What is 2 + 2 * 5?"
+uv run delaxis --workflow support_triage --message "What is 2 + 2 * 5?"
 ```
 
 ## Choosing an LLM provider
@@ -252,7 +252,7 @@ Each carries `metadata.setup` listing exactly what it needs beyond an API key.
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   Open Agent Kit                    │
+│                   Delaxis                    │
 │                                                     │
 │  Studio SPA (React 19 + React Flow)   ← served at / │
 │  FastAPI backend                      ← /api/v1/*   │
@@ -293,14 +293,14 @@ All settings come from environment variables (see [.env.example](.env.example)).
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./data/oak.db` | SQLite by default; any PostgreSQL URL works |
-| `OAK_AUTO_MIGRATE` | `true` | Run DB migrations on startup |
+| `DATABASE_URL` | `sqlite:///./data/delaxis.db` | SQLite by default; any PostgreSQL URL works |
+| `DELAXIS_AUTO_MIGRATE` | `true` | Run DB migrations on startup |
 
 **Authentication** (optional)
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `OAK_ADMIN_USERNAME` / `OAK_ADMIN_PASSWORD` | — | Create the first admin account on boot |
+| `DELAXIS_ADMIN_USERNAME` / `DELAXIS_ADMIN_PASSWORD` | — | Create the first admin account on boot |
 | `SECRET_KEY` | — | JWT signing key — set a strong random value in production |
 | `KEYCLOAK_ENABLED` | `false` | Optional Keycloak SSO (plus `KEYCLOAK_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`) |
 
@@ -363,14 +363,14 @@ uv run pytest tests/unit -q          # backend unit tests
 uv run pytest tests/integration -q   # integration tests
 cd workflow-editor && npm test       # frontend unit tests (vitest)
 cd workflow-editor && npm run lint   # frontend lint
-docker build -t open-agent-kit .     # full image build
+docker build -t delaxis .     # full image build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### The GitHub Pages demo
 
-GitHub Pages serves static files only, so the [live demo](https://mubinui.github.io/open-agent-kit/)
+GitHub Pages serves static files only, so the [live demo](https://mubinui.github.io/delaxis/)
 replaces the backend with an in-browser stub in `workflow-editor/src/demo/`. It answers every
 `/api/v1/*` route the Studio calls — including the SSE execution stream — from fixtures in
 `seed.json`, a scrubbed snapshot of the real API. Edits are real but in-memory and reset on reload;
@@ -391,9 +391,9 @@ never reach the bundle the API server ships. Pushing to the `demo` branch publis
 
 ## Production deployment
 
-- **Docker** — the published image at `ghcr.io/mubinui/open-agent-kit:latest` is the fastest path; mount a volume at `/app/data` to persist the database.
+- **Docker** — the published image at `ghcr.io/mubinui/delaxis:latest` is the fastest path; mount a volume at `/app/data` to persist the database.
 - **Kubernetes** — manifests in [k8s/](k8s/) cover deployment, ingress, HPA, network policy, and optional Postgres/Redis/RabbitMQ StatefulSets.
-- **Helm** — the chart in [helm/open-agent-kit/](helm/open-agent-kit/) ships `values-dev.yaml` and `values-prod.yaml`.
+- **Helm** — the chart in [helm/delaxis/](helm/delaxis/) ships `values-dev.yaml` and `values-prod.yaml`.
 
 For production, set `ENVIRONMENT=production`, a strong `SECRET_KEY`, a PostgreSQL `DATABASE_URL`, and restrict `FRONTEND_URL` to your own origins.
 

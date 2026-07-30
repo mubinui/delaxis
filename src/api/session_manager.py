@@ -1,4 +1,4 @@
-"""CrewAI-native session management for Open Agent Kit."""
+"""CrewAI-native session management for Delaxis."""
 
 from __future__ import annotations
 

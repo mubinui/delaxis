@@ -1,5 +1,5 @@
 /**
- * In-memory stand-in for the Open Agent Kit backend, used by the GitHub Pages demo.
+ * In-memory stand-in for the Delaxis backend, used by the GitHub Pages demo.
  *
  * The seed is a scrubbed snapshot of the real API's responses (see
  * `scripts/build_demo_seed.py`), so shapes here match production exactly. Every
@@ -59,7 +59,7 @@ const build = (): DemoState => ({
         {
             id: 'key_demo_studio',
             name: 'studio-local',
-            prefix: 'oak_live_7f2c',
+            prefix: 'dlx_live_7f2c',
             created_at: '2026-07-18T14:03:00+00:00',
             last_used_at: '2026-07-20T09:41:00+00:00',
             revoked: false,

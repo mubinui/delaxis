@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: rabbitmq
-  namespace: open-agent-kit
+  namespace: delaxis
   labels:
     app: rabbitmq
 spec:
@@ -30,17 +30,17 @@ spec:
         - name: RABBITMQ_DEFAULT_USER
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: RABBITMQ_USER
         - name: RABBITMQ_DEFAULT_PASS
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: RABBITMQ_PASSWORD
         - name: RABBITMQ_DEFAULT_VHOST
           value: "/"
         - name: RABBITMQ_ERLANG_COOKIE
-          value: "oak-secret-cookie"
+          value: "delaxis-secret-cookie"
         resources:
           requests:
             memory: "256Mi"

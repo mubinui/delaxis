@@ -1,7 +1,7 @@
 [project]
-name = "open-agent-kit"
+name = "delaxis"
 version = "0.4.0"
-description = "Open Agent Kit (OAK) - open-source multi-agent development kit with a visual studio, live LLM testing, and deployable chatbots"
+description = "Delaxis - open-source multi-agent development kit with a visual studio, live LLM testing, live voice, and deployable chatbots"
 authors = [
     {name = "Mubin Ul Islam", email = "uic.mubin@gmail.com"}
 ]
@@ -42,6 +42,8 @@ dependencies = [
     "google-auth-oauthlib>=1.2.0",
     "google-api-python-client>=2.180.0",
     "ddgs>=9.14.4",
+    # Direct client for the Gemini Live voice bridge (already resolved via uvicorn[standard]).
+    "websockets>=15.0.1",
 ]
 
 [project.optional-dependencies]
@@ -56,7 +58,8 @@ dev = [
 ]
 
 [project.scripts]
-oak = "src.main:main"
+delaxis = "src.main:main"
+dlx = "src.main:main"
 
 [build-system]
 requires = ["setuptools>=68.0.0", "wheel"]

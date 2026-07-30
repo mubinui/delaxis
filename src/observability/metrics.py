@@ -1,4 +1,4 @@
-"""Prometheus metrics for Open Agent Kit."""
+"""Prometheus metrics for Delaxis."""
 
 from typing import Optional
 

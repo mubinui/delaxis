@@ -533,7 +533,7 @@
  },
  "health": {
   "mode": "demo",
-  "service": "open-agent-kit",
+  "service": "delaxis",
   "status": "healthy",
   "version": "0.1.0"
  },
@@ -1399,7 +1399,7 @@
     "type": "output"
    }
   ],
-  "product": "Open Agent Kit",
+  "product": "Delaxis",
   "runtime": "crewai"
  },
  "tools": [

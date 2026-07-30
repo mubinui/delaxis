@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "open-agent-kit.fullname" . }}
+  name: {{ include "delaxis.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "open-agent-kit.labels" . | nindent 4 }}
+    {{- include "delaxis.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -16,7 +16,7 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      {{- include "open-agent-kit.selectorLabels" . | nindent 6 }}
+      {{- include "delaxis.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -26,13 +26,13 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "open-agent-kit.selectorLabels" . | nindent 8 }}
+        {{- include "delaxis.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "open-agent-kit.serviceAccountName" . }}
+      serviceAccountName: {{ include "delaxis.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- if .Values.initContainers.dbMigration.enabled }}
@@ -44,13 +44,13 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: {{ include "open-agent-kit.fullname" . }}-secret
+              name: {{ include "delaxis.fullname" . }}-secret
               key: DATABASE_URL
         envFrom:
         - configMapRef:
-            name: {{ include "open-agent-kit.fullname" . }}-config
+            name: {{ include "delaxis.fullname" . }}-config
         - secretRef:
-            name: {{ include "open-agent-kit.fullname" . }}-secret
+            name: {{ include "delaxis.fullname" . }}-secret
       {{- end }}
       containers:
       - name: {{ .Chart.Name }}
@@ -69,23 +69,23 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: {{ include "open-agent-kit.fullname" . }}-secret
+              name: {{ include "delaxis.fullname" . }}-secret
               key: DATABASE_URL
         - name: REDIS_URL
           valueFrom:
             secretKeyRef:
-              name: {{ include "open-agent-kit.fullname" . }}-secret
+              name: {{ include "delaxis.fullname" . }}-secret
               key: REDIS_URL
         - name: RABBITMQ_URL
           valueFrom:
             secretKeyRef:
-              name: {{ include "open-agent-kit.fullname" . }}-secret
+              name: {{ include "delaxis.fullname" . }}-secret
               key: RABBITMQ_URL
         envFrom:
         - configMapRef:
-            name: {{ include "open-agent-kit.fullname" . }}-config
+            name: {{ include "delaxis.fullname" . }}-config
         - secretRef:
-            name: {{ include "open-agent-kit.fullname" . }}-secret
+            name: {{ include "delaxis.fullname" . }}-secret
         livenessProbe:
           httpGet:
             path: /health
@@ -111,7 +111,7 @@ spec:
       - name: chromadb-storage
         {{- if .Values.chromadb.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ include "open-agent-kit.fullname" . }}-chromadb-pvc
+          claimName: {{ include "delaxis.fullname" . }}-chromadb-pvc
         {{- else }}
         emptyDir: {}
         {{- end }}

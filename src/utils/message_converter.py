@@ -1,4 +1,4 @@
-"""Message conversion helpers for Open Agent Kit."""
+"""Message conversion helpers for Delaxis."""
 
 from __future__ import annotations
 

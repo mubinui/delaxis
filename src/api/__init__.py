@@ -1,4 +1,4 @@
-"""FastAPI application package for Open Agent Kit.
+"""FastAPI application package for Delaxis.
 
 The ASGI app lives in ``src.api.main`` (uvicorn target: ``src.api.main:app``).
 This package intentionally avoids re-exporting it so that importing submodules

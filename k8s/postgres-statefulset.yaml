@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgres
-  namespace: open-agent-kit
+  namespace: delaxis
   labels:
     app: postgres
 spec:
@@ -27,17 +27,17 @@ spec:
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: DATABASE_USER
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: DATABASE_PASSWORD
         - name: POSTGRES_DB
           valueFrom:
             configMapKeyRef:
-              name: open-agent-kit-config
+              name: delaxis-config
               key: DATABASE_NAME
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
@@ -58,7 +58,7 @@ spec:
             command:
             - pg_isready
             - -U
-            - oak
+            - delaxis
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -68,7 +68,7 @@ spec:
             command:
             - pg_isready
             - -U
-            - oak
+            - delaxis
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
@@ -92,13 +92,13 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-init-scripts
-  namespace: open-agent-kit
+  namespace: delaxis
 data:
   init-db.sql: |
-    -- Initialize PostgreSQL database for Open Agent Kit
+    -- Initialize PostgreSQL database for Delaxis
     CREATE EXTENSION IF NOT EXISTS vector;
-    CREATE SCHEMA IF NOT EXISTS oak;
-    GRANT ALL PRIVILEGES ON DATABASE oak TO oak;
-    GRANT ALL PRIVILEGES ON SCHEMA public TO oak;
-    GRANT ALL PRIVILEGES ON SCHEMA oak TO oak;
-    ALTER DATABASE oak SET search_path TO public, oak;
+    CREATE SCHEMA IF NOT EXISTS delaxis;
+    GRANT ALL PRIVILEGES ON DATABASE delaxis TO delaxis;
+    GRANT ALL PRIVILEGES ON SCHEMA public TO delaxis;
+    GRANT ALL PRIVILEGES ON SCHEMA delaxis TO delaxis;
+    ALTER DATABASE delaxis SET search_path TO public, delaxis;

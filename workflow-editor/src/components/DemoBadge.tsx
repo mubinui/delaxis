@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { BookOpen, Github, Info, X } from 'lucide-react';
 
-const REPO_URL = 'https://github.com/mubinui/open-agent-kit';
-const INTRO_SEEN_KEY = 'oak-demo-intro-seen';
+const REPO_URL = 'https://github.com/mubinui/delaxis';
+const INTRO_SEEN_KEY = 'delaxis-demo-intro-seen';
 
 const WORKS: string[] = [
     'Drag agents, tools, routers and triggers onto the React Flow canvas',
@@ -46,7 +46,7 @@ export const DemoBadge = () => {
                     <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-[#0b111b] p-6 shadow-2xl">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <h2 className="text-lg font-bold text-white">You're in the Open Agent Kit demo</h2>
+                                <h2 className="text-lg font-bold text-white">You're in the Delaxis demo</h2>
                                 <p className="mt-1 text-[13px] leading-relaxed text-slate-400">
                                     This is the real Studio running against an in-browser stub of the API, so
                                     everything is clickable without a server, a database, or an API key.

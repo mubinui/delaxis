@@ -322,7 +322,7 @@ def enrich(data: dict[str, Any]) -> dict[str, Any]:
 
     data["health"] = {
         "status": "healthy",
-        "service": "open-agent-kit",
+        "service": "delaxis",
         "version": "0.1.0",
         "mode": "demo",
     }

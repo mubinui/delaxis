@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark';
 
-const THEME_STORAGE_KEY = 'oak-theme';
-const THEME_EVENT = 'oak-theme-change';
+const THEME_STORAGE_KEY = 'delaxis-theme';
+const THEME_EVENT = 'delaxis-theme-change';
 
 const getInitialTheme = (): Theme => {
     if (typeof window === 'undefined') return 'light';

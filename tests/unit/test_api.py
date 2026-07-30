@@ -17,7 +17,7 @@ def test_api_info_endpoint(client):
     response = client.get("/api")
     assert response.status_code == 200
     data = response.json()
-    assert data["service"] == "Open Agent Kit"
+    assert data["service"] == "Delaxis"
     assert data["version"] == "0.1.0"
     assert "docs" in data
 
@@ -28,7 +28,7 @@ def test_health_check(client):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
-    assert data["service"] == "open-agent-kit"
+    assert data["service"] == "delaxis"
     assert data["version"] == "0.1.0"
 
 
@@ -66,5 +66,5 @@ def test_openapi_docs_available(client):
     response = client.get("/openapi.json")
     assert response.status_code == 200
     data = response.json()
-    assert data["info"]["title"] == "Open Agent Kit"
+    assert data["info"]["title"] == "Delaxis"
     assert data["info"]["version"] == "0.1.0"

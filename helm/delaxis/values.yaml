@@ -1,11 +1,11 @@
-# Default values for open-agent-kit
+# Default values for delaxis
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
 replicaCount: 3
 
 image:
-  repository: open-agent-kit
+  repository: delaxis
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -49,14 +49,14 @@ ingress:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/limit-rps: "100"
   hosts:
-    - host: oak.example.com
+    - host: delaxis.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: oak-tls
+    - secretName: delaxis-tls
       hosts:
-        - oak.example.com
+        - delaxis.example.com
 
 resources:
   limits:
@@ -87,7 +87,7 @@ affinity:
           - key: app
             operator: In
             values:
-            - open-agent-kit
+            - delaxis
         topologyKey: kubernetes.io/hostname
 
 # Application configuration
@@ -106,7 +106,7 @@ postgresql:
   auth:
     username: orchestrator
     password: orchestrator_pass
-    database: oak
+    database: delaxis
   primary:
     persistence:
       enabled: true
@@ -235,7 +235,7 @@ externalSecrets:
   enabled: false
   backend: aws-secrets-manager
   region: us-east-1
-  secretName: oak/secrets
+  secretName: delaxis/secrets
 
 # Network policies
 networkPolicy:

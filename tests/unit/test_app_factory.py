@@ -22,9 +22,9 @@ def spa_app(tmp_path, monkeypatch):
     """App with a fake built SPA in a temp static dir."""
     static_dir = tmp_path / "static"
     (static_dir / "assets").mkdir(parents=True)
-    (static_dir / "index.html").write_text("<html><body>OAK SPA</body></html>")
-    (static_dir / "assets" / "app.js").write_text("console.log('oak')")
-    monkeypatch.setenv("OAK_STATIC_DIR", str(static_dir))
+    (static_dir / "index.html").write_text("<html><body>Delaxis SPA</body></html>")
+    (static_dir / "assets" / "app.js").write_text("console.log('delaxis')")
+    monkeypatch.setenv("DELAXIS_STATIC_DIR", str(static_dir))
     return create_app()
 
 
@@ -32,14 +32,14 @@ def test_spa_served_at_root(spa_app):
     client = TestClient(spa_app)
     response = client.get("/")
     assert response.status_code == 200
-    assert "OAK SPA" in response.text
+    assert "Delaxis SPA" in response.text
 
 
 def test_spa_fallback_serves_index_for_client_routes(spa_app):
     client = TestClient(spa_app)
     response = client.get("/some/client/route")
     assert response.status_code == 200
-    assert "OAK SPA" in response.text
+    assert "Delaxis SPA" in response.text
 
 
 def test_spa_fallback_does_not_shadow_api_404(spa_app):
@@ -51,7 +51,7 @@ def test_spa_serves_real_static_assets(spa_app):
     client = TestClient(spa_app)
     response = client.get("/assets/app.js")
     assert response.status_code == 200
-    assert "oak" in response.text
+    assert "delaxis" in response.text
 
 
 def test_health_alias_still_works_with_spa(spa_app):
@@ -65,4 +65,4 @@ def test_api_info_endpoint(spa_app):
     client = TestClient(spa_app)
     response = client.get("/api")
     assert response.status_code == 200
-    assert response.json()["service"] == "Open Agent Kit"
+    assert response.json()["service"] == "Delaxis"

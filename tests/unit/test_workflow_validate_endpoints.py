@@ -164,7 +164,7 @@ class TestConfigurationChecks:
         assert "provider_missing" in {f.code for f in findings}
 
     def test_missing_api_key(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("OAK_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("DELAXIS_DATA_DIR", str(tmp_path))
         monkeypatch.delenv("TEST_KEY", raising=False)
         findings = diagnose_graph(
             [{"id": "n1", "agent_id": "a1"}], [],
@@ -176,7 +176,7 @@ class TestConfigurationChecks:
 
     def test_unknown_model_is_a_warning_not_an_error(self, monkeypatch, tmp_path):
         """Free-text model ids are legal — the list is only a hint."""
-        monkeypatch.setenv("OAK_DATA_DIR", str(tmp_path))
+        monkeypatch.setenv("DELAXIS_DATA_DIR", str(tmp_path))
         monkeypatch.setenv("TEST_KEY", "sk-test")
         findings = diagnose_graph(
             [{"id": "n1", "agent_id": "a1"}], [],

@@ -1,5 +1,5 @@
 {
-  "name": "open-agent-kit-studio",
+  "name": "delaxis-studio",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "build:demo": "tsc -b && VITE_DEMO_MODE=true vite build --outDir dist-demo && node scripts/emit-demo-pages.mjs",
     "lint": "eslint .",
+    "logo:png": "node scripts/render-logo-png.mjs",
     "test": "vitest run",
     "preview": "vite preview"
   },

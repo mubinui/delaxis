@@ -1,4 +1,4 @@
-"""CrewAI runtime adapter for Open Agent Kit."""
+"""CrewAI runtime adapter for Delaxis."""
 
 from src.crewai_runtime.runtime import CrewAIRuntimeResult, CrewAIWorkflowRuntime
 

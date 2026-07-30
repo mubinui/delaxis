@@ -1,4 +1,4 @@
-"""CrewAI runtime adapter for Open Agent Kit workflow configs.
+"""CrewAI runtime adapter for Delaxis workflow configs.
 
 The adapter intentionally keeps the public REST surface stable while moving
 workflow execution to CrewAI. It translates the existing JSON agent/tool/workflow
@@ -19,6 +19,7 @@ from typing import Any, Callable
 import structlog
 
 from src.config.agent_models import AgentConfig, LLMConfig
+from src.config.env_compat import env
 from src.config.provider_capabilities import AGENT_PARAMS, filter_llm_params
 from src.config.loader import load_agents_config
 from src.config.tool_registry import ToolDefinition, get_tool_registry
@@ -841,14 +842,14 @@ class CrewAIWorkflowRuntime:
 
         CrewAI's human input blocks on stdin, which would hang a headless API
         worker — so honoring human_input_mode=ALWAYS requires
-        OAK_ALLOW_HUMAN_INPUT=true.
+        DELAXIS_ALLOW_HUMAN_INPUT=true.
         """
         mode = str(getattr(getattr(agent_config, "human_input_mode", ""), "value", getattr(agent_config, "human_input_mode", ""))).upper()
         if mode != "ALWAYS":
             return False
-        if os.getenv("OAK_ALLOW_HUMAN_INPUT", "false").lower() == "true":
+        if (env("DELAXIS_ALLOW_HUMAN_INPUT", "false") or "false").lower() == "true":
             return True
-        logger.warning("crewai_human_input_suppressed", reason="OAK_ALLOW_HUMAN_INPUT is not enabled")
+        logger.warning("crewai_human_input_suppressed", reason="DELAXIS_ALLOW_HUMAN_INPUT is not enabled")
         return False
 
     @staticmethod

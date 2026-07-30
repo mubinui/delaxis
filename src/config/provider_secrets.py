@@ -18,12 +18,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from src.config.env_compat import env
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def secrets_path() -> Path:
-    """Location of the secret store, honouring the OAK_DATA_DIR override."""
-    data_dir = Path(os.environ.get("OAK_DATA_DIR", str(_PROJECT_ROOT / "data")))
+    """Location of the secret store, honouring the DELAXIS_DATA_DIR override."""
+    data_dir = Path(env("DELAXIS_DATA_DIR", str(_PROJECT_ROOT / "data")) or str(_PROJECT_ROOT / "data"))
     return data_dir / "provider_secrets.json"
 
 

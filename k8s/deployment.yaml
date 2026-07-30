@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: open-agent-kit
-  namespace: open-agent-kit
+  name: delaxis
+  namespace: delaxis
   labels:
-    app: open-agent-kit
+    app: delaxis
     version: v1
 spec:
   replicas: 3
@@ -15,18 +15,18 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: open-agent-kit
+      app: delaxis
   template:
     metadata:
       labels:
-        app: open-agent-kit
+        app: delaxis
         version: v1
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
         prometheus.io/path: "/metrics"
     spec:
-      serviceAccountName: open-agent-kit
+      serviceAccountName: delaxis
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -35,23 +35,23 @@ spec:
       initContainers:
       # Run database migrations before starting the app
       - name: db-migration
-        image: open-agent-kit:latest
+        image: delaxis:latest
         command: ["alembic", "upgrade", "head"]
         env:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: DATABASE_URL
         envFrom:
         - configMapRef:
-            name: open-agent-kit-config
+            name: delaxis-config
         - secretRef:
-            name: open-agent-kit-secrets
+            name: delaxis-secrets
       
       containers:
-      - name: open-agent-kit
-        image: open-agent-kit:latest
+      - name: delaxis
+        image: delaxis:latest
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
@@ -66,24 +66,24 @@ spec:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: DATABASE_URL
         - name: REDIS_URL
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: REDIS_URL
         - name: RABBITMQ_URL
           valueFrom:
             secretKeyRef:
-              name: open-agent-kit-secrets
+              name: delaxis-secrets
               key: RABBITMQ_URL
         
         envFrom:
         - configMapRef:
-            name: open-agent-kit-config
+            name: delaxis-config
         - secretRef:
-            name: open-agent-kit-secrets
+            name: delaxis-secrets
         
         resources:
           requests:
@@ -124,25 +124,25 @@ spec:
           claimName: chromadb-pvc
       - name: config-volume
         configMap:
-          name: open-agent-kit-config
+          name: delaxis-config
 
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: open-agent-kit
-  namespace: open-agent-kit
+  name: delaxis
+  namespace: delaxis
   labels:
-    app: open-agent-kit
+    app: delaxis
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: chromadb-pvc
-  namespace: open-agent-kit
+  namespace: delaxis
   labels:
-    app: open-agent-kit
+    app: delaxis
 spec:
   accessModes:
     - ReadWriteOnce

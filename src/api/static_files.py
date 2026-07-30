@@ -9,13 +9,14 @@ In development the directory is usually absent — the Vite dev server
 (``npm run dev`` in workflow-editor/) proxies API calls instead.
 """
 
-import os
 from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+from src.config.env_compat import env
 
 logger = structlog.get_logger(__name__)
 
@@ -28,7 +29,7 @@ def mount_spa(app: FastAPI) -> bool:
 
     Returns True when the SPA was mounted.
     """
-    static_dir = Path(os.environ.get("OAK_STATIC_DIR", "./static")).resolve()
+    static_dir = Path(env("DELAXIS_STATIC_DIR", "./static") or "./static").resolve()
     index_file = static_dir / "index.html"
 
     if not index_file.exists():

@@ -18,7 +18,7 @@ prioritized based on severity.
   unauthenticated access so the Studio works out of the box. **Before exposing
   an instance beyond localhost, set `ENVIRONMENT=production`** and configure
   local users/API keys or Keycloak.
-- Set a strong `SECRET_KEY` (JWT signing) and `OAK_ADMIN_PASSWORD`.
+- Set a strong `SECRET_KEY` (JWT signing) and `DELAXIS_ADMIN_PASSWORD`.
 - Never commit `.env` files; use the provided `.env.example` as a template.
 - Deployed chat pages (`/d/<name>/`) are public by design — do not deploy
   workflows that expose sensitive tools without authentication in front.

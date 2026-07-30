@@ -507,13 +507,13 @@ export const PropertiesPanel = () => {
                             </div>
                             <input
                                 type="text"
-                                list="oak-provider-models"
+                                list="delaxis-provider-models"
                                 value={modelName}
                                 onChange={(e) => updateNestedConfig('model_config', 'model', e.target.value)}
                                 className={fieldCls}
                                 placeholder={providerModels[0] || 'model id'}
                             />
-                            <datalist id="oak-provider-models">
+                            <datalist id="delaxis-provider-models">
                                 {providerModels.map(name => <option key={name} value={name} />)}
                             </datalist>
                         </div>

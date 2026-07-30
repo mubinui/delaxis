@@ -23,14 +23,14 @@ autoscaling:
 ingress:
   enabled: true
   hosts:
-    - host: oak-dev.example.com
+    - host: delaxis-dev.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: oak-dev-tls
+    - secretName: delaxis-dev-tls
       hosts:
-        - oak-dev.example.com
+        - delaxis-dev.example.com
 
 postgresql:
   primary:

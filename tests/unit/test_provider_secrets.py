@@ -11,7 +11,7 @@ from src.config import provider_registry, provider_secrets
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    monkeypatch.setenv("OAK_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DELAXIS_DATA_DIR", str(tmp_path))
     yield tmp_path / "provider_secrets.json"
 
 

@@ -228,7 +228,7 @@ def test_embed_script_is_served_cross_origin(client):
     # Loaded by third-party pages, so it must be readable cross-origin
     assert response.headers["access-control-allow-origin"] == "*"
     assert "/d/widget-bot/" in response.text
-    assert "oak-launcher" in response.text
+    assert "delaxis-launcher" in response.text
 
 
 def test_embed_script_404s_for_an_unknown_deployment(client):

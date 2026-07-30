@@ -1,4 +1,4 @@
-"""Redis caching infrastructure for Open Agent Kit."""
+"""Redis caching infrastructure for Delaxis."""
 
 import json
 import logging

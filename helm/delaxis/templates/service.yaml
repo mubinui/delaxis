@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "open-agent-kit.fullname" . }}
+  name: {{ include "delaxis.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "open-agent-kit.labels" . | nindent 4 }}
+    {{- include "delaxis.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -21,7 +21,7 @@ spec:
     protocol: TCP
     name: metrics
   selector:
-    {{- include "open-agent-kit.selectorLabels" . | nindent 4 }}
+    {{- include "delaxis.selectorLabels" . | nindent 4 }}
   sessionAffinity: ClientIP
   sessionAffinityConfig:
     clientIP:

@@ -15,11 +15,11 @@ from src.config.settings import get_settings
 
 
 def create_app() -> FastAPI:
-    """Create and configure the Open Agent Kit API."""
+    """Create and configure the Delaxis API."""
     configure_logging()
 
     app = FastAPI(
-        title="Open Agent Kit",
+        title="Delaxis",
         description="Open-source multi-agent development kit for building, testing, and deploying AI agent workflows",
         version="0.1.0",
         lifespan=lifespan,
@@ -45,8 +45,8 @@ def create_app() -> FastAPI:
     register_routers(app)
 
     api_info = {
-        "service": "Open Agent Kit",
-        "product": "Open Agent Kit",
+        "service": "Delaxis",
+        "product": "Delaxis",
         "version": "0.1.0",
         "description": "Open-source multi-agent development kit for building, testing, and deploying AI agent workflows",
         "docs": "/docs",
@@ -61,7 +61,7 @@ def create_app() -> FastAPI:
     @app.get("/health", include_in_schema=False)
     async def health_alias() -> dict[str, str]:
         """Lightweight liveness alias used by container healthchecks."""
-        return {"status": "healthy", "service": "open-agent-kit"}
+        return {"status": "healthy", "service": "delaxis"}
 
     # Serve the built Studio SPA (if present) — registered last so its
     # catch-all route never shadows API endpoints. When no SPA build is

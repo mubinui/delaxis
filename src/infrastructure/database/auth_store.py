@@ -1,4 +1,4 @@
-"""SQL-backed authentication store for Open Agent Kit.
+"""SQL-backed authentication store for Delaxis.
 
 Persists local user accounts and API keys in the platform database
 (SQLite by default, PostgreSQL in production). Only key hashes are
@@ -18,7 +18,10 @@ from src.infrastructure.database.schema import ApiKey, User
 
 logger = structlog.get_logger(__name__)
 
-API_KEY_PREFIX = "oak_"
+# Prefix minted onto new keys. Only hashes are stored, so keys issued under the
+# pre-rename prefix cannot be rewritten — authentication accepts both.
+API_KEY_PREFIX = "dlx_"
+ACCEPTED_API_KEY_PREFIXES = ("dlx_", "oak_")
 
 
 def hash_api_key(key: str) -> str:

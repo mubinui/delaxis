@@ -1,4 +1,4 @@
-# Open Agent Kit (OAK) — Docker Compose
+# Delaxis — Docker Compose
 #
 # Default:      docker compose up            -> single container, SQLite (zero config)
 # Postgres:     docker compose --profile postgres up
@@ -6,13 +6,13 @@
 # Everything:   docker compose --profile postgres --profile qdrant --profile redis up
 
 services:
-  # Open Agent Kit — API + Studio UI in one container
-  oak:
+  # Delaxis — API + Studio UI in one container
+  delaxis:
     build:
       context: .
       dockerfile: Dockerfile
-    image: open-agent-kit:latest
-    container_name: open-agent-kit
+    image: delaxis:latest
+    container_name: delaxis
     ports:
       - "${APP_PORT:-8000}:8000" # API + Studio UI — override with APP_PORT
       - "${METRICS_PORT:-9090}:9090" # Prometheus metrics
@@ -22,16 +22,16 @@ services:
       - LLM_MODEL=${LLM_MODEL:-openai/gpt-oss-20b}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OR_SITE_URL=${OR_SITE_URL:-}
-      - OR_APP_NAME=${OR_APP_NAME:-Open Agent Kit}
+      - OR_APP_NAME=${OR_APP_NAME:-Delaxis}
 
       # Database — SQLite on the data volume by default.
-      # With the postgres profile: DATABASE_URL=postgresql://oak:oak_pass@postgres:5432/oak
+      # With the postgres profile: DATABASE_URL=postgresql://delaxis:delaxis_pass@postgres:5432/delaxis
       - DATABASE_URL=${DATABASE_URL:-}
-      - OAK_AUTO_MIGRATE=${OAK_AUTO_MIGRATE:-true}
+      - DELAXIS_AUTO_MIGRATE=${DELAXIS_AUTO_MIGRATE:-true}
 
       # Optional initial admin account (created on first boot if no users exist)
-      - OAK_ADMIN_USERNAME=${OAK_ADMIN_USERNAME:-}
-      - OAK_ADMIN_PASSWORD=${OAK_ADMIN_PASSWORD:-}
+      - DELAXIS_ADMIN_USERNAME=${DELAXIS_ADMIN_USERNAME:-}
+      - DELAXIS_ADMIN_PASSWORD=${DELAXIS_ADMIN_PASSWORD:-}
 
       # Optional Redis cache (redis profile)
       - REDIS_URL=${REDIS_URL:-}
@@ -62,10 +62,10 @@ services:
 
       # Observability
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-      - OTEL_SERVICE_NAME=open-agent-kit
+      - OTEL_SERVICE_NAME=delaxis
     volumes:
       - ./configs:/app/configs # agent/workflow/tool definitions (editable)
-      - oak_data:/app/data # SQLite DB, sessions, deployments
+      - delaxis_data:/app/data # SQLite DB, sessions, deployments
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -77,19 +77,19 @@ services:
   # PostgreSQL — production database (optional)
   postgres:
     image: postgres:16-alpine
-    container_name: oak-postgres
+    container_name: delaxis-postgres
     profiles: ["postgres"]
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-oak}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-oak_pass}
-      - POSTGRES_DB=${POSTGRES_DB:-oak}
+      - POSTGRES_USER=${POSTGRES_USER:-delaxis}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-delaxis_pass}
+      - POSTGRES_DB=${POSTGRES_DB:-delaxis}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-oak}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-delaxis}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -97,7 +97,7 @@ services:
   # Redis — caching layer (optional)
   redis:
     image: redis:7-alpine
-    container_name: oak-redis
+    container_name: delaxis-redis
     profiles: ["redis"]
     ports:
       - "6379:6379"
@@ -114,7 +114,7 @@ services:
   # Qdrant — vector database for RAG (optional)
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: oak-qdrant
+    container_name: delaxis-qdrant
     profiles: ["qdrant"]
     ports:
       - "6333:6333" # HTTP API
@@ -133,7 +133,7 @@ services:
       start_period: 20s
 
 volumes:
-  oak_data:
+  delaxis_data:
     driver: local
   postgres_data:
     driver: local
@@ -144,5 +144,5 @@ volumes:
 
 networks:
   default:
-    name: oak-network
+    name: delaxis-network
     driver: bridge

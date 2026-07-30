@@ -1,4 +1,4 @@
-"""CrewAI-oriented agent helpers for Open Agent Kit."""
+"""CrewAI-oriented agent helpers for Delaxis."""
 
 from src.factory.agent_factory import AgentFactory
 

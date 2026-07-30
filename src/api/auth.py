@@ -1,4 +1,4 @@
-"""Authentication and authorization module for Open Agent Kit."""
+"""Authentication and authorization module for Delaxis."""
 
 import hashlib
 import secrets
@@ -28,7 +28,7 @@ security = HTTPBearer(auto_error=False)
 from enum import Enum
 
 from src.infrastructure.database.auth_store import (
-    API_KEY_PREFIX,
+    ACCEPTED_API_KEY_PREFIXES,
     AuthStore,
     generate_api_key,
     get_auth_store,
@@ -198,7 +198,7 @@ async def authenticate_api_key(
     credentials: HTTPAuthorizationCredentials,
 ) -> CurrentUser:
     """Authenticate using API key."""
-    if not credentials.credentials.startswith(API_KEY_PREFIX):
+    if not credentials.credentials.startswith(ACCEPTED_API_KEY_PREFIXES):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key format",
@@ -317,7 +317,7 @@ async def get_current_user(
         )
     
     # Try API key authentication first
-    if credentials.credentials.startswith(API_KEY_PREFIX):
+    if credentials.credentials.startswith(ACCEPTED_API_KEY_PREFIXES):
         return await authenticate_api_key(credentials)
     else:
         # Try JWT authentication
@@ -470,12 +470,12 @@ class APIKeyManager:
 def bootstrap_admin_user() -> None:
     """Create the initial admin user from env vars if no users exist.
 
-    Set OAK_ADMIN_USERNAME and OAK_ADMIN_PASSWORD to enable; skipped otherwise.
+    Set DELAXIS_ADMIN_USERNAME and DELAXIS_ADMIN_PASSWORD to enable; skipped otherwise.
     """
-    import os
+    from src.config.env_compat import env
 
-    username = os.environ.get("OAK_ADMIN_USERNAME")
-    password = os.environ.get("OAK_ADMIN_PASSWORD")
+    username = env("DELAXIS_ADMIN_USERNAME")
+    password = env("DELAXIS_ADMIN_PASSWORD")
     if not username or not password:
         return
     try:

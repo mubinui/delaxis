@@ -6,33 +6,33 @@
   {{- end }}
 {{- end }}
 {{- else if contains "NodePort" .Values.service.type }}
-  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "open-agent-kit.fullname" . }})
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "delaxis.fullname" . }})
   export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
   echo http://$NODE_IP:$NODE_PORT
 {{- else if contains "LoadBalancer" .Values.service.type }}
      NOTE: It may take a few minutes for the LoadBalancer IP to be available.
-           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "open-agent-kit.fullname" . }}'
-  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "open-agent-kit.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "delaxis.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "delaxis.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
   echo http://$SERVICE_IP:{{ .Values.service.port }}
 {{- else if contains "ClusterIP" .Values.service.type }}
-  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "open-agent-kit.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "delaxis.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
   export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
   echo "Visit http://127.0.0.1:8080 to use your application"
   kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
 {{- end }}
 
 2. Check the deployment status:
-  kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "open-agent-kit.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
+  kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "delaxis.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
 
 3. View logs:
-  kubectl logs --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "open-agent-kit.name" . }}" -f
+  kubectl logs --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "delaxis.name" . }}" -f
 
 4. Access metrics:
-  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "open-agent-kit.fullname" . }} 9090:9090
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "delaxis.fullname" . }} 9090:9090
   Then visit http://localhost:9090/metrics
 
 5. Run database migrations (if not using init container):
-  kubectl exec --namespace {{ .Release.Namespace }} -it deployment/{{ include "open-agent-kit.fullname" . }} -- alembic upgrade head
+  kubectl exec --namespace {{ .Release.Namespace }} -it deployment/{{ include "delaxis.fullname" . }} -- alembic upgrade head
 
 6. Access RabbitMQ Management UI:
   kubectl port-forward --namespace {{ .Release.Namespace }} svc/rabbitmq-service 15672:15672
