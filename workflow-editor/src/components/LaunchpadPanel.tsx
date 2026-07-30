@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bot, Cable, Code2, ExternalLink, PlayCircle, Rocket, Send, Trash2, Wand2, Wrench, X } from 'lucide-react';
+import { Bot, Cable, Code2, ExternalLink, Mic, PlayCircle, Rocket, Send, Trash2, Wand2, Wrench, X } from 'lucide-react';
 import { applyBuilderPlan, generateBuilderConfig, generateFrontend, listBuilderModels, normalizeApi, planChatbot, streamBuilderChat } from '../api/builderApi';
 import type { BuilderType, ChatMessage, ModelInfo } from '../api/builderApi';
-import type { ThemePreset } from '../api/backendTypes';
+import type { ThemePreset, VoiceProviderInfo, VoiceProvidersResponse } from '../api/backendTypes';
 import { api } from '../api/client';
 import { useShallow } from 'zustand/react/shallow';
 import { useLibraryStore } from '../stores/libraryStore';
@@ -54,6 +54,11 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [deploySuggestions, setDeploySuggestions] = useState('');
     const [deployTheme, setDeployTheme] = useState('midnight');
     const [themes, setThemes] = useState<ThemePreset[]>([]);
+    const [voiceEnabled, setVoiceEnabled] = useState(false);
+    const [voiceModel, setVoiceModel] = useState('');
+    const [voiceName, setVoiceName] = useState('');
+    const [voicePrompt, setVoicePrompt] = useState('');
+    const [voiceInfo, setVoiceInfo] = useState<VoiceProviderInfo | null>(null);
 
     // Selector-scoped so this panel doesn't re-render on every node/edge change on the canvas.
     const { currentWorkflowId, workflowName } = useWorkflowStore(
@@ -92,6 +97,12 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
             .catch(() => undefined);
         api<ThemePreset[]>('/api/v1/deployments/themes')
             .then(setThemes)
+            .catch(() => undefined);
+        api<VoiceProvidersResponse>('/api/v1/voice/providers')
+            .then((result) => {
+                if (!result.enabled) return;
+                setVoiceInfo(result.providers[0] ?? null);
+            })
             .catch(() => undefined);
         fetchOperationsData();
     }, []);
@@ -431,6 +442,15 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         // Starter chips on an empty conversation; the backend keeps the first four.
         suggestions: deploySuggestions.split('\n').map((line) => line.trim()).filter(Boolean),
         theme: deployTheme,
+        // The model, voice and persona are stored on the deployment record and
+        // resolved server-side — the served page only learns that voice is on.
+        voice: {
+            enabled: voiceEnabled && Boolean(voiceInfo?.key_available),
+            provider_id: voiceInfo?.provider_id || 'gemini',
+            model: voiceModel,
+            voice_name: voiceName,
+            system_prompt: voicePrompt.trim(),
+        },
     });
 
     const runFlashDeploy = async () => {
@@ -803,6 +823,77 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                     </button>
                                 ))}
                             </div>
+                        </div>
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-md p-3 space-y-2.5">
+                            <label className="flex items-start gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                <input
+                                    type="checkbox"
+                                    checked={voiceEnabled}
+                                    disabled={!voiceInfo?.key_available}
+                                    onChange={(event) => setVoiceEnabled(event.target.checked)}
+                                    className="mt-0.5"
+                                />
+                                <span>
+                                    <span className="flex items-center gap-1.5">
+                                        <Mic size={13} /> Live voice
+                                    </span>
+                                    <span className="mt-1 block font-normal text-[11px] text-slate-500 dark:text-slate-400">
+                                        {voiceInfo === null
+                                            ? 'No provider on this server advertises live voice.'
+                                            : voiceInfo.key_available
+                                                ? `Adds a mic to the deployed page, powered by ${voiceInfo.name}.`
+                                                : `Set ${voiceInfo.key_env_var} on the server to enable ${voiceInfo.name} voice.`}
+                                    </span>
+                                </span>
+                            </label>
+
+                            {voiceEnabled && voiceInfo?.key_available && (
+                                <div className="space-y-2.5 pl-5">
+                                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                        Realtime model
+                                        <select
+                                            value={voiceModel}
+                                            onChange={(event) => setVoiceModel(event.target.value)}
+                                            className="mt-1 w-full border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1.5 text-sm font-normal bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                        >
+                                            <option value="">Server default</option>
+                                            {voiceInfo.models.map((model) => (
+                                                <option key={model} value={model}>{model}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    {voiceInfo.voices.length > 0 && (
+                                        <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                            Voice
+                                            <select
+                                                value={voiceName}
+                                                onChange={(event) => setVoiceName(event.target.value)}
+                                                className="mt-1 w-full border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1.5 text-sm font-normal bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                            >
+                                                <option value="">Default</option>
+                                                {voiceInfo.voices.map((voice) => (
+                                                    <option key={voice} value={voice}>{voice}</option>
+                                                ))}
+                                            </select>
+                                        </label>
+                                    )}
+                                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                        Voice persona
+                                        <textarea
+                                            value={voicePrompt}
+                                            onChange={(event) => setVoicePrompt(event.target.value)}
+                                            rows={3}
+                                            placeholder="Leave blank to reuse the entry agent's own system message."
+                                            className="mt-1 w-full border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1.5 text-sm font-normal bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-y"
+                                        />
+                                    </label>
+                                    <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+                                        Voice replies come straight from the realtime model using this persona.
+                                        Your canvas workflow, its tools and its routing do not run in voice mode —
+                                        so a spoken answer can differ from a typed one.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <button onClick={runFlashDeploy} disabled={busy} className="w-full bg-[var(--color-primary)] text-white rounded-md py-2 text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                             <PlayCircle size={16} /> Flash Deploy

@@ -25,6 +25,7 @@ No install, no API key — the real Studio running against an in-browser stub of
 - [Screenshots](#screenshots)
 - [Installation](#installation)
 - [Choosing an LLM provider](#choosing-an-llm-provider) — OpenAI, Gemini, Grok, Claude, local models
+- [Live voice](#live-voice) — talking to a chatbot over Gemini Live
 - [Core concepts](#core-concepts)
 - [How it works](#how-it-works)
 - [Configuration reference](#configuration-reference)
@@ -46,6 +47,7 @@ Delaxis is a self-hosted platform for building multi-agent AI applications:
 - 🛠️ **Tools out of the box** — web search, RAG, a calculator, Gmail, and any REST API via Swagger/OpenAPI import
 - ⚡ **Live LLM tester** — validate keys, models, latency, and cost before wiring them into agents
 - 🚀 **Flash deployments** — publish any workflow as a standalone chat page at `/d/<name>/`, with conversation history, starter prompts and a settings drawer; embed it anywhere with one script tag
+- 🎙️ **Live voice** — [talk to a chatbot](#live-voice) over Gemini Live, in the Studio test panel or on a deployed page; audio is relayed server-side so the provider key never reaches the browser
 - 🔐 **Optional auth** — local users + API keys (SQL-backed), or Keycloak SSO
 - 📦 **One container** — API, Studio UI, and SQLite persistence in a single Docker image
 
@@ -219,6 +221,59 @@ The global `LLM_MODEL` is only the default. Each agent can override it in the St
 
 Use the **Live API** tester in the Studio to verify a key, model, latency, and cost before wiring it into an agent.
 
+## Live voice
+
+You can talk to a chatbot instead of typing, powered by the **Gemini Live** realtime audio API. It shows up in two places:
+
+- the Studio's test panel — a mic next to Send, so you can hear a workflow before deploying it
+- a deployed page at `/d/<name>/` — enable **Live voice** in the Launchpad's Deploy tab
+
+Setup is one key:
+
+```bash
+GEMINI_API_KEY=...            # the only requirement
+GEMINI_LIVE_MODEL=...         # optional; defaults to the provider's configured live model
+```
+
+Then check it is wired up:
+
+```bash
+curl localhost:8000/api/v1/voice/health
+# {"ok":true,"model":"gemini-3.1-flash-live-preview","input_sample_rate":16000,...}
+```
+
+> [!IMPORTANT]
+> **Voice replies come straight from the realtime model — your workflow does not run.**
+> Native realtime audio means the model converses directly, seeded with the deployment's
+> persona (or, if you leave that blank, the entry agent's own system message). Tools, RAG
+> and multi-agent routing are all bypassed, so a spoken answer can differ from a typed one
+> in the same chatbot. Spoken turns are still written into the normal message history, so
+> they appear in the transcript on reload.
+
+### How it works
+
+The browser never talks to Google. It streams microphone PCM to this application, which relays it to the realtime model and streams speech back:
+
+```
+browser ──PCM16 16kHz──▶ /api/v1/voice/ws ──▶ Gemini Live
+        ◀─PCM16 24kHz──                    ◀──
+```
+
+That indirection is what keeps `GEMINI_API_KEY` server-side, and it is enforced: a deployed page that references an external WebSocket host fails validation and will not publish.
+
+### Limits
+
+A realtime session bills for as long as it is open, and WebSocket connections do not pass through the HTTP rate-limiting middleware. So a socket carries no credentials of its own — the client first calls the authenticated, rate-limited `POST /api/v1/voice/ticket` and redeems a short-lived single-use ticket when connecting. On top of that:
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `DELAXIS_VOICE_ENABLED` | `true` | Global kill switch |
+| `DELAXIS_VOICE_MAX_SESSION_SECONDS` | `300` | Hard cap per session |
+| `DELAXIS_VOICE_MAX_CONCURRENT` | `4` | Concurrent sessions per process |
+| `DELAXIS_VOICE_TICKET_TTL_SECONDS` | `30` | How long a ticket stays redeemable |
+
+The realtime model id is configuration, not code — Google has published these under several names, so the allow-list lives under the provider's `live.models` in `configs/api_providers.json`. A model that does not look like a realtime audio model is refused before a session can open.
+
 ## Core concepts
 
 | Concept | What it is |
@@ -315,6 +370,9 @@ Authentication is **off by default** in development mode: every endpoint works u
 | `RAG_PIPELINE_ENABLED` / `RAG_PIPELINE_BASE_URL` / `RAG_PIPELINE_API_KEY` | `false` | External RAG service powering the `rag_*` tools |
 | `ENABLE_METRICS` / `PROMETHEUS_PORT` / `OTEL_EXPORTER_OTLP_ENDPOINT` | `true` / `9090` | Observability |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `ENCRYPTION_KEY` | — | Gmail integration via Google OAuth 2.0 |
+| `DELAXIS_VOICE_ENABLED` | `true` | [Live voice](#live-voice) kill switch (needs `GEMINI_API_KEY`) |
+| `DELAXIS_VOICE_MAX_SESSION_SECONDS` / `DELAXIS_VOICE_MAX_CONCURRENT` | `300` / `4` | Realtime session caps |
+| `GEMINI_LIVE_MODEL` | — | Override the realtime voice model (must be allow-listed in `configs/api_providers.json`) |
 
 ## API
 
@@ -406,6 +464,30 @@ For production, set `ENVIRONMENT=production`, a strong `SECRET_KEY`, a PostgreSQ
 | Canvas nodes show "Missing model" | The agent has no `model_config.model` and no `LLM_MODEL` fallback is set. |
 | Studio loads but shows "Backend unreachable" | The API isn't running on the expected port, or `FRONTEND_URL` is blocking the origin. |
 | `rag_*` tools return errors | The RAG pipeline is optional — set `RAG_PIPELINE_ENABLED=true` and `RAG_PIPELINE_BASE_URL`. |
+| Mic button does nothing / "Voice unavailable" | Check `GET /api/v1/voice/health` — usually a missing `GEMINI_API_KEY` or a `GEMINI_LIVE_MODEL` that is not in the provider's `live.models` allow-list. |
+| Voice answers differ from typed ones | Expected: [voice bypasses the workflow](#live-voice) and uses the persona alone. |
+| Voice works in production but not `npm run dev` | The Vite proxy needs `ws: true` on `/api` (already set in `vite.config.ts`). |
+
+## Upgrading from Open Agent Kit (OAK)
+
+The project was renamed to Delaxis. Environment variables moved from `OAK_*` to `DELAXIS_*`; the old names still work and log a deprecation warning on first read, and are removed in 0.6.0.
+
+Three things need a manual step:
+
+```bash
+# 1. The default SQLite database moved. Startup warns and names this command
+#    if it finds the old file — it is never moved automatically.
+mv data/oak.db data/delaxis.db
+
+# 2. Docker volume / Helm release / k8s namespace names all changed.
+#    Existing containers and releases are not upgraded in place.
+docker compose down && docker compose up -d   # after migrating the volume
+
+# 3. Nothing to do for API keys: existing oak_ keys keep authenticating.
+#    Newly created keys start with dlx_.
+```
+
+The CLI is now `delaxis` (with `dlx` as a short alias), the Python package is `delaxis`, and host pages calling `window.OakChat` keep working via an alias to `window.DelaxisChat`.
 
 ## License
 

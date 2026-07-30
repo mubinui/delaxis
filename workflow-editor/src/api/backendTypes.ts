@@ -92,6 +92,22 @@ export interface ThemePreset {
     vars: Record<string, string>;
 }
 
+/** A provider that can host a live voice session (GET /api/v1/voice/providers). */
+export interface VoiceProviderInfo {
+    provider_id: string;
+    name: string;
+    models: string[];
+    voices: string[];
+    /** False when the provider's API key is not configured on the server. */
+    key_available: boolean;
+    key_env_var: string;
+}
+
+export interface VoiceProvidersResponse {
+    enabled: boolean;
+    providers: VoiceProviderInfo[];
+}
+
 export interface TriggerConfig {
     id: string;
     workflow_id: string;

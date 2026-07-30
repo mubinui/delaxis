@@ -1,14 +1,16 @@
-import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Play, X, Send, Loader2, AlertCircle, RefreshCw, PlusCircle } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { MessageSquare, Play, X, Send, Loader2, AlertCircle, RefreshCw, PlusCircle, Mic, MicOff } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { API_BASE_URL } from '../api/client';
+import { useVoiceSession, type VoiceTranscript } from '../hooks/useVoiceSession';
 
 interface Message {
     role: 'user' | 'assistant';
     content: string;
+    voice?: boolean;
 }
 
 export const ChatPanel = () => {
@@ -38,6 +40,26 @@ export const ChatPanel = () => {
 
     // Session state
     const [sessionId, setSessionId] = useState<string | null>(null);
+
+    // Live voice. Transcript deltas arrive several times per turn, so they are
+    // appended onto the trailing message of the same role instead of pushing a
+    // new bubble per fragment.
+    const handleTranscript = useCallback((entry: VoiceTranscript) => {
+        if (!entry.text) return;
+        setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last && last.role === entry.role && last.voice) {
+                return [...prev.slice(0, -1), { ...last, content: last.content + entry.text }];
+            }
+            return [...prev, { role: entry.role, content: entry.text, voice: true }];
+        });
+    }, []);
+
+    const voice = useVoiceSession({
+        sessionId,
+        token: jwtToken,
+        onTranscript: handleTranscript,
+    });
 
     // Auto-scroll to bottom when new messages arrive
     useEffect(() => {
@@ -420,25 +442,71 @@ export const ChatPanel = () => {
             </div>
 
             {/* Input */}
-            <div className="p-3 border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-[#0b111b] shrink-0">
-                <div className="relative">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && !isLoading && handleSend()}
-                        disabled={isLoading || !hasLoadedWorkflow}
-                        className="w-full pl-4 pr-10 py-2.5 bg-gray-100 dark:bg-slate-900 border-none rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 disabled:opacity-50"
-                        placeholder={hasLoadedWorkflow ? "Type a message..." : "Load a workflow to start testing..."}
-                    />
+            <div className="p-3 border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-[#0b111b] shrink-0 space-y-2">
+                <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && !isLoading && handleSend()}
+                            disabled={isLoading || !hasLoadedWorkflow || voice.isActive}
+                            className="w-full pl-4 pr-10 py-2.5 bg-gray-100 dark:bg-slate-900 border-none rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 text-gray-800 dark:text-slate-200 placeholder-gray-400 dark:placeholder-slate-500 disabled:opacity-50"
+                            placeholder={
+                                voice.isActive
+                                    ? 'Voice mode — tap the mic to stop'
+                                    : hasLoadedWorkflow
+                                        ? 'Type a message...'
+                                        : 'Load a workflow to start testing...'
+                            }
+                        />
+                        <button
+                            onClick={handleSend}
+                            disabled={isLoading || !hasLoadedWorkflow || !input.trim() || voice.isActive}
+                            className="absolute right-1.5 top-1.5 p-1.5 bg-[var(--color-primary)] text-white rounded-full hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Send size={14} />
+                        </button>
+                    </div>
+                    {/* Voice needs a live session to attach to, which only exists
+                        after the first message. */}
                     <button
-                        onClick={handleSend}
-                        disabled={isLoading || !hasLoadedWorkflow || !input.trim()}
-                        className="absolute right-1.5 top-1.5 p-1.5 bg-[var(--color-primary)] text-white rounded-full hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={voice.toggle}
+                        disabled={!hasLoadedWorkflow || !sessionId}
+                        title={
+                            !sessionId
+                                ? 'Send a message first to start a session'
+                                : voice.isActive
+                                    ? 'Stop voice'
+                                    : 'Talk to this workflow'
+                        }
+                        className={`relative shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            voice.isActive
+                                ? 'bg-[var(--color-primary)] text-white'
+                                : 'bg-gray-100 dark:bg-slate-900 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
+                        }`}
                     >
-                        <Send size={14} />
+                        {voice.state === 'starting' ? (
+                            <Loader2 size={15} className="animate-spin" />
+                        ) : voice.isActive ? (
+                            <Mic size={15} />
+                        ) : (
+                            <MicOff size={15} />
+                        )}
+                        {voice.state === 'speaking' && (
+                            <span className="absolute inset-0 rounded-full border-2 border-[var(--color-primary)] animate-ping" />
+                        )}
                     </button>
                 </div>
+                {(voice.isActive || voice.error) && (
+                    <p className={`text-[10px] leading-snug ${voice.error ? 'text-red-500 dark:text-rose-400' : 'text-gray-500 dark:text-slate-400'}`}>
+                        {voice.error
+                            ? voice.error
+                            : voice.state === 'speaking'
+                                ? 'Speaking… — voice replies come from the live model, so workflow tools do not run'
+                                : 'Listening… — voice replies come from the live model, so workflow tools do not run'}
+                    </p>
+                )}
             </div>
         </div>
     );

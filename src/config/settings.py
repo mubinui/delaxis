@@ -161,6 +161,28 @@ class KeycloakConfig(BaseSettings):
         return self.admin_client_secret
 
 
+class VoiceConfig(BaseSettings):
+    """Live voice limits.
+
+    A realtime audio session bills for as long as it is open, and the voice
+    WebSocket does not pass through the HTTP middleware stack that rate-limits
+    everything else — so these caps are the only thing standing between a stuck
+    (or hostile) client and an unbounded bill. Defaults are deliberately tight.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    enabled: bool = Field(default=True, alias="DELAXIS_VOICE_ENABLED")
+    max_session_seconds: int = Field(default=300, alias="DELAXIS_VOICE_MAX_SESSION_SECONDS")
+    max_concurrent: int = Field(default=4, alias="DELAXIS_VOICE_MAX_CONCURRENT")
+    ticket_ttl_seconds: int = Field(default=30, alias="DELAXIS_VOICE_TICKET_TTL_SECONDS")
+
+
 class ExternalServicesConfig(BaseSettings):
     """External service endpoints configuration (Service1, Service2)."""
 
@@ -209,6 +231,7 @@ class Settings(BaseSettings):
     vector_db: VectorDBConfig = Field(default_factory=VectorDBConfig)
     message_broker: MessageBrokerConfig = Field(default_factory=MessageBrokerConfig)
     keycloak: KeycloakConfig = Field(default_factory=KeycloakConfig)
+    voice: VoiceConfig = Field(default_factory=VoiceConfig)
     external_services: ExternalServicesConfig = Field(default_factory=ExternalServicesConfig)
     
     @property

@@ -279,6 +279,41 @@
         "env_var": "GEMINI_API_KEY",
         "required": true
       },
+      "live": {
+        "enabled": true,
+        "protocol": "bidi_generate_content_v1beta",
+        "ws_url": "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+        "auth_query_param": "key",
+        "model_env": "GEMINI_LIVE_MODEL",
+        "model_prefix": "models/",
+        "input": {
+          "mime_type": "audio/pcm;rate=16000",
+          "sample_rate": 16000
+        },
+        "output": {
+          "sample_rate": 24000
+        },
+        "max_session_seconds": 300,
+        "voices": [
+          "Puck",
+          "Charon",
+          "Kore",
+          "Fenrir",
+          "Aoede"
+        ],
+        "models": [
+          {
+            "name": "gemini-3.1-flash-live-preview",
+            "default": true
+          },
+          {
+            "name": "gemini-2.5-flash-native-audio-preview-12-2025"
+          },
+          {
+            "name": "gemini-live-2.5-flash-native-audio"
+          }
+        ]
+      },
       "models": [
         {
           "name": "gemini-3.6-flash",

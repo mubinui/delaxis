@@ -22,6 +22,7 @@ from src.api.chatbot_page import (
     embed_script,
     ensure_config_contract,
     ensure_markdown_support,
+    ensure_voice_support,
     inject_runtime_config,
     normalize_theme,
     theme_presets,
@@ -43,6 +44,25 @@ DEPLOYMENTS_DIR = DATA_DIR / "deployments"
 DeploymentStatus = Literal["active", "error"]
 
 
+class DeploymentVoiceConfig(BaseModel):
+    """Live voice settings for a deployment.
+
+    Only ``enabled`` and ``greeting_spoken`` are safe to publish to the page —
+    see ``_public_voice_config``.
+    """
+
+    enabled: bool = False
+    provider_id: str = "gemini"
+    # Empty means the provider's configured default; validated against the
+    # provider's live allow-list when a session is opened.
+    model: str = ""
+    voice_name: str = ""
+    # Empty means derive from the workflow's entry agent.
+    system_prompt: str = ""
+    greeting_spoken: bool = True
+    max_session_seconds: int = 300
+
+
 class DeploymentCreateRequest(BaseModel):
     workflow_id: str
     name: str
@@ -57,6 +77,7 @@ class DeploymentCreateRequest(BaseModel):
     provider_id: str = "openrouter"
     model_id: str = "openai/gpt-oss-20b"
     auth_mode: str = "public"
+    voice: DeploymentVoiceConfig = Field(default_factory=DeploymentVoiceConfig)
     frontend_html: str | None = None
     frontend_source: str = "default"
 
@@ -84,6 +105,7 @@ class DeploymentResponse(BaseModel):
     provider_id: str
     model_id: str
     auth_mode: str
+    voice: DeploymentVoiceConfig = Field(default_factory=DeploymentVoiceConfig)
     status: DeploymentStatus
     url: str
     path: str
@@ -127,9 +149,22 @@ def _delete_deployment_path(path_value: str | None) -> None:
         shutil.rmtree(path)
 
 
+def _public_voice_config(voice: DeploymentVoiceConfig) -> dict[str, Any]:
+    """The only voice fields safe to embed in the served page.
+
+    ``window.CHATBOT_CONFIG`` is readable and editable by every visitor, so the
+    model, the voice name and the system prompt must never appear there — the
+    page would become a free, promptable handle on a billed realtime model. The
+    page only needs to know whether to show a mic; everything else is resolved
+    server-side from the deployment record, exactly as with the chat model.
+    """
+    return {"enabled": bool(voice.enabled), "greeting_spoken": bool(voice.greeting_spoken)}
+
+
 def _render_deployment_html(body: DeploymentCreateRequest) -> tuple[str, list[str]]:
     """Render the final page for a deployment and collect validation warnings."""
     runtime_config = body.model_dump(exclude={"frontend_html"})
+    runtime_config["voice"] = _public_voice_config(body.voice)
     if body.frontend_html:
         html = ensure_config_contract(body.frontend_html)
         html = inject_runtime_config(html, runtime_config)
@@ -143,8 +178,11 @@ def _render_deployment_html(body: DeploymentCreateRequest) -> tuple[str, list[st
             model_id=body.model_id,
             theme=body.theme,
             config=runtime_config,
+            voice_enabled=body.voice.enabled,
         )
-    return html, validate_page(html)
+    if body.voice.enabled:
+        html = ensure_voice_support(html)
+    return html, validate_page(html, voice_enabled=body.voice.enabled)
 
 
 def _write_deployment(deployment_id: str, body: DeploymentCreateRequest) -> Path:
@@ -181,6 +219,35 @@ def deployment_model_override(deployment_ref: str) -> dict[str, str] | None:
     if record.get("model_id"):
         override["model"] = str(record["model_id"])
     return override or None
+
+
+def deployment_voice_config(deployment_ref: str) -> DeploymentVoiceConfig | None:
+    """The voice settings a deployment pins, resolved server-side.
+
+    Same reasoning as ``deployment_model_override``: the served page carries only
+    the public subset (see ``_public_voice_config``), and its JS is editable by
+    any visitor, so the deployment record is the only authority for the realtime
+    model, voice and persona.
+    """
+    if not deployment_ref:
+        return None
+    deployment_id = _slug(str(deployment_ref))
+    try:
+        config = _load_config()
+    except (OSError, json.JSONDecodeError):
+        return None
+    record = next(
+        (d for d in config.get("deployments", []) if d.get("id") == deployment_id), None
+    )
+    if record is None:
+        return None
+    voice = record.get("voice")
+    if not isinstance(voice, dict):
+        return None
+    try:
+        return DeploymentVoiceConfig(**voice)
+    except Exception:
+        return None
 
 
 @router.get("", response_model=list[DeploymentResponse])

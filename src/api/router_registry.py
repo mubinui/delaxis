@@ -25,12 +25,14 @@ def register_routers(app: FastAPI) -> None:
         topologies,
         triggers,
         vector_dbs,
+        voice,
         workflows,
     )
 
     app.include_router(auth.router)
     app.include_router(sessions.router)
     app.include_router(chat_stream.router)
+    app.include_router(voice.router)
     app.include_router(studio.router)
     app.include_router(agents.router)
     app.include_router(tools.router)

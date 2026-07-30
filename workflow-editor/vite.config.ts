@@ -43,6 +43,9 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        // ws is required for /api/v1/voice/ws (live voice) and also makes the
+        // pre-existing /api/v1/chat/ws endpoint usable in dev.
+        ws: true,
       },
       '/health': {
         target: 'http://localhost:8000',

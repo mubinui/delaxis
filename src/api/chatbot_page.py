@@ -12,6 +12,7 @@ import json
 import re
 from html import escape
 from typing import Any
+from urllib.parse import urlparse
 
 DEFAULT_THEME = "midnight"
 
@@ -158,6 +159,414 @@ MARKDOWN_STYLE = """
         .md-content th, .md-content td { border: 1px solid rgba(148,163,184,.45); padding: 6px 8px; text-align: left; }
 """
 
+VOICE_STYLE = """
+        .mic {
+          border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
+          border-radius: var(--brand-radius, 10px); width: 44px; height: 44px; flex: 0 0 auto;
+          display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+          transition: background .15s, border-color .15s, color .15s;
+        }
+        .mic:hover:not(:disabled) { border-color: var(--accent); }
+        .mic:disabled { opacity: .5; cursor: not-allowed; }
+        .mic svg { width: 18px; height: 18px; display: block; }
+        .mic[hidden] { display: none; }
+        .mic.live { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+        .mic.live::after {
+          content: ''; position: absolute; width: 44px; height: 44px; border-radius: inherit;
+          border: 2px solid var(--accent); animation: micPulse 1.6s ease-out infinite;
+        }
+        .mic { position: relative; }
+        .mic.busy { opacity: .7; cursor: progress; }
+        @keyframes micPulse {
+          0%   { transform: scale(1);    opacity: .55; }
+          100% { transform: scale(1.45); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) { .mic.live::after { animation: none; opacity: 0; } }
+"""
+
+# The whole realtime audio client, inlined. Deployed pages are validated against
+# any external asset reference, and the worklet is loaded from a blob: URL for
+# the same reason — there is no separate file to fetch.
+VOICE_SCRIPT = r"""
+        // --- Live voice -------------------------------------------------------
+        // Microphone PCM goes up to this application over a WebSocket, which
+        // relays it to the realtime model and streams speech back. The browser
+        // never talks to the model provider and never sees an API key.
+        //
+        // Voice replies come straight from the realtime model using the
+        // deployment's persona: the workflow's tools and routing do not run.
+        const VOICE = (function () {
+          var IDLE = 'idle', STARTING = 'starting', LISTENING = 'listening', SPEAKING = 'speaking';
+          var state = IDLE;
+          var ws = null, inCtx = null, outCtx = null, micStream = null;
+          var node = null, source = null, micGain = null, outGain = null;
+          var playHead = 0, queued = [], onState = null, onText = null;
+          var inRate = 16000, outRate = 24000;
+
+          // 128-frame quanta are far too small to send individually; batch to
+          // ~40ms so the socket sees ~25 modest frames a second.
+          var WORKLET_SRC = [
+            'class MicCapture extends AudioWorkletProcessor {',
+            '  constructor(options) {',
+            '    super();',
+            '    var o = (options && options.processorOptions) || {};',
+            '    this.target = o.targetRate || 16000;',
+            '    this.ratio = sampleRate / this.target;',
+            '    this.chunk = Math.round(this.target * 0.04);',
+            '    this.buf = []; this.pos = 0;',
+            '  }',
+            '  process(inputs) {',
+            '    var input = inputs[0] && inputs[0][0];',
+            '    if (!input) return true;',
+            // Resample only when the requested rate was not honoured. The
+            // AudioContext sampleRate hint is advisory, not a guarantee.
+            '    if (this.ratio === 1) {',
+            '      for (var i = 0; i < input.length; i++) this.buf.push(input[i]);',
+            '    } else {',
+            '      while (this.pos < input.length) {',
+            '        this.buf.push(input[Math.floor(this.pos)]);',
+            '        this.pos += this.ratio;',
+            '      }',
+            '      this.pos -= input.length;',
+            '    }',
+            '    while (this.buf.length >= this.chunk) {',
+            '      var slice = this.buf.splice(0, this.chunk);',
+            '      var pcm = new Int16Array(slice.length);',
+            '      for (var j = 0; j < slice.length; j++) {',
+            '        var s = Math.max(-1, Math.min(1, slice[j]));',
+            '        pcm[j] = s < 0 ? s * 0x8000 : s * 0x7FFF;',
+            '      }',
+            '      this.port.postMessage(pcm.buffer, [pcm.buffer]);',
+            '    }',
+            '    return true;',
+            '  }',
+            '}',
+            'registerProcessor("mic-capture", MicCapture);'
+          ].join('\n');
+
+          function setState(next) {
+            state = next;
+            if (onState) onState(next);
+          }
+
+          function send(obj) {
+            if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+          }
+
+          // Playback is scheduled on a moving head rather than played on
+          // arrival, so consecutive chunks are gapless.
+          function enqueue(int16) {
+            if (!outCtx) return;
+            var buf = outCtx.createBuffer(1, int16.length, outRate);
+            var ch = buf.getChannelData(0);
+            for (var i = 0; i < int16.length; i++) ch[i] = int16[i] / 0x8000;
+            var src = outCtx.createBufferSource();
+            src.buffer = buf;
+            src.connect(outGain);
+            var now = outCtx.currentTime;
+            if (playHead < now + 0.05) playHead = now + 0.05; // jitter cushion
+            src.start(playHead);
+            playHead += buf.duration;
+            queued.push(src);
+            src.onended = function () {
+              var at = queued.indexOf(src);
+              if (at !== -1) queued.splice(at, 1);
+              if (!queued.length && state === SPEAKING) setState(LISTENING);
+              duck();
+            };
+            // Duck the microphone while the agent speaks. Without this, laptop
+            // speakers feed straight back in and the model interrupts itself.
+            duck();
+            if (state === LISTENING) setState(SPEAKING);
+          }
+
+          function duck() {
+            if (micGain && inCtx) {
+              micGain.gain.setTargetAtTime(queued.length ? 0 : 1, inCtx.currentTime, 0.02);
+            }
+          }
+
+          function flushPlayback() {
+            for (var i = 0; i < queued.length; i++) {
+              try { queued[i].stop(); } catch (_) { /* already ended */ }
+            }
+            queued = [];
+            playHead = 0;
+            duck();
+          }
+
+          async function attachCapture() {
+            micStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+            inCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: inRate });
+            await inCtx.resume();
+            source = inCtx.createMediaStreamSource(micStream);
+            micGain = inCtx.createGain();
+            source.connect(micGain);
+
+            var onPcm = function (buffer) {
+              if (ws && ws.readyState === 1) ws.send(buffer);
+            };
+
+            var usedWorklet = false;
+            if (inCtx.audioWorklet) {
+              try {
+                // blob: is same-origin and needs no network fetch. A strict CSP
+                // without blob: in script-src rejects it, hence the fallback.
+                var url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+                await inCtx.audioWorklet.addModule(url);
+                URL.revokeObjectURL(url);
+                node = new AudioWorkletNode(inCtx, 'mic-capture', {
+                  processorOptions: { targetRate: inRate },
+                });
+                node.port.onmessage = function (event) { onPcm(event.data); };
+                micGain.connect(node);
+                usedWorklet = true;
+              } catch (_) {
+                usedWorklet = false;
+              }
+            }
+
+            if (!usedWorklet) {
+              // Deprecated but universally available and CSP-free.
+              var ratio = inCtx.sampleRate / inRate;
+              node = inCtx.createScriptProcessor(4096, 1, 1);
+              node.onaudioprocess = function (event) {
+                var input = event.inputBuffer.getChannelData(0);
+                var count = Math.floor(input.length / ratio);
+                var pcm = new Int16Array(count);
+                for (var i = 0; i < count; i++) {
+                  var s = Math.max(-1, Math.min(1, input[Math.floor(i * ratio)]));
+                  pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+                onPcm(pcm.buffer);
+              };
+              micGain.connect(node);
+              // ScriptProcessor only runs while connected to a destination;
+              // a zero gain keeps it silent.
+              var mute = inCtx.createGain();
+              mute.gain.value = 0;
+              node.connect(mute);
+              mute.connect(inCtx.destination);
+            }
+          }
+
+          async function start(opts) {
+            if (state !== IDLE) return;
+            onState = (opts && opts.onState) || null;
+            onText = (opts && opts.onText) || null;
+            setState(STARTING);
+            try {
+              var ticket = await opts.mintTicket();
+              inRate = ticket.input_sample_rate || inRate;
+              outRate = ticket.output_sample_rate || outRate;
+
+              // Created inside the click handler's task so Safari/iOS allow it.
+              outCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: outRate });
+              outGain = outCtx.createGain();
+              outGain.connect(outCtx.destination);
+              await outCtx.resume();
+
+              await attachCapture();
+
+              var scheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
+              var base = (opts.apiBase || '').replace(/^http/, 'ws');
+              var origin = base || (scheme + location.host);
+              ws = new WebSocket(origin + ticket.ws_path + '?ticket=' + encodeURIComponent(ticket.ticket));
+              ws.binaryType = 'arraybuffer';
+
+              ws.onmessage = function (event) {
+                if (typeof event.data !== 'string') {
+                  enqueue(new Int16Array(event.data));
+                  return;
+                }
+                var frame;
+                try { frame = JSON.parse(event.data); } catch (_) { return; }
+                if (frame.t === 'ready') { setState(LISTENING); return; }
+                if (frame.t === 'interrupted') { flushPlayback(); setState(LISTENING); return; }
+                if (frame.t === 'user_text' && onText) { onText('user', frame.d); return; }
+                if (frame.t === 'agent_text' && onText) { onText('assistant', frame.d); return; }
+                if (frame.t === 'error') { if (onText) onText('error', frame.message || 'Voice error'); stop(); return; }
+                if (frame.t === 'ended') { stop(frame.reason); return; }
+              };
+              ws.onerror = function () { stop('error'); };
+              ws.onclose = function () { if (state !== IDLE) stop('closed'); };
+            } catch (err) {
+              if (onText) onText('error', (err && err.message) || 'Microphone unavailable');
+              stop('error');
+            }
+          }
+
+          function stop(reason) {
+            if (ws && ws.readyState === 1) send({ t: 'bye' });
+            flushPlayback();
+            try { if (node) node.disconnect(); } catch (_) { /* ignore */ }
+            try { if (micGain) micGain.disconnect(); } catch (_) { /* ignore */ }
+            try { if (source) source.disconnect(); } catch (_) { /* ignore */ }
+            if (micStream) {
+              micStream.getTracks().forEach(function (track) { track.stop(); });
+            }
+            if (inCtx) { try { inCtx.close(); } catch (_) { /* ignore */ } }
+            if (outCtx) { try { outCtx.close(); } catch (_) { /* ignore */ } }
+            if (ws) { try { ws.close(); } catch (_) { /* ignore */ } }
+            ws = null; node = null; source = null; micGain = null;
+            inCtx = null; outCtx = null; outGain = null; micStream = null;
+            setState(IDLE);
+            return reason;
+          }
+
+          return {
+            start: start,
+            stop: stop,
+            endTurn: function () { send({ t: 'stop' }); },
+            isActive: function () { return state !== IDLE; },
+            state: function () { return state; },
+          };
+        })();
+
+        // Learning the session id without the page's cooperation. Every
+        // deployable page has to create a conversation via POST /api/v1/sessions
+        // (the page validator refuses to publish one that does not), so watching
+        // responses go by is more reliable than requiring a generated page to
+        // expose an internal variable. A page may still override this by
+        // defining window.DELAXIS_VOICE_HOOKS.sessionId.
+        var VOICE_SESSION = (function () {
+          var lastId = null;
+          var original = window.fetch;
+          if (typeof original === 'function') {
+            window.fetch = function () {
+              var promise = original.apply(this, arguments);
+              try {
+                var first = arguments[0];
+                var url = String((first && first.url) || first || '');
+                if (url.indexOf('/api/v1/sessions') !== -1) {
+                  promise.then(function (response) {
+                    if (response && response.ok) {
+                      response.clone().json().then(function (body) {
+                        var id = body && (body.session_id || body.id);
+                        if (id) lastId = String(id);
+                      }).catch(function () { /* not JSON */ });
+                    }
+                    return response;
+                  }).catch(function () { /* request failed */ });
+                }
+              } catch (_) { /* never break the page's own fetch */ }
+              return promise;
+            };
+          }
+          return {
+            current: function () {
+              var hooks = window.DELAXIS_VOICE_HOOKS;
+              if (hooks && typeof hooks.sessionId === 'function') {
+                var fromHook = hooks.sessionId();
+                if (fromHook) return String(fromHook);
+              }
+              return lastId;
+            },
+          };
+        })();
+
+        async function mintVoiceTicket(apiBase, deployment) {
+          var sessionId = VOICE_SESSION.current();
+          if (!sessionId) throw new Error('Send a message first to start a conversation');
+          var response = await fetch((apiBase || '') + '/api/v1/voice/ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, deployment: deployment || null }),
+          });
+          if (!response.ok) {
+            var detail = '';
+            try { detail = (await response.json()).detail || ''; } catch (_) { /* no body */ }
+            throw new Error(detail || ('Voice unavailable (' + response.status + ')'));
+          }
+          return response.json();
+        }
+
+        // Self-mounting UI. A generated page has no known markup, so the button
+        // is placed relative to whatever submit control exists, and falls back
+        // to a floating button.
+        (function () {
+          var cfg = window.CHATBOT_CONFIG || {};
+          if (!cfg.voice || !cfg.voice.enabled) return;
+
+          function mount() {
+            var button = document.getElementById('mic');
+            if (!button) {
+              button = document.createElement('button');
+              button.id = 'mic';
+              button.type = 'button';
+              var anchor = document.querySelector('#send, button[type=submit], form button');
+              if (anchor && anchor.parentNode) {
+                anchor.parentNode.insertBefore(button, anchor);
+              } else {
+                button.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:60';
+                document.body.appendChild(button);
+              }
+            }
+            button.className = 'mic';
+            button.hidden = false;
+            button.setAttribute('aria-label', 'Talk to the assistant');
+            button.setAttribute('aria-pressed', 'false');
+            button.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">'
+              + '<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/>'
+              + '<path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>';
+
+            var hooks = window.DELAXIS_VOICE_HOOKS || {};
+            var status = hooks.status || function () {};
+            var LABELS = {
+              starting: 'Connecting voice…',
+              listening: 'Listening…',
+              speaking: 'Speaking…',
+              idle: 'Ready',
+            };
+
+            function applyState(next) {
+              button.classList.toggle('live', next === 'listening' || next === 'speaking');
+              button.classList.toggle('speaking', next === 'speaking');
+              button.classList.toggle('busy', next === 'starting');
+              button.setAttribute('aria-pressed', next === 'idle' ? 'false' : 'true');
+              status(LABELS[next] || 'Ready', false);
+              // One input mode at a time: a typed turn during a voice session
+              // would go to the workflow while the realtime model knew nothing
+              // about it, and the two histories would diverge.
+              var input = document.getElementById('input');
+              var send = document.getElementById('send');
+              var hint = document.getElementById('hint');
+              var active = next !== 'idle';
+              if (input) input.disabled = active;
+              if (send) send.disabled = active;
+              if (hint && active) hint.textContent = 'Voice mode — tap the mic again to stop';
+              else if (hint && hooks.resetHint) hooks.resetHint();
+            }
+
+            button.addEventListener('click', function () {
+              if (VOICE.isActive()) { VOICE.stop('client'); return; }
+              VOICE.start({
+                apiBase: cfg.api_url || '',
+                mintTicket: function () { return mintVoiceTicket(cfg.api_url || '', cfg.name || ''); },
+                onState: applyState,
+                onText: function (role, text) {
+                  if (role === 'error') { status(text, true); return; }
+                  if (hooks.transcript) hooks.transcript(role, text);
+                },
+              });
+            });
+          }
+
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', mount);
+          } else {
+            mount();
+          }
+        })();
+"""
+
 MARKDOWN_SCRIPT = r"""
         function escapeHtml(value) {
             return String(value)
@@ -224,6 +633,9 @@ CONFIG_SNIPPET = "<script>window.CHATBOT_CONFIG = __CHATBOT_CONFIG__;</script>"
 
 _HEAD_OPEN_RE = re.compile(r"<head[^>]*>", re.IGNORECASE)
 _SCRIPT_OPEN_RE = re.compile(r"<script\b", re.IGNORECASE)
+# Absolute ws:// or wss:// URLs in a string literal. Relative sockets built from
+# location.host (which is what the injected voice client does) do not match.
+_WS_URL_RE = re.compile(r"""['"](wss?://[^'"\s]+)['"]""", re.IGNORECASE)
 
 
 def normalize_theme(theme: str | None) -> str:
@@ -498,6 +910,33 @@ def ensure_markdown_support(html: str) -> str:
     return html
 
 
+def ensure_voice_support(html: str) -> str:
+    """Add the live-voice client (style + script) to a page that lacks one.
+
+    Same shape as ``ensure_markdown_support``: idempotent, every replacement is
+    count=1, and each has a fallback anchor so it never silently no-ops on a page
+    missing ``</style>`` or ``</head>``. The script self-mounts its own button, so
+    this works on an AI-generated page whose markup is unknown.
+    """
+    if "const VOICE = (function" in html:
+        return html
+    if "</style>" in html:
+        html = html.replace("</style>", f"{VOICE_STYLE}\n  </style>", 1)
+    elif "</head>" in html:
+        html = html.replace("</head>", f"<style>{VOICE_STYLE}</style>\n</head>", 1)
+    else:
+        html = f"<style>{VOICE_STYLE}</style>\n{html}"
+
+    # Must run after the page's own script has had a chance to define its hooks
+    # and create a session, so this goes at the end of <body> rather than <head>.
+    script = f"<script>\n{VOICE_SCRIPT}\n</script>"
+    if "</body>" in html:
+        html = html.replace("</body>", f"{script}\n</body>", 1)
+    else:
+        html = f"{html}\n{script}"
+    return html
+
+
 def page_defects(html: str) -> list[str]:
     """Structural problems that make a page not work as a chatbot.
 
@@ -538,6 +977,20 @@ def page_defects(html: str) -> list[str]:
                 break
             index = lowered.find(pattern.lower(), index + 1)
 
+    # A page must never open a socket to a third party. This matters much more
+    # now that live voice exists: the whole point of relaying audio through this
+    # application is that the provider key stays server-side, and a generated
+    # page that dialled the provider directly would defeat that while sailing
+    # straight past the CDN scan above (which only looks at src=/href=).
+    for match in _WS_URL_RE.finditer(html):
+        host = (urlparse(match.group(1)).hostname or "").lower()
+        if host and host not in ("localhost", "127.0.0.1", "[::1]"):
+            defects.append(
+                "Opens a WebSocket to an external host; a deployed page must only "
+                "talk to its own origin."
+            )
+            break
+
     if html.lstrip().startswith("```") or html.rstrip().endswith("```"):
         defects.append("Still wrapped in markdown code fences.")
 
@@ -546,7 +999,7 @@ def page_defects(html: str) -> list[str]:
     return [d for d in defects if not (d in seen or seen.add(d))]
 
 
-def validate_page(html: str) -> list[str]:
+def validate_page(html: str, *, voice_enabled: bool = False) -> list[str]:
     """Warnings for a page about to be deployed (powers the deploy preview)."""
     warnings: list[str] = []
     lowered = html.lower()
@@ -558,6 +1011,8 @@ def validate_page(html: str) -> list[str]:
         warnings.append("Missing <body> section.")
     if "function rendermarkdown" not in lowered:
         warnings.append("Markdown renderer missing — assistant replies will render as plain text.")
+    if voice_enabled and "/api/v1/voice/ticket" not in html:
+        warnings.append("Voice is enabled but the page has no voice client — the mic will not appear.")
     warnings.extend(page_defects(html))
     return warnings
 
@@ -832,6 +1287,8 @@ PAGE_TEMPLATE = r"""<!doctype html>
 
     __MARKDOWN_STYLE__
 
+    __VOICE_STYLE__
+
     @media (max-width: 860px) {
       .app { grid-template-columns: 1fr; }
       .side {
@@ -873,6 +1330,9 @@ PAGE_TEMPLATE = r"""<!doctype html>
       <div class="composer">
         <form id="form">
           <textarea id="input" rows="1" placeholder="Ask anything…" autocomplete="off"></textarea>
+          <!-- Unhidden by the voice client only when the deployment enables it,
+               so a text-only deployment shows no dead control. -->
+          <button class="mic" id="mic" type="button" hidden aria-label="Talk to the assistant"></button>
           <button class="send" id="send" type="submit">Send</button>
         </form>
         <p class="hint" id="hint">Enter to send · Shift + Enter for a new line</p>
@@ -1230,13 +1690,39 @@ PAGE_TEMPLATE = r"""<!doctype html>
     }
 
     // --- Settings ----------------------------------------------------------
-    function applySettings() {
-      if (settings.theme) document.documentElement.setAttribute('data-delaxis-theme', settings.theme);
+    function syncHint() {
       el.hint.textContent = settings.enterSends
         ? 'Enter to send · Shift + Enter for a new line'
         : 'Shift + Enter to send';
+    }
+
+    function applySettings() {
+      if (settings.theme) document.documentElement.setAttribute('data-delaxis-theme', settings.theme);
+      syncHint();
       store.write('settings', settings);
     }
+
+    // --- Live voice hooks --------------------------------------------------
+    // The voice client is injected separately (it also has to work on custom
+    // generated pages), so this page just tells it which session is active and
+    // how to render into the existing thread and status dot.
+    window.DELAXIS_VOICE_HOOKS = {
+      sessionId: function () { return activeId; },
+      status: setStatus,
+      resetHint: syncHint,
+      transcript: function (role, text) {
+        if (!text) return;
+        // Transcript deltas arrive several times per turn; append to the trailing
+        // message of the same role rather than adding a bubble per fragment.
+        const last = messages[messages.length - 1];
+        if (last && last.role === role && last.voice) {
+          last.content += text;
+        } else {
+          messages.push({ role: role, content: text, voice: true });
+        }
+        render();
+      },
+    };
 
     function openSettings(open) {
       el.drawer.hidden = !open;
@@ -1326,6 +1812,7 @@ def default_chatbot_html(
     theme: str,
     config: dict[str, Any],
     brand: dict[str, Any] | None = None,
+    voice_enabled: bool = False,
 ) -> str:
     """The default deployable chat page.
 
@@ -1334,9 +1821,14 @@ def default_chatbot_html(
 
     ``brand`` restyles the page (colours, font, corner radius) without touching
     its wiring — that is what a generated design gets to change.
+
+    ``voice_enabled`` only inlines the mic styling; the voice client itself is
+    added by ``ensure_voice_support`` so the default page and a custom generated
+    one get exactly the same implementation.
     """
     return (
         PAGE_TEMPLATE
+        .replace("__VOICE_STYLE__", VOICE_STYLE if voice_enabled else "")
         .replace("__BRAND_CSS__", brand_css(brand))
         .replace("__TITLE__", escape(title))
         .replace("__GREETING__", escape(greeting))

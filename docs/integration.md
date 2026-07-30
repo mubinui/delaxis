@@ -70,6 +70,9 @@ To drive it from your own button:
 
 `open()`, `close()` and `toggle()` are available on `window.DelaxisChat['<deployment-id>']`.
 
+> Pages written before the Delaxis rename can keep calling `window.OakChat` — it is
+> aliased to the same object. Prefer `DelaxisChat` in new code.
+
 ---
 
 ## 2. Inline iframe

@@ -292,6 +292,45 @@ class SessionManager:
             "metadata": session.metadata,
         }
 
+    async def record_voice_turn(
+        self,
+        session_id: UUID,
+        *,
+        user_text: str,
+        agent_text: str,
+        **metadata: Any,
+    ) -> bool:
+        """Persist one spoken exchange into the session's message history.
+
+        Voice turns go through the same ``add_message`` path as typed ones, so a
+        conversation held out loud shows up in ``get_chat_history`` — and
+        therefore in the deployed page's transcript on reload — with no separate
+        voice log and no schema change. The ``modality`` marker in the message
+        metadata is what distinguishes them.
+
+        One write per completed turn rather than per transcript delta; the
+        deltas arrive several times a second.
+        """
+        user_text = (user_text or "").strip()
+        agent_text = (agent_text or "").strip()
+        if not user_text and not agent_text:
+            # Voice activity detection fires on background noise; an empty turn
+            # is not worth a row.
+            return False
+
+        session = await self.get_session(session_id)
+        if session is None:
+            return False
+
+        common = {"modality": "voice", **metadata}
+        if user_text:
+            session.add_message(MessageRole.USER, user_text, **common)
+        if agent_text:
+            session.add_message(MessageRole.ASSISTANT, agent_text, **common)
+        session.increment_turn()
+        self._save_sessions()
+        return True
+
     def _response(
         self,
         session: ConversationState,
