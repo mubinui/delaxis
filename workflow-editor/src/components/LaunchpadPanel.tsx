@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bot, Cable, Code2, ExternalLink, Mic, PlayCircle, Rocket, Send, Trash2, Wand2, Wrench, X } from 'lucide-react';
+import { Bot, Cable, Code2, ExternalLink, Mic, PlayCircle, Rocket, Send, Trash2, Volume2, VolumeX, Wand2, Wrench, X } from 'lucide-react';
 import { applyBuilderPlan, generateBuilderConfig, generateFrontend, listBuilderModels, normalizeApi, planChatbot, streamBuilderChat } from '../api/builderApi';
 import type { BuilderType, ChatMessage, ModelInfo } from '../api/builderApi';
 import type { ThemePreset, VoiceProviderInfo, VoiceProvidersResponse } from '../api/backendTypes';
 import { api } from '../api/client';
 import { useShallow } from 'zustand/react/shallow';
+import { narration, useBuildNarration } from '../hooks/useBuildNarration';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { workflowToCanvas } from '../utils/workflowToCanvas';
@@ -37,7 +38,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [buildInput, setBuildInput] = useState('Build a helpful admissions chatbot that can answer student questions and call APIs when needed.');
     const [models, setModels] = useState<ModelInfo[]>([]);
     const [providerId, setProviderId] = useState('openrouter');
-    const [modelId, setModelId] = useState('openai/gpt-oss-20b');
+    // Empty means auto: the server picks the best model for each build step.
+    const [modelId, setModelId] = useState('');
     const [rawApi, setRawApi] = useState('GET https://api.example.com/students/{id}\\nAuthorization: Bearer token\\nReturn student profile by id');
     const [specification, setSpecification] = useState('Create a tool that agents can use safely. Infer path/query params and auth.');
     const [plan, setPlan] = useState<Record<string, any> | null>(null);
@@ -59,6 +61,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [voiceName, setVoiceName] = useState('');
     const [voicePrompt, setVoicePrompt] = useState('');
     const [voiceInfo, setVoiceInfo] = useState<VoiceProviderInfo | null>(null);
+    // Spoken build progress. Off until asked for; see useBuildNarration.
+    const speech = useBuildNarration();
 
     // Selector-scoped so this panel doesn't re-render on every node/edge change on the canvas.
     const { currentWorkflowId, workflowName } = useWorkflowStore(
@@ -88,11 +92,10 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         listBuilderModels()
             .then((result) => {
                 setModels(result.models);
+                // Only seed the provider; the model stays on auto so build steps
+                // are routed per task instead of all sharing one pick.
                 const preferred = result.models.find((model) => model.model_id === FRONTEND_MODEL_ID) ?? result.models[0];
-                if (preferred) {
-                    setProviderId(preferred.provider_id);
-                    setModelId(preferred.model_id);
-                }
+                if (preferred) setProviderId(preferred.provider_id);
             })
             .catch(() => undefined);
         api<ThemePreset[]>('/api/v1/deployments/themes')
@@ -162,18 +165,28 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         setBuildMessages([...nextMessages, { role: 'assistant', content: '' }]);
         try {
             if (buildKind === 'chatbot') {
+                speech.speak(narration.planning);
                 const result = await planChatbot({ prompt: requestText, provider_id: providerId, model_id: modelId });
                 setPlan(result);
+                speech.speak(narration.modelChosen(String(result.model_id ?? '')));
+                speech.speak(narration.planned(
+                    Array.isArray(result.agents) ? result.agents.length : 0,
+                    Array.isArray(result.tools) ? result.tools.length : 0,
+                ));
                 setBuildMessages([...nextMessages, { role: 'assistant', content: `I built a full chatbot plan.\n\n${compactJson(result)}` }]);
             } else if (buildKind === 'api') {
+                speech.speak(narration.repairingApi);
                 const result = await normalizeApi({ raw_api: requestText, specification, provider_id: providerId, model_id: modelId });
                 setNormalizedTool(result);
+                speech.speak(narration.modelChosen(String(result.model_id ?? '')));
+                speech.speak(narration.repairedApi(String(result.name ?? result.id ?? '')));
                 setBuildMessages([...nextMessages, { role: 'assistant', content: `I normalized this API into a tool config.\n\n${compactJson(result)}` }]);
             } else if (buildKind === 'frontend') {
                 if (!workflowId) {
                     setBuildMessages([...nextMessages, { role: 'assistant', content: 'Save or load a workflow first so I know which backend this frontend should talk to.' }]);
                     return;
                 }
+                speech.speak(narration.designing);
                 const result = await generateFrontend({
                     prompt: requestText,
                     workflow_id: workflowId,
@@ -185,8 +198,11 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     mode: frontendMode,
                 });
                 setFrontendHtml(result.html);
+                speech.speak(narration.modelChosen(result.model_id));
+                speech.speak(narration.designed(result.used_fallback));
                 setBuildMessages([...nextMessages, { role: 'assistant', content: `${result.summary}\n\nReady to flash deploy from the Frontend tab.` }]);
             } else {
+                speech.speak(narration.generatingConfig);
                 const reader = await streamBuilderChat({
                     builder_type: buildKind,
                     message: requestText,
@@ -197,6 +213,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 await readBuilderStream(reader);
             }
         } catch (error) {
+            speech.say(narration.failed('The build'));
             setBuildMessages([...nextMessages, { role: 'assistant', content: (error as Error).message }]);
         } finally {
             setBusy(false);
@@ -265,10 +282,19 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         setMessage('');
         try {
             const seed = buildInput.trim() || 'Build a helpful admissions chatbot that can answer student questions and call APIs when needed.';
+            speech.speak(narration.planning);
             const result = await planChatbot({ prompt: seed, provider_id: providerId, model_id: modelId });
             setPlan(result);
+            // The server may have escalated to a stronger model; say which, so the
+            // choice is not invisible.
+            speech.speak(narration.modelChosen(String(result.model_id ?? '')));
+            speech.speak(narration.planned(
+                Array.isArray(result.agents) ? result.agents.length : 0,
+                Array.isArray(result.tools) ? result.tools.length : 0,
+            ));
             setMessage('Build plan ready. Review it, then apply when it looks right.');
         } catch (error) {
+            speech.say(narration.failed('Planning'));
             setMessage((error as Error).message);
         } finally {
             setBusy(false);
@@ -290,6 +316,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         if (!plan) return;
         setBusy(true);
         try {
+            speech.speak(narration.applying);
             const result = await applyBuilderPlan(plan);
             await fetchOperationsData();
 
@@ -329,10 +356,14 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         setBusy(true);
         setMessage('');
         try {
+            speech.speak(narration.repairingApi);
             const result = await normalizeApi({ raw_api: rawApi, specification, provider_id: providerId, model_id: modelId });
             setNormalizedTool(result);
+            speech.speak(narration.modelChosen(String(result.model_id ?? '')));
+            speech.speak(narration.repairedApi(String(result.name ?? result.id ?? '')));
             setMessage('API normalized. You can copy this config or apply it through the builder plan flow.');
         } catch (error) {
+            speech.say(narration.failed('Building the tool'));
             setMessage((error as Error).message);
         } finally {
             setBusy(false);
@@ -358,6 +389,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         setBusy(true);
         setMessage('');
         try {
+            speech.speak(narration.designing);
             const result = await generateFrontend({
                 prompt: requestText,
                 workflow_id: workflowId,
@@ -369,6 +401,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 mode: frontendMode,
             });
             setFrontendHtml(result.html);
+            speech.speak(narration.modelChosen(result.model_id));
+            speech.speak(narration.designed(result.used_fallback));
             setFrontendMessages([
                 ...nextMessages,
                 {
@@ -379,6 +413,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 },
             ]);
         } catch (error) {
+            speech.say(narration.failed('Designing the interface'));
             setFrontendMessages([...nextMessages, { role: 'assistant', content: (error as Error).message }]);
         } finally {
             setBusy(false);
@@ -460,6 +495,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         }
         setBusy(true);
         try {
+            speech.speak(narration.deploying);
             const deployment = await flashDeploy({
                 workflow_id: workflowId,
                 name: workflowId,
@@ -468,8 +504,10 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 model_id: modelId,
                 auth_mode: 'public',
             });
+            speech.speak(narration.deployed);
             reportSuccess(`Flash deployed at ${deployment.url}`);
         } catch (error) {
+            speech.say(narration.failed('Deploying'));
             reportError((error as Error).message);
         } finally {
             setBusy(false);
@@ -487,6 +525,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         }
         setBusy(true);
         try {
+            speech.speak(narration.deploying);
             const deployment = await flashDeploy({
                 workflow_id: workflowId,
                 name: `${workflowId}-custom-frontend`,
@@ -497,8 +536,10 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 frontend_html: frontendHtml,
                 frontend_source: 'ai_frontend_builder',
             });
+            speech.speak(narration.deployed);
             reportSuccess(`Generated frontend deployed at ${deployment.url}`);
         } catch (error) {
+            speech.say(narration.failed('Deploying'));
             reportError((error as Error).message);
         } finally {
             setBusy(false);
@@ -525,9 +566,29 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">{workflowId ? `Target: ${workflowId}` : 'No saved workflow selected'}</div>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors" title="Close Builder">
-                        <X size={16} />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {speech.supported && (
+                            <button
+                                onClick={speech.toggle}
+                                className={`p-2 rounded-lg transition-colors ${
+                                    speech.enabled
+                                        ? 'bg-[var(--color-primary-soft)] text-[var(--color-primary)]'
+                                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                                }`}
+                                title={
+                                    speech.enabled
+                                        ? 'Spoken progress on — click to mute'
+                                        : 'Speak progress aloud while building'
+                                }
+                                aria-pressed={speech.enabled}
+                            >
+                                {speech.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors" title="Close Builder">
+                            <X size={16} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -552,8 +613,9 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     disabled={models.length === 0}
                     onChange={(event) => {
                         setProviderId(event.target.value);
-                        const first = models.find((model) => model.provider_id === event.target.value);
-                        if (first) setModelId(first.model_id);
+                        // Back to auto for the new provider rather than silently
+                        // pinning its first model.
+                        setModelId('');
                     }}
                     className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 disabled:opacity-60"
                 >
@@ -568,11 +630,19 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     onChange={(event) => setModelId(event.target.value)}
                     className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 disabled:opacity-60"
                 >
-                    {providerModels.length === 0 && <option value="">No models available</option>}
+                    {/* Empty asks the server to pick per task — a plan and a
+                        colour palette do not want the same model. */}
+                    <option value="">Auto — best model per task</option>
                     {providerModels.map((model) => (
                         <option key={`${model.provider_id}:${model.model_id}`} value={model.model_id}>{model.model_id}</option>
                     ))}
                 </select>
+                {!modelId && (
+                    <p className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                        Each step is routed to the strongest model you have a key for — planning and
+                        code generation get the most capable one, small JSON steps get a fast one.
+                    </p>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-3">

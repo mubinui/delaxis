@@ -21,6 +21,17 @@ export interface VoiceTranscript {
     text: string;
 }
 
+/** Live audio levels for the visualiser: overall 0..1 plus per-band values. */
+export interface VoiceLevels {
+    level: number;
+    bands: number[];
+    /** True while the agent is the one making sound. */
+    speaking: boolean;
+}
+
+const BANDS = 5;
+const SILENT: VoiceLevels = { level: 0, bands: [0, 0, 0, 0, 0], speaking: false };
+
 interface TicketResponse {
     ticket: string;
     ws_path: string;
@@ -35,13 +46,19 @@ interface UseVoiceSessionOptions {
     /** Optional JWT, same one the panel uses for its REST calls. */
     token?: string;
     onTranscript?: (entry: VoiceTranscript) => void;
+    /**
+     * Called on every animation frame with the measured audio level. Kept out of
+     * React state deliberately — 60 setState calls a second would re-render the
+     * whole panel; the consumer writes CSS custom properties instead.
+     */
+    onLevels?: (levels: VoiceLevels) => void;
 }
 
 // ~40ms of audio per frame: small enough to feel live, large enough that the
 // socket is not handling hundreds of tiny frames a second.
 const CHUNK_SECONDS = 0.04;
 
-export const useVoiceSession = ({ sessionId, token, onTranscript }: UseVoiceSessionOptions) => {
+export const useVoiceSession = ({ sessionId, token, onTranscript, onLevels }: UseVoiceSessionOptions) => {
     const [state, setState] = useState<VoiceState>('idle');
     const [error, setError] = useState<string | null>(null);
 
@@ -56,8 +73,57 @@ export const useVoiceSession = ({ sessionId, token, onTranscript }: UseVoiceSess
     const queued = useRef<AudioBufferSourceNode[]>([]);
     const outRate = useRef(24000);
     const transcriptRef = useRef(onTranscript);
+    const levelsRef = useRef(onLevels);
+    const inAnalyser = useRef<AnalyserNode | null>(null);
+    const outAnalyser = useRef<AnalyserNode | null>(null);
+    const frame = useRef<number | null>(null);
 
     transcriptRef.current = onTranscript;
+    levelsRef.current = onLevels;
+
+    const makeAnalyser = useCallback((ctx: AudioContext, from: AudioNode) => {
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.7;
+        from.connect(analyser);
+        return analyser;
+    }, []);
+
+    const stopLevels = useCallback(() => {
+        if (frame.current !== null) cancelAnimationFrame(frame.current);
+        frame.current = null;
+        inAnalyser.current = null;
+        outAnalyser.current = null;
+        levelsRef.current?.(SILENT);
+    }, []);
+
+    const startLevels = useCallback(() => {
+        if (frame.current !== null) return;
+        const bins = new Uint8Array(128);
+        const tick = () => {
+            frame.current = requestAnimationFrame(tick);
+            // Whoever is currently making sound is what gets shown.
+            const speaking = queued.current.length > 0;
+            const analyser = speaking ? outAnalyser.current : inAnalyser.current;
+            if (!analyser || !levelsRef.current) return;
+            analyser.getByteFrequencyData(bins);
+            // Speech energy sits low in the spectrum; sampling the full range
+            // would leave the upper bars permanently flat.
+            const usable = Math.floor(bins.length * 0.55);
+            const per = Math.max(1, Math.floor(usable / BANDS));
+            const bands: number[] = [];
+            let total = 0;
+            for (let b = 0; b < BANDS; b += 1) {
+                let sum = 0;
+                for (let i = 0; i < per; i += 1) sum += bins[b * per + i] ?? 0;
+                const value = sum / per / 255;
+                bands.push(value);
+                total += value;
+            }
+            levelsRef.current({ level: Math.min(1, (total / BANDS) * 1.6), bands, speaking });
+        };
+        frame.current = requestAnimationFrame(tick);
+    }, []);
 
     /** Duck the mic while the agent is speaking, or laptop speakers feed back in. */
     const duck = useCallback(() => {
@@ -81,6 +147,7 @@ export const useVoiceSession = ({ sessionId, token, onTranscript }: UseVoiceSess
     }, [duck]);
 
     const teardown = useCallback(() => {
+        stopLevels();
         flushPlayback();
         try {
             processor.current?.disconnect();
@@ -103,7 +170,7 @@ export const useVoiceSession = ({ sessionId, token, onTranscript }: UseVoiceSess
         inCtx.current = null;
         outCtx.current = null;
         stream.current = null;
-    }, [flushPlayback]);
+    }, [flushPlayback, stopLevels]);
 
     const stop = useCallback(() => {
         if (ws.current?.readyState === WebSocket.OPEN) {
@@ -171,6 +238,7 @@ export const useVoiceSession = ({ sessionId, token, onTranscript }: UseVoiceSess
             outCtx.current = output;
             outGain.current = output.createGain();
             outGain.current.connect(output.destination);
+            outAnalyser.current = makeAnalyser(output, outGain.current);
             await output.resume();
 
             stream.current = await navigator.mediaDevices.getUserMedia({
@@ -188,6 +256,10 @@ export const useVoiceSession = ({ sessionId, token, onTranscript }: UseVoiceSess
             const source = input.createMediaStreamSource(stream.current);
             micGain.current = input.createGain();
             source.connect(micGain.current);
+            // Tapped before the ducking gain, so the meter still shows the user
+            // talking over the agent — which is when barge-in matters.
+            inAnalyser.current = makeAnalyser(input, source);
+            startLevels();
 
             // The sampleRate constructor hint is advisory — read back what we
             // actually got and resample if it was not honoured.
@@ -275,7 +347,7 @@ export const useVoiceSession = ({ sessionId, token, onTranscript }: UseVoiceSess
             setState('error');
             teardown();
         }
-    }, [sessionId, token, enqueue, flushPlayback, teardown]);
+    }, [sessionId, token, enqueue, flushPlayback, teardown, makeAnalyser, startLevels]);
 
     const toggle = useCallback(() => {
         if (state === 'idle' || state === 'error') void start();

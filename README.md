@@ -26,6 +26,7 @@ No install, no API key — the real Studio running against an in-browser stub of
 - [Installation](#installation)
 - [Choosing an LLM provider](#choosing-an-llm-provider) — OpenAI, Gemini, Grok, Claude, local models
 - [Live voice](#live-voice) — talking to a chatbot over Gemini Live
+- [The AI Builder](#the-ai-builder) — per-step model routing and spoken progress
 - [Core concepts](#core-concepts)
 - [How it works](#how-it-works)
 - [Configuration reference](#configuration-reference)
@@ -273,6 +274,22 @@ A realtime session bills for as long as it is open, and WebSocket connections do
 | `DELAXIS_VOICE_TICKET_TTL_SECONDS` | `30` | How long a ticket stays redeemable |
 
 The realtime model id is configuration, not code — Google has published these under several names, so the allow-list lives under the provider's `live.models` in `configs/api_providers.json`. A model that does not look like a realtime audio model is refused before a session can open.
+
+## The AI Builder
+
+The Studio's Builder panel turns a one-line brief into agents, tools, a workflow, and a deployable frontend.
+
+**Each step picks its own model.** Builder work is one-shot and high-leverage — a bad plan costs far more than the tokens saved by running it cheaply — so with the model selector on **Auto** (the default) the server routes each step to the strongest model you actually have a key for:
+
+| Step | Gets |
+|---|---|
+| Planning a chatbot, generating configs, repairing an API into a tool, generating a frontend | the most capable model available |
+| Colour/design JSON, interactive chat | a fast model |
+| Explaining one diagnostic | the cheapest capable model |
+
+Pick a specific model from the dropdown and that choice is always honoured — auto-select only decides what "Auto" means. Naming a provider without a model narrows the choice to that provider rather than silently moving your request elsewhere. Rankings live in [`src/api/builder_models.py`](src/api/builder_models.py); the model that actually ran is returned in the response and logged as `builder_model_selected`.
+
+**It can talk you through it.** The speaker button in the Builder header narrates progress out loud — which model it escalated to, how many agents came back, whether the generated page passed validation — so a 30-second build is not a silent spinner. It uses the browser's built-in speech synthesis, so it costs nothing, needs no key, and cannot fail a build. Off until you turn it on; the preference is remembered.
 
 ## Core concepts
 

@@ -161,6 +161,7 @@ MARKDOWN_STYLE = """
 
 VOICE_STYLE = """
         .mic {
+          position: relative;
           border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
           border-radius: var(--brand-radius, 10px); width: 44px; height: 44px; flex: 0 0 auto;
           display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
@@ -170,18 +171,49 @@ VOICE_STYLE = """
         .mic:disabled { opacity: .5; cursor: not-allowed; }
         .mic svg { width: 18px; height: 18px; display: block; }
         .mic[hidden] { display: none; }
-        .mic.live { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-        .mic.live::after {
-          content: ''; position: absolute; width: 44px; height: 44px; border-radius: inherit;
-          border: 2px solid var(--accent); animation: micPulse 1.6s ease-out infinite;
-        }
-        .mic { position: relative; }
         .mic.busy { opacity: .7; cursor: progress; }
-        @keyframes micPulse {
-          0%   { transform: scale(1);    opacity: .55; }
-          100% { transform: scale(1.45); opacity: 0; }
+        .mic.live { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+
+        /* Two rings. The ambient one keeps the control feeling alive between
+           utterances; the reactive one is scaled from the measured audio level
+           (--voice-level, 0..1) so what you see is the actual signal. */
+        .mic.live::after,
+        .mic.live::before {
+          content: ''; position: absolute; inset: -1px; border-radius: inherit;
+          border: 2px solid var(--accent); pointer-events: none;
         }
-        @media (prefers-reduced-motion: reduce) { .mic.live::after { animation: none; opacity: 0; } }
+        .mic.live::after { animation: micAmbient 2.2s ease-out infinite; }
+        .mic.live::before {
+          transform: scale(calc(1 + var(--voice-level, 0) * 0.55));
+          opacity: calc(0.15 + var(--voice-level, 0) * 0.6);
+          transition: transform .06s linear, opacity .06s linear;
+        }
+        @keyframes micAmbient {
+          0%   { transform: scale(1);   opacity: .40; }
+          100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        /* Level meter. Each bar is driven by its own frequency band, so the
+           strip reads as speech rather than a decorative loop. */
+        .voice-viz {
+          display: none; align-items: center; justify-content: center; gap: 3px;
+          height: 20px; margin-left: 2px;
+        }
+        .voice-viz.on { display: flex; }
+        .voice-viz i {
+          width: 3px; border-radius: 2px; background: var(--accent); opacity: .75;
+          height: calc(3px + var(--b, 0) * 17px);
+          transition: height .07s linear, opacity .18s linear;
+        }
+        /* The agent's own voice is shown in a calmer tone, so it is obvious at a
+           glance who is talking. */
+        .voice-viz.speaking i { background: var(--muted); opacity: .95; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .mic.live::after { animation: none; opacity: 0; }
+          .mic.live::before { transition: none; transform: none; opacity: .35; }
+          .voice-viz i { transition: none; height: 9px; }
+        }
 """
 
 # The whole realtime audio client, inlined. Deployed pages are validated against
@@ -202,6 +234,55 @@ VOICE_SCRIPT = r"""
           var node = null, source = null, micGain = null, outGain = null;
           var playHead = 0, queued = [], onState = null, onText = null;
           var inRate = 16000, outRate = 24000;
+          var inAnalyser = null, outAnalyser = null, frameHandle = null, onLevel = null;
+
+          // The visualiser reads real audio, so it stops when the audio stops —
+          // a decorative loop would keep dancing through silence and dropouts.
+          var BANDS = 5;
+
+          function makeAnalyser(ctx, from) {
+            var analyser = ctx.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.7;
+            from.connect(analyser);
+            return analyser;
+          }
+
+          function startLevels() {
+            if (frameHandle !== null) return;
+            var bins = new Uint8Array(128);
+            var tick = function () {
+              frameHandle = requestAnimationFrame(tick);
+              // Whoever is currently making sound is what we show.
+              var speaking = queued.length > 0;
+              var analyser = speaking ? outAnalyser : inAnalyser;
+              if (!analyser || !onLevel) return;
+              analyser.getByteFrequencyData(bins);
+              // Speech energy sits low in the spectrum; sampling the whole range
+              // would leave the upper bars permanently flat.
+              var usable = Math.floor(bins.length * 0.55);
+              var per = Math.max(1, Math.floor(usable / BANDS));
+              var bands = [];
+              var total = 0;
+              for (var b = 0; b < BANDS; b++) {
+                var sum = 0;
+                for (var i = 0; i < per; i++) sum += bins[b * per + i] || 0;
+                var value = (sum / per) / 255;
+                bands.push(value);
+                total += value;
+              }
+              onLevel(Math.min(1, (total / BANDS) * 1.6), bands, speaking);
+            };
+            frameHandle = requestAnimationFrame(tick);
+          }
+
+          function stopLevels() {
+            if (frameHandle !== null) cancelAnimationFrame(frameHandle);
+            frameHandle = null;
+            inAnalyser = null;
+            outAnalyser = null;
+            if (onLevel) onLevel(0, [0, 0, 0, 0, 0], false);
+          }
 
           // 128-frame quanta are far too small to send individually; batch to
           // ~40ms so the socket sees ~25 modest frames a second.
@@ -309,6 +390,9 @@ VOICE_SCRIPT = r"""
             source = inCtx.createMediaStreamSource(micStream);
             micGain = inCtx.createGain();
             source.connect(micGain);
+            // Tapped before the ducking gain, so the meter still shows the user
+            // talking over the agent — which is exactly when barge-in matters.
+            inAnalyser = makeAnalyser(inCtx, source);
 
             var onPcm = function (buffer) {
               if (ws && ws.readyState === 1) ws.send(buffer);
@@ -361,6 +445,7 @@ VOICE_SCRIPT = r"""
             if (state !== IDLE) return;
             onState = (opts && opts.onState) || null;
             onText = (opts && opts.onText) || null;
+            onLevel = (opts && opts.onLevel) || null;
             setState(STARTING);
             try {
               var ticket = await opts.mintTicket();
@@ -371,9 +456,11 @@ VOICE_SCRIPT = r"""
               outCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: outRate });
               outGain = outCtx.createGain();
               outGain.connect(outCtx.destination);
+              outAnalyser = makeAnalyser(outCtx, outGain);
               await outCtx.resume();
 
               await attachCapture();
+              startLevels();
 
               var scheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
               var base = (opts.apiBase || '').replace(/^http/, 'ws');
@@ -405,6 +492,7 @@ VOICE_SCRIPT = r"""
 
           function stop(reason) {
             if (ws && ws.readyState === 1) send({ t: 'bye' });
+            stopLevels();
             flushPlayback();
             try { if (node) node.disconnect(); } catch (_) { /* ignore */ }
             try { if (micGain) micGain.disconnect(); } catch (_) { /* ignore */ }
@@ -517,6 +605,18 @@ VOICE_SCRIPT = r"""
               + '<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/>'
               + '<path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>';
 
+            // Level meter, mounted next to the button wherever that ended up.
+            var viz = document.getElementById('voice-viz');
+            if (!viz) {
+              viz = document.createElement('div');
+              viz.id = 'voice-viz';
+              viz.className = 'voice-viz';
+              viz.setAttribute('aria-hidden', 'true');
+              for (var i = 0; i < 5; i++) viz.appendChild(document.createElement('i'));
+              if (button.parentNode) button.parentNode.insertBefore(viz, button);
+            }
+            var bars = viz.getElementsByTagName('i');
+
             var hooks = window.DELAXIS_VOICE_HOOKS || {};
             var status = hooks.status || function () {};
             var LABELS = {
@@ -531,6 +631,7 @@ VOICE_SCRIPT = r"""
               button.classList.toggle('speaking', next === 'speaking');
               button.classList.toggle('busy', next === 'starting');
               button.setAttribute('aria-pressed', next === 'idle' ? 'false' : 'true');
+              viz.classList.toggle('on', next === 'listening' || next === 'speaking');
               status(LABELS[next] || 'Ready', false);
               // One input mode at a time: a typed turn during a voice session
               // would go to the workflow while the realtime model knew nothing
@@ -554,6 +655,15 @@ VOICE_SCRIPT = r"""
                 onText: function (role, text) {
                   if (role === 'error') { status(text, true); return; }
                   if (hooks.transcript) hooks.transcript(role, text);
+                },
+                onLevel: function (level, bands, speaking) {
+                  // Custom properties rather than inline geometry, so the CSS
+                  // owns the look and honours prefers-reduced-motion.
+                  button.style.setProperty('--voice-level', level.toFixed(3));
+                  viz.classList.toggle('speaking', speaking);
+                  for (var i = 0; i < bars.length; i++) {
+                    bars[i].style.setProperty('--b', (bands[i] || 0).toFixed(3));
+                  }
                 },
               });
             });

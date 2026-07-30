@@ -1,9 +1,15 @@
 /**
- * Rasterise public/delaxis-logo.svg into the PNG favicons.
+ * Rasterise the Delaxis mark into the PNG favicons.
  *
- * Playwright is already a devDependency (it drives the E2E suite), so this
- * needs no extra tooling and produces the same bytes on any machine. Run with
- * `npm run logo:png` after editing the SVG.
+ * Playwright is already a devDependency (it drives the E2E suite), so this needs
+ * no extra tooling and produces the same bytes on any machine. Run with
+ * `npm run logo:png` after changing the mark.
+ *
+ * Source is the brand asset rather than public/delaxis-logo.svg, because that
+ * file carries a prefers-color-scheme rule and a rasteriser would bake in
+ * whichever scheme it happened to emulate. A PNG cannot adapt anyway, so the
+ * dark-tile variant is used: it stays visible on a light tab bar and on an iOS
+ * home screen, where a near-white tile would vanish.
  */
 import { chromium } from 'playwright';
 import { readFile } from 'node:fs/promises';
@@ -11,13 +17,15 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const publicDir = resolve(here, '..', 'public');
+const root = resolve(here, '..');
+const publicDir = resolve(root, 'public');
+const SOURCE = resolve(root, 'svg', 'delaxis-tile-paper-blue-light.svg');
 
 // 64 for the browser tab, 180 for the iOS apple-touch-icon (iOS upscales
 // anything smaller and it looks soft on the home screen).
 const SIZES = [64, 180];
 
-const svg = await readFile(resolve(publicDir, 'delaxis-logo.svg'), 'utf8');
+const svg = await readFile(SOURCE, 'utf8');
 const browser = await chromium.launch();
 
 try {

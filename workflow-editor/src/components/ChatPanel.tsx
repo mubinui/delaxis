@@ -5,7 +5,7 @@ import { useWorkflowStore } from '../stores/workflowStore';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { API_BASE_URL } from '../api/client';
-import { useVoiceSession, type VoiceTranscript } from '../hooks/useVoiceSession';
+import { useVoiceSession, type VoiceLevels, type VoiceTranscript } from '../hooks/useVoiceSession';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -55,10 +55,27 @@ export const ChatPanel = () => {
         });
     }, []);
 
+    // Levels arrive ~60x/second, so they are written straight to CSS custom
+    // properties rather than through React state — re-rendering the panel every
+    // frame would make the whole Studio stutter.
+    const micRef = useRef<HTMLButtonElement>(null);
+    const vizRef = useRef<HTMLDivElement>(null);
+
+    const handleLevels = useCallback(({ level, bands, speaking }: VoiceLevels) => {
+        micRef.current?.style.setProperty('--voice-level', level.toFixed(3));
+        const viz = vizRef.current;
+        if (!viz) return;
+        viz.dataset.speaking = String(speaking);
+        bands.forEach((value, index) => {
+            (viz.children[index] as HTMLElement | undefined)?.style.setProperty('--b', value.toFixed(3));
+        });
+    }, []);
+
     const voice = useVoiceSession({
         sessionId,
         token: jwtToken,
         onTranscript: handleTranscript,
+        onLevels: handleLevels,
     });
 
     // Auto-scroll to bottom when new messages arrive
@@ -468,9 +485,21 @@ export const ChatPanel = () => {
                             <Send size={14} />
                         </button>
                     </div>
+                    {/* Level meter, driven by the real signal so it stops moving
+                        when the audio does. */}
+                    <div
+                        ref={vizRef}
+                        aria-hidden="true"
+                        className={`voice-viz ${voice.isActive ? 'is-on' : ''}`}
+                    >
+                        {[0, 1, 2, 3, 4].map((bar) => (
+                            <i key={bar} />
+                        ))}
+                    </div>
                     {/* Voice needs a live session to attach to, which only exists
                         after the first message. */}
                     <button
+                        ref={micRef}
                         onClick={voice.toggle}
                         disabled={!hasLoadedWorkflow || !sessionId}
                         title={
@@ -493,8 +522,13 @@ export const ChatPanel = () => {
                         ) : (
                             <MicOff size={15} />
                         )}
-                        {voice.state === 'speaking' && (
-                            <span className="absolute inset-0 rounded-full border-2 border-[var(--color-primary)] animate-ping" />
+                        {voice.isActive && (
+                            <>
+                                {/* Ambient ring keeps the control alive between
+                                    utterances; the reactive one tracks the level. */}
+                                <span className="voice-ring-ambient" />
+                                <span className="voice-ring-live" />
+                            </>
                         )}
                     </button>
                 </div>

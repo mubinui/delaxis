@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.api.auth import require_user, CurrentUser
+from src.api.builder_models import BuilderTask, ModelChoice, choose_model
 from src.api.builder_prompts import get_builder_prompt
 from src.api.chatbot_page import (
     THEMES,
@@ -48,14 +49,15 @@ class BuilderChatRequest(BaseModel):
     message: str = Field(description="The user's latest message")
     history: list[ChatMessage] = Field(default_factory=list, description="Previous conversation turns")
     provider_id: str = Field(default="openrouter", description="Provider ID from api-providers config")
-    model_id: str = Field(default="openai/gpt-5.6-sol", description="Model ID to use for generation")
+    # Empty means "let the server pick the best available" — see builder_models.
+    model_id: str = Field(default="", description="Model ID; empty selects the best available")
 
 
 class BuilderGenerateRequest(BaseModel):
     builder_type: BuilderType
     history: list[ChatMessage] = Field(description="Full conversation history")
-    provider_id: str = Field(default="openrouter")
-    model_id: str = Field(default="openai/gpt-5.6-sol")
+    provider_id: str = Field(default="")
+    model_id: str = Field(default="")
 
 
 class BuilderGenerateResponse(BaseModel):
@@ -77,15 +79,15 @@ class AvailableModelsResponse(BaseModel):
 
 class ChatbotPlanRequest(BaseModel):
     prompt: str
-    provider_id: str = "openrouter"
-    model_id: str = "openai/gpt-oss-20b"
+    provider_id: str = ""
+    model_id: str = ""
 
 
 class RawApiNormalizeRequest(BaseModel):
     raw_api: str
     specification: str = ""
-    provider_id: str = "openrouter"
-    model_id: str = "openai/gpt-oss-20b"
+    provider_id: str = ""
+    model_id: str = ""
 
 
 class BuilderApplyRequest(BaseModel):
@@ -102,8 +104,8 @@ class FrontendGenerateRequest(BaseModel):
     workflow_id: str
     title: str = "AI Chatbot"
     greeting: str = "Hi, how can I help?"
-    provider_id: str = "openrouter"
-    model_id: str = "google/gemini-3.6-flash"
+    provider_id: str = ""
+    model_id: str = ""
     history: list[FrontendChatMessage] = Field(default_factory=list)
     # "themed" restyles the built-in page (its chat always works); "custom" asks
     # the model for a whole HTML document, which is far more likely to break.
@@ -126,6 +128,35 @@ class FrontendGenerateResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _resolve_builder_model(body: Any, task: BuilderTask) -> ModelChoice:
+    """Fill in ``provider_id``/``model_id`` for a builder task.
+
+    Builder work is one-shot and high-leverage, so an unpinned request is routed
+    to the strongest model that is actually reachable rather than to a cheap
+    per-endpoint default. A model the caller named explicitly is left alone.
+
+    Mutates ``body`` so the ~25 downstream uses of ``body.model_id`` need no
+    change and cannot drift from the decision made here.
+    """
+    choice = choose_model(
+        task,
+        requested_provider=str(getattr(body, "provider_id", "") or ""),
+        requested_model=str(getattr(body, "model_id", "") or ""),
+    )
+    body.provider_id = choice.provider_id
+    if choice.model_id:
+        body.model_id = choice.model_id
+    logger.info(
+        "builder_model_selected",
+        task=task,
+        provider=choice.provider_id,
+        model=choice.model_id,
+        escalated=choice.escalated,
+        reason=choice.reason,
+    )
+    return choice
+
 
 def _get_provider_credentials(provider_id: str) -> tuple[str, str, bool]:
     """Resolve (base_url, api_key, ready) for OpenAI-compatible builder calls.
@@ -421,6 +452,7 @@ async def builder_chat(
     Frontend should consume `data: {"token": "..."}` lines and concatenate them.
     A `data: [DONE]` line signals completion.
     """
+    _resolve_builder_model(body, "chat")
     system_prompt = get_builder_prompt(body.builder_type)
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
@@ -463,6 +495,7 @@ async def builder_generate(
     Adds a system instruction asking the LLM to output only the final config,
     then parses the response and returns the structured result.
     """
+    _resolve_builder_model(body, "config")
     system_prompt = get_builder_prompt(body.builder_type)
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
@@ -561,6 +594,7 @@ async def explain_diagnostic(request: Request, body: DiagnosticExplainRequest) -
     it in plain language and suggests a fix, so a wrong answer here cannot
     invent a problem that does not exist.
     """
+    _resolve_builder_model(body, "explain")
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
         raise HTTPException(
@@ -733,7 +767,24 @@ async def _generate_design(
             "content": f"Brief: {body.prompt}\nProduct name hint: {body.title}\nOpening line hint: {body.greeting}",
         }
     )
-    raw, _truncated = await _call_llm_sync(base_url, api_key, body.model_id, messages, max_tokens=1500)
+
+    # A small JSON token set does not need the frontend's heavyweight model, so
+    # this leg gets its own choice — usually a fast one. It falls back to the
+    # caller's provider if the design pick lives somewhere unreachable.
+    design_model = choose_model("design")
+    model_id = design_model.model_id or body.model_id
+    design_base_url, design_api_key = base_url, api_key
+    if design_model.model_id and design_model.provider_id != body.provider_id:
+        try:
+            design_base_url, design_api_key, ready = _get_provider_credentials(design_model.provider_id)
+            if not ready:
+                design_base_url, design_api_key, model_id = base_url, api_key, body.model_id
+        except HTTPException:
+            design_base_url, design_api_key, model_id = base_url, api_key, body.model_id
+
+    raw, _truncated = await _call_llm_sync(
+        design_base_url, design_api_key, model_id, messages, max_tokens=1500
+    )
     return _extract_json_from_text(raw) or {}
 
 
@@ -746,6 +797,7 @@ async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequ
     already tested. ``custom`` asks the model for the whole document, which
     allows any layout but has to be checked before it can be deployed.
     """
+    _resolve_builder_model(body, "frontend")
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
         html, design = _render_themed_frontend(body, {})
@@ -1022,6 +1074,7 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
 @router.post("/plan-chatbot")
 async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
     """Generate a complete chatbot build plan from a natural-language prompt."""
+    _resolve_builder_model(body, "plan")
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
         return _normalize_plan(_fallback_plan(body.prompt), body.prompt)
@@ -1055,12 +1108,18 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
     plan = _extract_json_from_text(raw)
     if plan is None:
         raise HTTPException(status_code=422, detail="Could not extract a JSON chatbot plan from the model response")
-    return _normalize_plan(plan, body.prompt)
+    normalized = _normalize_plan(plan, body.prompt)
+    # Report the model that was actually used, so an escalated choice is visible
+    # rather than silent.
+    normalized["model_id"] = body.model_id
+    normalized["provider_id"] = body.provider_id
+    return normalized
 
 
 @router.post("/normalize-api")
 async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> dict:
     """Turn messy API notes, curl commands, or malformed docs into a platform tool config."""
+    _resolve_builder_model(body, "tool")
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
     if not ready:
         guessed_url = re.search(r"https?://[^\s'\"`]+", body.raw_api)
@@ -1099,7 +1158,10 @@ async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> d
     config = _extract_json_from_text(raw)
     if config is None:
         raise HTTPException(status_code=422, detail="Could not extract a JSON tool config from the model response")
-    return _coerce_tool_config(config, body.raw_api, body.specification)
+    coerced = _coerce_tool_config(config, body.raw_api, body.specification)
+    coerced["model_id"] = body.model_id
+    coerced["provider_id"] = body.provider_id
+    return coerced
 
 
 @router.post("/apply")

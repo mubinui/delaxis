@@ -203,6 +203,66 @@ body {
     animation: subtlePulse 3s infinite ease-in-out;
 }
 
+/* ---- Live voice visualiser ----
+   Levels are measured from the real audio stream and written to --voice-level
+   and --b as custom properties (see useVoiceSession), so these rules own the
+   look and can honour prefers-reduced-motion in one place. */
+.voice-viz {
+    display: none;
+    align-items: center;
+    gap: 3px;
+    height: 20px;
+}
+
+.voice-viz.is-on {
+    display: flex;
+}
+
+.voice-viz i {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--color-primary);
+    opacity: 0.75;
+    height: calc(3px + var(--b, 0) * 17px);
+    transition: height 0.07s linear, opacity 0.18s linear;
+}
+
+/* The agent's own voice reads in a calmer tone, so it is obvious who is talking. */
+.voice-viz[data-speaking='true'] i {
+    background: var(--color-text-muted);
+    opacity: 0.95;
+}
+
+.voice-ring-ambient,
+.voice-ring-live {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2px solid var(--color-primary);
+    pointer-events: none;
+}
+
+.voice-ring-ambient {
+    animation: voiceAmbient 2.2s ease-out infinite;
+}
+
+.voice-ring-live {
+    transform: scale(calc(1 + var(--voice-level, 0) * 0.55));
+    opacity: calc(0.15 + var(--voice-level, 0) * 0.6);
+    transition: transform 0.06s linear, opacity 0.06s linear;
+}
+
+@keyframes voiceAmbient {
+    0% { transform: scale(1); opacity: 0.4; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-ring-ambient { animation: none; opacity: 0; }
+    .voice-ring-live { transition: none; transform: none; opacity: 0.35; }
+    .voice-viz i { transition: none; height: 9px; }
+}
+
 /* Base override layers for smooth dark transitions */
 .dark .bg-white,
 .dark .bg-gray-50,
