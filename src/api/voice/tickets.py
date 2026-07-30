@@ -26,6 +26,13 @@ from src.config.settings import get_settings
 
 TICKET_TYPE = "voice"
 
+# What a ticket is for. "session" speaks into an existing conversation and its
+# transcript is persisted there; "builder" is a design conversation in the Studio
+# that belongs to no workflow, so it has no session to attach to.
+PURPOSE_SESSION = "session"
+PURPOSE_BUILDER = "builder"
+PURPOSES = (PURPOSE_SESSION, PURPOSE_BUILDER)
+
 # Spent ticket ids. Sized well above any realistic burst; entries expire on
 # their own so this never needs sweeping. Per-process, which is sufficient: a
 # ticket replayed against a different worker still cannot outlive its TTL.
@@ -36,7 +43,12 @@ class TicketError(ValueError):
     """Raised when a ticket is missing, malformed, expired, or already used."""
 
 
-def mint(*, session_id: str, deployment: str | None) -> tuple[str, int]:
+def mint(
+    *,
+    session_id: str,
+    deployment: str | None,
+    purpose: str = PURPOSE_SESSION,
+) -> tuple[str, int]:
     """Issue a ticket for one voice session. Returns ``(ticket, ttl_seconds)``."""
     settings = get_settings()
     ttl = max(5, int(settings.voice.ticket_ttl_seconds))
@@ -46,6 +58,7 @@ def mint(*, session_id: str, deployment: str | None) -> tuple[str, int]:
     token = create_access_token(
         {
             "typ": TICKET_TYPE,
+            "pur": purpose if purpose in PURPOSES else PURPOSE_SESSION,
             "sid": session_id,
             "dep": deployment or "",
             "jti": secrets.token_urlsafe(16),
@@ -55,10 +68,11 @@ def mint(*, session_id: str, deployment: str | None) -> tuple[str, int]:
     return token, ttl
 
 
-def redeem(ticket: str) -> tuple[str, str | None]:
-    """Verify and consume a ticket. Returns ``(session_id, deployment_id)``.
+def redeem(ticket: str) -> tuple[str, str | None, str]:
+    """Verify and consume a ticket.
 
-    Raises TicketError for anything that is not a live, unused voice ticket.
+    Returns ``(session_id, deployment_id, purpose)``. Raises TicketError for
+    anything that is not a live, unused voice ticket.
     """
     if not ticket:
         raise TicketError("missing ticket")
@@ -85,11 +99,17 @@ def redeem(ticket: str) -> tuple[str, str | None]:
         raise TicketError("ticket already used")
     _spent[jti] = True
 
+    purpose = str(payload.get("pur") or PURPOSE_SESSION)
+    if purpose not in PURPOSES:
+        raise TicketError("unknown ticket purpose")
+
     session_id = str(payload.get("sid") or "")
-    if not session_id:
+    # A builder ticket is a design conversation with no workflow behind it, so it
+    # legitimately carries no session.
+    if not session_id and purpose == PURPOSE_SESSION:
         raise TicketError("ticket has no session")
 
-    return session_id, (str(payload.get("dep")) or None)
+    return session_id, (str(payload.get("dep")) or None), purpose
 
 
 def reset() -> None:

@@ -41,8 +41,15 @@ interface TicketResponse {
 }
 
 interface UseVoiceSessionOptions {
-    /** Session to speak into; voice inherits the session's auth. */
+    /**
+     * Session to speak into; voice inherits the session's auth. Not needed for
+     * `purpose: 'builder'`, which is a design conversation with no workflow.
+     */
     sessionId: string | null;
+    /** 'session' speaks to a workflow; 'builder' talks through what to build. */
+    purpose?: 'session' | 'builder';
+    /** For the builder: whatever is already written, so it continues from that. */
+    draft?: string;
     /** Optional JWT, same one the panel uses for its REST calls. */
     token?: string;
     onTranscript?: (entry: VoiceTranscript) => void;
@@ -58,7 +65,14 @@ interface UseVoiceSessionOptions {
 // socket is not handling hundreds of tiny frames a second.
 const CHUNK_SECONDS = 0.04;
 
-export const useVoiceSession = ({ sessionId, token, onTranscript, onLevels }: UseVoiceSessionOptions) => {
+export const useVoiceSession = ({
+    sessionId,
+    purpose = 'session',
+    draft = '',
+    token,
+    onTranscript,
+    onLevels,
+}: UseVoiceSessionOptions) => {
     const [state, setState] = useState<VoiceState>('idle');
     const [error, setError] = useState<string | null>(null);
 
@@ -207,7 +221,9 @@ export const useVoiceSession = ({ sessionId, token, onTranscript, onLevels }: Us
     );
 
     const start = useCallback(async () => {
-        if (!sessionId) {
+        // Only a session-scoped conversation needs a session; the builder is
+        // free-standing.
+        if (purpose === 'session' && !sessionId) {
             setError('Send a message first to start a conversation.');
             setState('error');
             return;
@@ -222,7 +238,13 @@ export const useVoiceSession = ({ sessionId, token, onTranscript, onLevels }: Us
             const response = await fetch(`${API_BASE_URL}/api/v1/voice/ticket`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ session_id: sessionId }),
+                body: JSON.stringify({
+                    session_id: sessionId ?? '',
+                    purpose,
+                    // Sent once when the ticket is minted; the server holds it
+                    // against that ticket rather than trusting the socket.
+                    draft: purpose === 'builder' ? draft : '',
+                }),
             });
             if (!response.ok) {
                 const detail = await response.json().catch(() => null);
@@ -347,7 +369,7 @@ export const useVoiceSession = ({ sessionId, token, onTranscript, onLevels }: Us
             setState('error');
             teardown();
         }
-    }, [sessionId, token, enqueue, flushPlayback, teardown, makeAnalyser, startLevels]);
+    }, [sessionId, purpose, draft, token, enqueue, flushPlayback, teardown, makeAnalyser, startLevels]);
 
     const toggle = useCallback(() => {
         if (state === 'idle' || state === 'error') void start();

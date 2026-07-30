@@ -227,6 +227,7 @@ Use the **Live API** tester in the Studio to verify a key, model, latency, and c
 You can talk to a chatbot instead of typing, powered by the **Gemini Live** realtime audio API. It shows up in two places:
 
 - the Studio's test panel — a mic next to Send, so you can hear a workflow before deploying it
+- the Studio's **Builder** — talk through what you want to build; see [The AI Builder](#the-ai-builder)
 - a deployed page at `/d/<name>/` — enable **Live voice** in the Launchpad's Deploy tab
 
 Setup is one key:
@@ -289,7 +290,9 @@ The Studio's Builder panel turns a one-line brief into agents, tools, a workflow
 
 Pick a specific model from the dropdown and that choice is always honoured — auto-select only decides what "Auto" means. Naming a provider without a model narrows the choice to that provider rather than silently moving your request elsewhere. Rankings live in [`src/api/builder_models.py`](src/api/builder_models.py); the model that actually ran is returned in the response and logged as `builder_model_selected`.
 
-**It can talk you through it.** The speaker button in the Builder header narrates progress out loud — which model it escalated to, how many agents came back, whether the generated page passed validation — so a 30-second build is not a silent spinner. It uses the browser's built-in speech synthesis, so it costs nothing, needs no key, and cannot fail a build. Off until you turn it on; the preference is remembered.
+**You can describe it out loud.** The mic under the brief box opens a Gemini Live conversation with a build assistant: it asks one clarifying question at a time — who uses it, which APIs it needs, what it must never do — and everything you say is appended to the brief above, so the conversation produces exactly the text the Build button consumes. It deliberately does not claim to build anything; realtime voice cannot call the platform's endpoints, so it helps you write the brief and you press Build.
+
+**And it narrates while it works.** The speaker button in the Builder header reads progress out loud — which model it escalated to, how many agents came back, whether the generated page passed validation — so a 30-second build is not a silent spinner. Narration uses the browser's built-in speech synthesis rather than a cloud voice: it starts instantly, costs nothing, needs no key, and cannot fail a build. Off until you turn it on; the preference is remembered.
 
 ## Core concepts
 

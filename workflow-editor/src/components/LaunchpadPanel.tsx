@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Bot, Cable, Code2, ExternalLink, Mic, PlayCircle, Rocket, Send, Trash2, Volume2, VolumeX, Wand2, Wrench, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, Cable, Code2, ExternalLink, Loader2, Mic, MicOff, PlayCircle, Rocket, Send, Trash2, Volume2, VolumeX, Wand2, Wrench, X } from 'lucide-react';
 import { applyBuilderPlan, generateBuilderConfig, generateFrontend, listBuilderModels, normalizeApi, planChatbot, streamBuilderChat } from '../api/builderApi';
 import type { BuilderType, ChatMessage, ModelInfo } from '../api/builderApi';
 import type { ThemePreset, VoiceProviderInfo, VoiceProvidersResponse } from '../api/backendTypes';
 import { api } from '../api/client';
 import { useShallow } from 'zustand/react/shallow';
 import { narration, useBuildNarration } from '../hooks/useBuildNarration';
+import { useVoiceSession, type VoiceLevels, type VoiceTranscript } from '../hooks/useVoiceSession';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { workflowToCanvas } from '../utils/workflowToCanvas';
@@ -63,6 +64,42 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [voiceInfo, setVoiceInfo] = useState<VoiceProviderInfo | null>(null);
     // Spoken build progress. Off until asked for; see useBuildNarration.
     const speech = useBuildNarration();
+
+    // Talking through what to build. What you say lands in the brief box, so the
+    // conversation produces the thing the Build button actually consumes —
+    // otherwise it would just be a chat that goes nowhere.
+    const micRef = useRef<HTMLButtonElement>(null);
+    const vizRef = useRef<HTMLDivElement>(null);
+    const [voiceReply, setVoiceReply] = useState('');
+
+    const handleVoiceTranscript = useCallback((entry: VoiceTranscript) => {
+        if (!entry.text) return;
+        if (entry.role === 'user') {
+            // Transcript deltas arrive several times a turn; append with a single
+            // space so the brief reads as continuous prose.
+            setBuildInput((current) => (current ? `${current} ${entry.text}` : entry.text).replace(/\s+/g, ' '));
+        } else {
+            setVoiceReply((current) => current + entry.text);
+        }
+    }, []);
+
+    const handleVoiceLevels = useCallback(({ level, bands, speaking }: VoiceLevels) => {
+        micRef.current?.style.setProperty('--voice-level', level.toFixed(3));
+        const viz = vizRef.current;
+        if (!viz) return;
+        viz.dataset.speaking = String(speaking);
+        bands.forEach((value, index) => {
+            (viz.children[index] as HTMLElement | undefined)?.style.setProperty('--b', value.toFixed(3));
+        });
+    }, []);
+
+    const voice = useVoiceSession({
+        sessionId: null,
+        purpose: 'builder',
+        draft: buildInput,
+        onTranscript: handleVoiceTranscript,
+        onLevels: handleVoiceLevels,
+    });
 
     // Selector-scoped so this panel doesn't re-render on every node/edge change on the canvas.
     const { currentWorkflowId, workflowName } = useWorkflowStore(
@@ -686,6 +723,63 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                             className="w-full min-h-24 border border-slate-300 dark:border-slate-700 rounded-md p-3 text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200"
                             placeholder="Describe what you want to build..."
                         />
+
+                        {/* Talk it through. Speech lands in the brief above, so
+                            the conversation produces what Build consumes. */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                ref={micRef}
+                                onClick={() => {
+                                    if (!voice.isActive) setVoiceReply('');
+                                    voice.toggle();
+                                }}
+                                title={voice.isActive ? 'Stop talking' : 'Describe it out loud'}
+                                className={`relative shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-colors ${
+                                    voice.isActive
+                                        ? 'bg-[var(--color-primary)] text-white'
+                                        : 'bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                {voice.state === 'starting' ? (
+                                    <Loader2 size={15} className="animate-spin" />
+                                ) : voice.isActive ? (
+                                    <Mic size={15} />
+                                ) : (
+                                    <MicOff size={15} />
+                                )}
+                                {voice.isActive && (
+                                    <>
+                                        <span className="voice-ring-ambient" />
+                                        <span className="voice-ring-live" />
+                                    </>
+                                )}
+                            </button>
+                            <div
+                                ref={vizRef}
+                                aria-hidden="true"
+                                className={`voice-viz ${voice.isActive ? 'is-on' : ''}`}
+                            >
+                                {[0, 1, 2, 3, 4].map((bar) => (
+                                    <i key={bar} />
+                                ))}
+                            </div>
+                            <span className="text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                                {voice.error
+                                    ? voice.error
+                                    : voice.state === 'speaking'
+                                        ? 'Answering…'
+                                        : voice.isActive
+                                            ? 'Listening — what you say goes into the brief above'
+                                            : 'Talk it through instead of typing'}
+                            </span>
+                        </div>
+                        {voiceReply && (
+                            <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-2 text-[12px] leading-snug text-slate-600 dark:text-slate-300">
+                                <span className="font-semibold">Assistant: </span>
+                                {voiceReply.slice(-400)}
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-3 gap-2">
                             <button onClick={runChatBuilder} disabled={busy} className="col-span-2 bg-[var(--color-primary)] text-white rounded-md py-2 text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                                 <Send size={15} /> Send

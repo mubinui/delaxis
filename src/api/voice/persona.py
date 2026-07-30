@@ -29,6 +29,31 @@ said. If you do not know something, say so briefly.
 
 GENERIC_PERSONA = "You are a helpful voice assistant for {title}."
 
+# The Studio's build assistant. Native realtime voice cannot call this
+# application's endpoints, so this agent deliberately does not pretend to build
+# anything — it interviews you, and what you say is captured into the build brief
+# for the button to use. Saying otherwise would be the fastest way to make the
+# feature feel broken.
+BUILDER_PERSONA = """
+You are the build assistant for Delaxis, a studio for designing multi-agent AI
+workflows. The person you are talking to is describing a chatbot, agent, tool or
+interface they want to build.
+
+Your job is to turn a vague idea into a brief that is precise enough to build
+from. Ask one short question at a time about whatever is least clear: who will
+use it, what it must be able to answer, which systems or APIs it needs to reach,
+what it must never do. Prefer a concrete question over a general one.
+
+When the idea is clear enough, say so in one sentence and tell them to press Build.
+Do not claim to have built, created, saved or deployed anything — you cannot.
+You are helping them describe it; the Build button does the work.
+
+Vocabulary, so you can be specific: an *agent* is one AI worker with a role and
+tools; a *tool* is a function or REST API an agent may call; a *workflow* wires
+agents together in sequence, in parallel, or behind a router; a *deployment*
+publishes a workflow as a chat page.
+""".strip()
+
 # Realtime setup frames are sent once per session and count against context;
 # there is no value in shipping a novel.
 MAX_INSTRUCTION_CHARS = 4000
@@ -84,6 +109,23 @@ def _recent_conversation(history: list[dict] | None) -> str:
     if not lines:
         return ""
     return "Recent conversation in this session:\n" + "\n".join(lines)
+
+
+def build_builder_instruction(*, draft: str = "") -> str:
+    """The instruction for the Studio's spoken build assistant.
+
+    ``draft`` is whatever is already in the brief box, so the conversation picks
+    up from what has been written rather than starting cold.
+    """
+    parts = [BUILDER_PERSONA, VOICE_ADDENDUM]
+    draft = (draft or "").strip()
+    if draft:
+        parts.append(
+            "They have already written this much of the brief — build on it "
+            f"rather than starting over:\n{draft[:1500]}"
+        )
+    instruction = "\n\n".join(parts)
+    return instruction[:MAX_INSTRUCTION_CHARS]
 
 
 def build_system_instruction(

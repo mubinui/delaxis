@@ -26,13 +26,53 @@ class TestMintAndRedeem:
     def test_round_trips_session_and_deployment(self):
         ticket, ttl = tickets.mint(session_id="abc-123", deployment="support-bot")
         assert ttl > 0
-        assert tickets.redeem(ticket) == ("abc-123", "support-bot")
+        assert tickets.redeem(ticket) == ("abc-123", "support-bot", tickets.PURPOSE_SESSION)
 
     def test_deployment_is_optional(self):
         ticket, _ = tickets.mint(session_id="abc-123", deployment=None)
-        session_id, deployment = tickets.redeem(ticket)
+        session_id, deployment, purpose = tickets.redeem(ticket)
         assert session_id == "abc-123"
         assert not deployment
+        assert purpose == tickets.PURPOSE_SESSION
+
+
+class TestBuilderPurpose:
+    """A builder ticket is a design conversation with no workflow behind it.
+
+    It legitimately carries no session, so the "must name a session" rule has to
+    apply only to session-scoped tickets — while still refusing a *session*
+    ticket that lacks one.
+    """
+
+    def test_round_trips_without_a_session(self):
+        ticket, _ = tickets.mint(session_id="", deployment=None, purpose=tickets.PURPOSE_BUILDER)
+        session_id, deployment, purpose = tickets.redeem(ticket)
+        assert session_id == ""
+        assert deployment is None
+        assert purpose == tickets.PURPOSE_BUILDER
+
+    def test_session_ticket_still_requires_a_session(self):
+        ticket, _ = tickets.mint(session_id="", deployment=None, purpose=tickets.PURPOSE_SESSION)
+        with pytest.raises(tickets.TicketError, match="no session"):
+            tickets.redeem(ticket)
+
+    def test_unknown_purpose_is_refused(self):
+        token = create_access_token(
+            {"typ": "voice", "pur": "something-else", "sid": "abc", "dep": "", "jti": "z"}
+        )
+        with pytest.raises(tickets.TicketError, match="unknown ticket purpose"):
+            tickets.redeem(token)
+
+    def test_a_purposeless_ticket_defaults_to_session(self):
+        # Tickets minted before the purpose claim existed must keep working.
+        token = create_access_token({"typ": "voice", "sid": "abc", "dep": "", "jti": "legacy"})
+        assert tickets.redeem(token) == ("abc", None, tickets.PURPOSE_SESSION)
+
+    def test_builder_tickets_are_still_single_use(self):
+        ticket, _ = tickets.mint(session_id="", deployment=None, purpose=tickets.PURPOSE_BUILDER)
+        tickets.redeem(ticket)
+        with pytest.raises(tickets.TicketError, match="already used"):
+            tickets.redeem(ticket)
 
 
 class TestSingleUse:
@@ -102,4 +142,4 @@ class TestTtl:
         monkeypatch.setattr(settings.voice, "ticket_ttl_seconds", 0)
         ticket, ttl = tickets.mint(session_id="abc", deployment=None)
         assert ttl >= 5
-        assert tickets.redeem(ticket) == ("abc", None)
+        assert tickets.redeem(ticket) == ("abc", None, tickets.PURPOSE_SESSION)

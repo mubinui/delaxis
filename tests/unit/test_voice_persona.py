@@ -101,3 +101,48 @@ class TestRecentConversation:
 
     def test_no_history_section_when_empty(self):
         assert "Recent conversation" not in build_system_instruction(system_prompt="P", history=[])
+
+
+class TestBuilderPersona:
+    """The Studio's spoken build assistant.
+
+    Native realtime voice cannot call this application's endpoints, so the
+    persona must not claim to build anything — the fastest way to make the
+    feature feel broken is an assistant that says "done!" and changed nothing.
+    """
+
+    def test_disclaims_being_able_to_build(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        instruction = build_builder_instruction()
+        assert "cannot" in instruction
+        assert "press Build" in instruction
+
+    def test_always_carries_the_speaking_rules(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        assert VOICE_ADDENDUM in build_builder_instruction()
+
+    def test_continues_from_an_existing_draft(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        instruction = build_builder_instruction(draft="a bot for course enrolment")
+        assert "course enrolment" in instruction
+        assert "rather than starting over" in instruction
+
+    def test_no_draft_section_when_empty(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        assert "rather than starting over" not in build_builder_instruction(draft="   ")
+
+    def test_stays_within_the_instruction_budget(self):
+        from src.api.voice.persona import MAX_INSTRUCTION_CHARS, build_builder_instruction
+
+        assert len(build_builder_instruction(draft="x" * 10000)) <= MAX_INSTRUCTION_CHARS
+
+    def test_teaches_the_platform_vocabulary(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        instruction = build_builder_instruction()
+        for term in ("agent", "tool", "workflow", "deployment"):
+            assert term in instruction

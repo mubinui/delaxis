@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import structlog
+from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 
@@ -28,7 +29,7 @@ from src.api.voice import protocol as p
 from src.api.voice import tickets
 from src.api.voice.bridge import VoiceUpstreamError, run_bridge
 from src.api.voice.config import VoiceConfigError, live_api_key, load_live_config, voice_providers
-from src.api.voice.persona import build_system_instruction
+from src.api.voice.persona import build_builder_instruction, build_system_instruction
 from src.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -38,6 +39,21 @@ router = APIRouter(prefix="/api/v1/voice", tags=["voice"])
 # waiting in line is a caller holding an open microphone.
 _capacity: asyncio.Semaphore | None = None
 _capacity_size = 0
+
+
+# Builder drafts, keyed by the ticket that will redeem them. Short-lived: a
+# ticket outlives this by design (TTLCache expiry is generous), and a missing
+# draft only means the conversation starts cold.
+_drafts: TTLCache[str, str] = TTLCache(maxsize=256, ttl=300)
+
+
+def _remember_draft(ticket: str, draft: str) -> None:
+    if draft and draft.strip():
+        _drafts[ticket] = draft.strip()[:4000]
+
+
+def _take_draft(ticket: str) -> str:
+    return _drafts.pop(ticket, "")
 
 
 def _semaphore() -> asyncio.Semaphore:
@@ -50,8 +66,14 @@ def _semaphore() -> asyncio.Semaphore:
 
 
 class TicketRequest(BaseModel):
-    session_id: str
+    # Required for purpose="session"; ignored for the builder, which is a design
+    # conversation that belongs to no workflow.
+    session_id: str = ""
     deployment: str | None = None
+    purpose: Literal["session", "builder"] = "session"
+    # Whatever is already in the Studio's brief box, so a spoken conversation
+    # continues from it instead of starting cold.
+    draft: str = ""
 
 
 class TicketResponse(BaseModel):
@@ -133,37 +155,54 @@ async def create_voice_ticket(
 ) -> TicketResponse:
     """Mint a single-use ticket for one voice WebSocket.
 
-    Authorisation is by resource: the caller must name a session that already
-    exists, and creating that session went through the normal authenticated
-    endpoint. Voice therefore inherits exactly the text chat's auth posture — if
-    you can post a message to this session, you can also speak to it.
+    For ``purpose="session"`` authorisation is by resource: the caller must name a
+    session that already exists, and creating that session went through the normal
+    authenticated endpoint. Voice therefore inherits exactly the text chat's auth
+    posture — if you can post a message to this session, you can also speak to it.
+
+    ``purpose="builder"`` is a design conversation in the Studio that belongs to no
+    workflow, so there is no resource to authorise against. It relies on this
+    endpoint's own authentication and rate limit, which is the same bar as every
+    other builder call.
     """
-    try:
-        session_uuid = UUID(body.session_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid session ID format: {body.session_id}",
-        ) from None
+    session_id = ""
+    if body.purpose == tickets.PURPOSE_SESSION:
+        try:
+            session_uuid = UUID(body.session_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid session ID format: {body.session_id}",
+            ) from None
 
-    session = await get_session_manager().get_session(session_uuid)
-    if session is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session not found: {body.session_id}",
+        session = await get_session_manager().get_session(session_uuid)
+        if session is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session not found: {body.session_id}",
+            )
+        session_id = str(session_uuid)
+
+    try:
+        config, _key, _prompt, _voice, max_seconds = _resolve_voice_settings(
+            body.deployment if body.purpose == tickets.PURPOSE_SESSION else None
         )
-
-    try:
-        config, _key, _prompt, _voice, max_seconds = _resolve_voice_settings(body.deployment)
     except VoiceConfigError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
 
-    ticket, ttl = tickets.mint(session_id=str(session_uuid), deployment=body.deployment)
+    ticket, ttl = tickets.mint(
+        session_id=session_id, deployment=body.deployment, purpose=body.purpose
+    )
+    # The draft is held server-side against the ticket rather than sent over the
+    # socket, so the browser never supplies the instruction the model runs on.
+    if body.purpose == tickets.PURPOSE_BUILDER:
+        _remember_draft(ticket, body.draft)
     logger.info(
         "voice_ticket_issued",
-        session_id=str(session_uuid),
+        purpose=body.purpose,
+        session_id=session_id,
         deployment=body.deployment,
         username=current_user.username,
         model=config.model,
@@ -184,7 +223,7 @@ async def voice_websocket(websocket: WebSocket, ticket: str = "") -> None:
     # Every rejection below happens before accept() or before any upstream
     # socket is opened — an unauthorised caller must never cost a billed session.
     try:
-        session_id, deployment = tickets.redeem(ticket)
+        session_id, deployment, purpose = tickets.redeem(ticket)
     except tickets.TicketError as exc:
         await websocket.close(code=p.CLOSE_UNAUTHORIZED, reason=str(exc)[:120])
         return
@@ -201,23 +240,30 @@ async def voice_websocket(websocket: WebSocket, ticket: str = "") -> None:
         return
 
     manager = get_session_manager()
-    try:
-        session_uuid = UUID(session_id)
-    except ValueError:
-        await websocket.close(code=p.CLOSE_UNAUTHORIZED, reason="bad session")
-        return
+    session_uuid: UUID | None = None
 
-    session = await manager.get_session(session_uuid)
-    if session is None:
-        await websocket.close(code=p.CLOSE_UNAUTHORIZED, reason="session not found")
-        return
+    if purpose == tickets.PURPOSE_BUILDER:
+        # A design conversation with no workflow behind it: nothing to load, and
+        # nothing to persist afterwards.
+        instruction = build_builder_instruction(draft=_take_draft(ticket))
+    else:
+        try:
+            session_uuid = UUID(session_id)
+        except ValueError:
+            await websocket.close(code=p.CLOSE_UNAUTHORIZED, reason="bad session")
+            return
 
-    instruction = build_system_instruction(
-        title=str((session.metadata or {}).get("deployment") or deployment or "this assistant"),
-        system_prompt=system_prompt,
-        workflow_id=str((session.metadata or {}).get("workflow_id") or ""),
-        history=session.conversation_history,
-    )
+        session = await manager.get_session(session_uuid)
+        if session is None:
+            await websocket.close(code=p.CLOSE_UNAUTHORIZED, reason="session not found")
+            return
+
+        instruction = build_system_instruction(
+            title=str((session.metadata or {}).get("deployment") or deployment or "this assistant"),
+            system_prompt=system_prompt,
+            workflow_id=str((session.metadata or {}).get("workflow_id") or ""),
+            history=session.conversation_history,
+        )
 
     await semaphore.acquire()
     await websocket.accept()
@@ -254,9 +300,13 @@ async def voice_websocket(websocket: WebSocket, ticket: str = "") -> None:
     finally:
         semaphore.release()
         if stats is not None:
-            await _persist_transcript(manager, session_uuid, stats, config)
+            # A builder conversation has no session to write into; its transcript
+            # goes to the brief box in the browser instead.
+            if session_uuid is not None:
+                await _persist_transcript(manager, session_uuid, stats, config)
             logger.info(
                 "voice_session_ended",
+                purpose=purpose,
                 session_id=session_id,
                 reason=stats.reason,
                 bytes_in=stats.bytes_in,
