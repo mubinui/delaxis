@@ -5,6 +5,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex" />
+  <!-- __BASE__ is rewritten by scripts/emit-demo-pages.mjs; these pages are
+       served from a nested path, so the favicon cannot be a root-relative URL. -->
+  <link rel="icon" type="image/svg+xml" href="__BASE__delaxis-logo.svg?v=3" />
+  <link rel="icon" type="image/png" sizes="64x64" href="__BASE__delaxis-logo-64.png?v=3" />
+  <link rel="apple-touch-icon" sizes="180x180" href="__BASE__delaxis-logo-180.png?v=3" />
   <title>Delaxis — Deployed Chat</title>
   <style>
     :root {

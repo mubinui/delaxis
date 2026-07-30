@@ -32,7 +32,10 @@ const byId = Object.fromEntries(
 const render = () =>
     template
         .replace('/*__DEPLOYMENTS__*/{}', JSON.stringify(byId))
-        .replace("/*__STUDIO_URL__*/'/'", JSON.stringify(basePath));
+        .replace("/*__STUDIO_URL__*/'/'", JSON.stringify(basePath))
+        // These pages live at /d/<id>/, so favicon URLs have to resolve against
+        // the site base rather than the page's own directory.
+        .replaceAll('__BASE__', basePath);
 
 const page = render();
 

@@ -1,6 +1,13 @@
 <div align="center">
 
-# 🌳 Delaxis
+<!-- The mark inverts with the reader's GitHub theme, the same way the favicon
+     and the Studio header do. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="workflow-editor/svg/delaxis-tile-paper-blue-dark.svg">
+  <img src="workflow-editor/svg/delaxis-tile-paper-blue-light.svg" alt="Delaxis" width="88" height="88">
+</picture>
+
+# Delaxis
 
 **An open-source multi-agent development kit — design, test, and deploy AI agent workflows from one place.**
 
