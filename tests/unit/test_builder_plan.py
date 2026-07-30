@@ -26,7 +26,12 @@ class TestPlanRepair:
         assert {n["id"] for n in plan["workflow"]["topology"]["nodes"]} == {"one", "two"}
 
     def test_an_unregistered_tool_is_removed_rather_than_left_dangling(self):
-        plan = normalize({"agents": [{"id": "helper", "tools": ["web_search", "invented_tool"]}]})
+        # The rationale is what keeps web_search past the selectivity check, so
+        # this still tests dangling removal rather than the new pruning.
+        plan = normalize({
+            "agents": [{"id": "helper", "tools": ["web_search", "invented_tool"]}],
+            "tool_rationale": {"web_search": "The brief needs live lookups."},
+        })
         assert plan["agents"][0]["tools"] == ["web_search"]
 
     def test_a_tool_the_plan_defines_itself_is_kept(self):
@@ -37,7 +42,10 @@ class TestPlanRepair:
         assert plan["agents"][0]["tools"] == ["my_api"]
 
     def test_agent_tools_are_mirrored_onto_the_topology_node(self):
-        plan = normalize({"agents": [{"id": "helper", "tools": ["web_search"]}]})
+        plan = normalize({
+            "agents": [{"id": "helper", "tools": ["web_search"]}],
+            "tool_rationale": {"web_search": "The brief needs live lookups."},
+        })
         node = plan["workflow"]["topology"]["nodes"][0]
         assert node["tools"] == ["web_search"]
 
@@ -179,3 +187,95 @@ class TestApplyIsIdempotent:
         result = client.post("/api/v1/builder/apply", json={"plan": plan}).json()
         assert result["errors"] == []
         assert result["workflow"] is not None
+
+
+class TestToolSelectivity:
+    """The planner attached the whole tool catalogue regardless of the brief.
+
+    A prompt rule alone was ignored, so a tool now survives only if the model
+    could say why it is there. These pin the enforcement, not the wording.
+    """
+
+    def test_unjustified_tools_are_dropped(self):
+        from src.api.routers.builder import _normalize_plan
+
+        plan = _normalize_plan(
+            {
+                "agents": [{"id": "a", "name": "A",
+                            "tools": ["web_search", "calculate", "get_weather", "rag_query"]}],
+                "workflow": {"id": "w", "name": "W"},
+            },
+            "A chatbot that answers questions about our refund policy.",
+        )
+        assert plan["agents"][0]["tools"] == []
+        assert set(plan["dropped_tools"]) == {"web_search", "calculate", "get_weather", "rag_query"}
+
+    def test_justified_tools_survive(self):
+        from src.api.routers.builder import _normalize_plan
+
+        plan = _normalize_plan(
+            {
+                "agents": [{"id": "a", "name": "A", "tools": ["web_search", "calculate", "get_weather"]}],
+                "workflow": {"id": "w", "name": "W"},
+                "tool_rationale": {
+                    "web_search": "The brief asks for current shipping times.",
+                    "calculate": "It must total refunds exactly.",
+                },
+            },
+            "brief",
+        )
+        assert plan["agents"][0]["tools"] == ["web_search", "calculate"]
+        assert plan["dropped_tools"] == ["get_weather"]
+
+    def test_blank_rationale_is_not_a_justification(self):
+        from src.api.routers.builder import _normalize_plan
+
+        plan = _normalize_plan(
+            {
+                "agents": [{"id": "a", "name": "A", "tools": ["web_search"]}],
+                "workflow": {"id": "w", "name": "W"},
+                "tool_rationale": {"web_search": "   "},
+            },
+            "brief",
+        )
+        assert plan["agents"][0]["tools"] == []
+
+    def test_a_tool_the_plan_defines_needs_no_rationale(self):
+        from src.api.routers.builder import _normalize_plan
+
+        plan = _normalize_plan(
+            {
+                "agents": [{"id": "a", "name": "A", "tools": ["lookup_order"]}],
+                "tools": [{"id": "lookup_order", "name": "Lookup Order"}],
+                "workflow": {"id": "w", "name": "W"},
+            },
+            "brief",
+        )
+        assert plan["agents"][0]["tools"] == ["lookup_order"]
+        assert "dropped_tools" not in plan
+
+    def test_node_tools_follow_the_pruned_agent(self):
+        from src.api.routers.builder import _normalize_plan
+
+        plan = _normalize_plan(
+            {
+                "agents": [{"id": "a", "name": "A", "tools": ["web_search", "calculate"]}],
+                "workflow": {"id": "w", "name": "W", "topology": {
+                    "nodes": [{"id": "a", "agent_id": "a"}], "entry_node": "a"}},
+                "tool_rationale": {"calculate": "It must do arithmetic exactly."},
+            },
+            "brief",
+        )
+        node = plan["workflow"]["topology"]["nodes"][0]
+        # The canvas must not advertise a tool the agent no longer has.
+        assert node["tools"] == ["calculate"]
+
+    def test_no_tools_at_all_is_a_valid_plan(self):
+        from src.api.routers.builder import _normalize_plan
+
+        plan = _normalize_plan(
+            {"agents": [{"id": "a", "name": "A"}], "workflow": {"id": "w", "name": "W"}},
+            "A chatbot that explains our returns policy.",
+        )
+        assert plan["agents"][0]["tools"] == []
+        assert "dropped_tools" not in plan

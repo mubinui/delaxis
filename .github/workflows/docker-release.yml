@@ -23,6 +23,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # arm64 is emulated on the amd64 runner, so it needs binfmt registered.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -49,7 +53,13 @@ jobs:
         with:
           context: .
           push: true
+          # Was amd64-only, so `docker pull` failed outright on Apple Silicon
+          # with "no matching manifest for linux/arm64/v8" — the README's own
+          # run command did not work on a large share of developer machines.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Scope the cache per platform; a shared key makes the two builds
+          # evict each other and every release rebuilds from scratch.
           cache-from: type=gha
           cache-to: type=gha,mode=max

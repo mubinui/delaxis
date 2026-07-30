@@ -232,6 +232,19 @@ export const useVoiceSession = ({
         setState('starting');
 
         try {
+            // The microphone comes first, before the ticket exists. Tickets live
+            // ~30s, and getUserMedia blocks on a permission dialog the user may
+            // sit on for longer than that — which expired the ticket before the
+            // socket ever opened. That was the other half of "works sometimes".
+            stream.current = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                },
+            });
+
             const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             if (token?.trim()) headers.Authorization = `Bearer ${token.trim()}`;
 
@@ -262,15 +275,6 @@ export const useVoiceSession = ({
             outGain.current.connect(output.destination);
             outAnalyser.current = makeAnalyser(output, outGain.current);
             await output.resume();
-
-            stream.current = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                },
-            });
 
             const input = new AudioContext({ sampleRate: inRate });
             inCtx.current = input;

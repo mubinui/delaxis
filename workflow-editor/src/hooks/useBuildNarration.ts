@@ -135,6 +135,23 @@ export const narration = {
     failed: (what: string) => `${what} failed. Check the message in the panel.`,
 };
 
+/**
+ * Does this spoken turn ask for the build to start?
+ *
+ * Matched on the user's own words rather than waiting for the model to emit a
+ * marker: the realtime model cannot call anything here, so the phrase the user
+ * actually said is the only reliable signal. Deliberately narrow — it fires an
+ * action, and a false positive builds something nobody asked for.
+ */
+const BUILD_COMMAND =
+    /\b(?:start|begin|kick off|go ahead(?: and)?)\s+(?:the\s+)?build(?:ing)?\b|\bbuild\s+(?:it|this|that)\b|\bstart\s+it\b|\blet'?s\s+build\b/i;
+
+/** Negations and hypotheticals that look like a command but are not one. */
+const NOT_A_COMMAND = /\b(?:don'?t|do not|not yet|before you|wait|hold on|instead of|rather than|if you)\b/i;
+
+export const isBuildCommand = (text: string): boolean =>
+    BUILD_COMMAND.test(text) && !NOT_A_COMMAND.test(text);
+
 /** "anthropic/claude-opus-5" -> "Claude Opus 5" — model ids do not read aloud well. */
 function prettyModel(modelId: string): string {
     const bare = modelId.includes('/') ? modelId.slice(modelId.lastIndexOf('/') + 1) : modelId;

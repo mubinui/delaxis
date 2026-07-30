@@ -266,9 +266,13 @@ async def voice_websocket(websocket: WebSocket, ticket: str = "") -> None:
         )
 
     await semaphore.acquire()
-    await websocket.accept()
     stats = None
     try:
+        # accept() has to be inside the try. It can fail — the peer hangs up
+        # during the handshake, a proxy drops it — and when it did, the slot was
+        # never released. Four of those against the default cap of 4 wedged voice
+        # permanently, which is what made it work "sometimes".
+        await websocket.accept()
         stats = await asyncio.wait_for(
             run_bridge(
                 config=config,

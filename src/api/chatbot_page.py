@@ -376,7 +376,12 @@ VOICE_SCRIPT = r"""
             duck();
           }
 
-          async function attachCapture() {
+          // Split out from attachCapture so the permission dialog happens before
+          // a ticket is minted: tickets live ~30s, and a user can easily sit on
+          // that dialog for longer, which expired the ticket before the socket
+          // opened.
+          async function requestMic() {
+            if (micStream) return micStream;
             micStream = await navigator.mediaDevices.getUserMedia({
               audio: {
                 channelCount: 1,
@@ -385,6 +390,11 @@ VOICE_SCRIPT = r"""
                 autoGainControl: true,
               },
             });
+            return micStream;
+          }
+
+          async function attachCapture() {
+            await requestMic();
             inCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: inRate });
             await inCtx.resume();
             source = inCtx.createMediaStreamSource(micStream);
@@ -448,6 +458,8 @@ VOICE_SCRIPT = r"""
             onLevel = (opts && opts.onLevel) || null;
             setState(STARTING);
             try {
+              // Microphone first, ticket second — see requestMic.
+              await requestMic();
               var ticket = await opts.mintTicket();
               inRate = ticket.input_sample_rate || inRate;
               outRate = ticket.output_sample_rate || outRate;

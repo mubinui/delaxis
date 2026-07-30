@@ -998,6 +998,19 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
     }
     resolvable = known_tools | planned_tool_ids
 
+    # Tools the model could justify against the brief. Asking for a reason and
+    # then enforcing it is what stops the planner attaching the whole catalogue:
+    # a prompt rule alone was routinely ignored. A tool the plan defines itself
+    # is inherently justified — the model would not have invented it otherwise.
+    rationale = plan.get("tool_rationale")
+    rationale = rationale if isinstance(rationale, dict) else {}
+    justified = {
+        str(tool_id)
+        for tool_id, reason in rationale.items()
+        if isinstance(reason, str) and reason.strip()
+    } | planned_tool_ids
+    dropped: set[str] = set()
+
     seen_ids: set[str] = set()
     for index, agent in enumerate(agents):
         agent_id = _slug(agent.get("id") or agent.get("name") or "", f"agent_{index + 1}")
@@ -1010,7 +1023,9 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
         agent.setdefault("description", prompt[:240])
         # A tool the runtime cannot resolve is worse than none: the agent is told
         # it has a capability it will never be able to call.
-        agent["tools"] = [t for t in (agent.get("tools") or []) if t in resolvable]
+        wanted = [t for t in (agent.get("tools") or []) if t in resolvable]
+        agent["tools"] = [t for t in wanted if t in justified]
+        dropped.update(t for t in wanted if t not in justified)
 
     if not agents:
         agents = _fallback_plan(prompt)["agents"]
@@ -1068,6 +1083,11 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
     plan.setdefault("functions", [])
     plan.setdefault("triggers", [])
     plan.setdefault("missing_secrets", [])
+    if dropped:
+        # Surfaced rather than silent, so an over-eager plan is visible in the
+        # Studio instead of just quietly producing a leaner agent.
+        logger.info("builder_plan_tools_dropped", tools=sorted(dropped))
+        plan["dropped_tools"] = sorted(dropped)
     return plan
 
 
@@ -1099,6 +1119,22 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
                 "Define anything else under tools[] first.\n"
                 "- Repeat each agent's tools on its topology node.\n"
                 "- Prefer the fewest agents that do the job. One is fine.\n"
+                "\n"
+                "Tools are opt-in, not a menu to fill:\n"
+                "- The list above is what you MAY use, not what you should. Most chatbots\n"
+                "  need zero or one tool. An agent with no tools is a normal, good answer.\n"
+                "- Attach a tool only when the brief describes something the agent cannot\n"
+                "  do by talking: looking up live data, doing arithmetic it must get exactly\n"
+                "  right, reading the user's documents, calling a named system.\n"
+                "- Never attach a tool speculatively, 'in case it is useful', or because it\n"
+                "  exists. A tool the agent does not need makes it slower and less reliable.\n"
+                "- rag_* tools only make sense when the brief mentions a document set,\n"
+                "  knowledge base or internal content to search. Do not add them otherwise.\n"
+                "- For every tool you attach, add an entry to tool_rationale mapping the\n"
+                "  tool id to one short sentence quoting the part of the brief that needs\n"
+                "  it. If you cannot write that sentence, do not attach the tool.\n"
+                "\n"
+                "tool_rationale: {tool_id: reason} — required whenever any agent has tools.\n"
                 "- No prose, no markdown outside the JSON."
             ),
         },

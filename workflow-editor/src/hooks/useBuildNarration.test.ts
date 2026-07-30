@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { narration } from './useBuildNarration';
+import { isBuildCommand, narration } from './useBuildNarration';
 
 /**
  * The phrases are spoken, so what matters is that they read as sentences, stay
@@ -59,5 +59,46 @@ describe('narration phrases', () => {
             expect(phrase.length).toBeLessThan(60);
             expect(phrase).toMatch(/\.$/);
         }
+    });
+});
+
+describe('spoken build command', () => {
+    it.each([
+        'start building',
+        'ok start the build',
+        'go ahead and build it',
+        'build it',
+        "let's build",
+        'begin building now',
+        'kick off the build',
+    ])('fires on %j', (phrase) => {
+        expect(isBuildCommand(phrase)).toBe(true);
+    });
+
+    it('fires on a phrase assembled from transcript fragments', () => {
+        // Deltas arrive split; the panel tests the accumulated turn.
+        const accumulated = ' it should answer refund questions  ok start building';
+        expect(isBuildCommand(accumulated)).toBe(true);
+    });
+
+    it.each([
+        'I want to build a chatbot for refunds',
+        'what should we build',
+        'this is the building I work in',
+        'tell me about the builder',
+    ])('does not fire on %j', (phrase) => {
+        expect(isBuildCommand(phrase)).toBe(false);
+    });
+
+    it.each([
+        "don't start building yet",
+        'do not build it',
+        'not yet, start building after we add the tool',
+        'wait, build it later',
+        'before you start building, add a search tool',
+    ])('does not fire on the negation %j', (phrase) => {
+        // A false positive builds something nobody asked for, so negations and
+        // hypotheticals have to lose.
+        expect(isBuildCommand(phrase)).toBe(false);
     });
 });

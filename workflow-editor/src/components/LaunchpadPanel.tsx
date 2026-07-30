@@ -5,7 +5,7 @@ import type { BuilderType, ChatMessage, ModelInfo } from '../api/builderApi';
 import type { ThemePreset, VoiceProviderInfo, VoiceProvidersResponse } from '../api/backendTypes';
 import { api } from '../api/client';
 import { useShallow } from 'zustand/react/shallow';
-import { narration, useBuildNarration } from '../hooks/useBuildNarration';
+import { isBuildCommand, narration, useBuildNarration } from '../hooks/useBuildNarration';
 import { useVoiceSession, type VoiceLevels, type VoiceTranscript } from '../hooks/useVoiceSession';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
@@ -71,6 +71,15 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const micRef = useRef<HTMLButtonElement>(null);
     const vizRef = useRef<HTMLDivElement>(null);
     const [voiceReply, setVoiceReply] = useState('');
+    // Set when a spoken "start building" is heard; consumed by the effect below
+    // so the build runs outside the audio callback.
+    const [voiceBuildPending, setVoiceBuildPending] = useState(false);
+
+    // Spoken build commands are detected on the accumulating turn, not on each
+    // delta: "start building" almost always arrives split across two or three
+    // fragments, so testing a fragment alone would never match.
+    const spokenTurn = useRef('');
+    const buildRequested = useRef(false);
 
     const handleVoiceTranscript = useCallback((entry: VoiceTranscript) => {
         if (!entry.text) return;
@@ -78,6 +87,13 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
             // Transcript deltas arrive several times a turn; append with a single
             // space so the brief reads as continuous prose.
             setBuildInput((current) => (current ? `${current} ${entry.text}` : entry.text).replace(/\s+/g, ' '));
+            spokenTurn.current = `${spokenTurn.current} ${entry.text}`.slice(-240);
+            if (!buildRequested.current && isBuildCommand(spokenTurn.current)) {
+                // Latch it: the phrase stays in the buffer for a moment and must
+                // not launch a second build.
+                buildRequested.current = true;
+                setVoiceBuildPending(true);
+            }
         } else {
             setVoiceReply((current) => current + entry.text);
         }
@@ -191,6 +207,19 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         }
         return text;
     };
+
+    // Acting on a spoken "start building". Runs from an effect rather than from
+    // inside the audio callback so the build is not kicked off mid-transcript,
+    // and closes the mic first: a live session would otherwise keep listening
+    // through the whole build and talk over the narration.
+    useEffect(() => {
+        if (!voiceBuildPending) return;
+        setVoiceBuildPending(false);
+        voice.stop();
+        speech.speak('Starting the build.');
+        void runChatBuilder();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [voiceBuildPending]);
 
     const runChatBuilder = async () => {
         const requestText = buildInput.trim();
@@ -730,7 +759,11 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                             <button
                                 ref={micRef}
                                 onClick={() => {
-                                    if (!voice.isActive) setVoiceReply('');
+                                    if (!voice.isActive) {
+                                        setVoiceReply('');
+                                        spokenTurn.current = '';
+                                        buildRequested.current = false;
+                                    }
                                     voice.toggle();
                                 }}
                                 title={voice.isActive ? 'Stop talking' : 'Describe it out loud'}

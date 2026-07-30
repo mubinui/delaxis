@@ -111,12 +111,21 @@ class TestBuilderPersona:
     feature feel broken is an assistant that says "done!" and changed nothing.
     """
 
-    def test_disclaims_being_able_to_build(self):
+    def test_disclaims_having_built_anything(self):
         from src.api.voice.persona import build_builder_instruction
 
         instruction = build_builder_instruction()
-        assert "cannot" in instruction
-        assert "press Build" in instruction
+        assert "Never claim to have finished building" in instruction
+        assert "the build runs separately" in instruction
+
+    def test_knows_the_spoken_build_command_launches_it(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        instruction = build_builder_instruction()
+        # The client listens for these phrases in the user's speech, so the
+        # assistant has to expect them and not talk over the hand-off.
+        assert "start building" in instruction
+        assert "do not say it until they have asked" in instruction
 
     def test_always_carries_the_speaking_rules(self):
         from src.api.voice.persona import build_builder_instruction
