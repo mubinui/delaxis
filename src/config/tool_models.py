@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-VALID_TOOL_TYPES = {"function", "api", "mcp", "database", "gmail"}
+VALID_TOOL_TYPES = {"function", "api", "mcp", "database", "sql", "mongodb", "gmail"}
 MCP_TRANSPORTS = {"stdio", "sse", "streamable-http"}
 GMAIL_CAPABILITIES = {"send", "search", "read"}
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -20,6 +20,8 @@ class ToolConfig(BaseModel):
     - api: HTTP API tools (requires settings.api_url)
     - mcp: MCP server tools (requires settings.transport + command/url)
     - database: NL2SQL database tools (requires settings.db_uri or db_uri_env_var)
+    - sql: schema introspection + guarded SQL over any SQLAlchemy URL (read-only by default)
+    - mongodb: collection listing, schema sampling and find (read-only by default)
     - gmail: Gmail tools via connected Google OAuth account (requires settings.account_email)
     """
 
@@ -48,6 +50,13 @@ class ToolConfig(BaseModel):
     is_async: bool = Field(
         default=False,
         description="Whether the tool function is async (True) or sync (False). For v0.4 compatibility."
+    )
+    category: Optional[str] = Field(
+        default=None,
+        description=(
+            "Presentation category for the Library, e.g. 'security', 'data', 'files'. "
+            "Purely cosmetic — it groups tools in the UI and never affects execution."
+        )
     )
     
     # Versioning and metadata fields
@@ -87,6 +96,10 @@ class ToolConfig(BaseModel):
             self._validate_mcp_settings()
         elif tool_type == 'database':
             self._validate_database_settings()
+        elif tool_type == 'sql':
+            self._validate_database_settings()
+        elif tool_type == 'mongodb':
+            self._validate_mongo_settings()
         elif tool_type == 'gmail':
             self._validate_gmail_settings()
         else:
@@ -158,6 +171,27 @@ class ToolConfig(BaseModel):
         tables = self.settings.get('tables')
         if tables is not None and not (isinstance(tables, list) and all(isinstance(t, str) for t in tables)):
             raise ValueError(f"Tool '{self.id}': database 'tables' must be a list of table names")
+
+    def _validate_mongo_settings(self) -> None:
+        uri = self.settings.get('uri')
+        uri_env_var = self.settings.get('uri_env_var')
+        if bool(uri) == bool(uri_env_var):
+            raise ValueError(
+                f"Tool '{self.id}': mongodb tools require exactly one of 'uri' "
+                "or 'uri_env_var' in settings"
+            )
+        if uri and '@' in str(uri):
+            raise ValueError(
+                f"Tool '{self.id}': inline 'uri' values must not embed credentials. "
+                "Use 'uri_env_var' (the NAME of an env var holding the full URI) instead."
+            )
+        if not self.settings.get('database'):
+            raise ValueError(f"Tool '{self.id}': mongodb tools require a 'database' name in settings")
+        collections = self.settings.get('collections')
+        if collections is not None and not (
+            isinstance(collections, list) and all(isinstance(c, str) for c in collections)
+        ):
+            raise ValueError(f"Tool '{self.id}': mongodb 'collections' must be a list of names")
 
     def _validate_gmail_settings(self) -> None:
         account_email = self.settings.get('account_email')

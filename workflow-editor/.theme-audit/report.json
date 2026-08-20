@@ -1,0 +1,58 @@
+{
+  "landing:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "canvas:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "inspector:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-store:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-tools:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-ops:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "help:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "landing:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "canvas:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "inspector:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-store:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-tools:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-ops:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "help:dark": {
+    "findings": [],
+    "inverted": []
+  }
+}

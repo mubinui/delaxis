@@ -49,7 +49,8 @@ class ToolDefinition:
             description: Optional description (extracted from docstring if not provided)
             is_async: Whether function is async (auto-detected if None)
             factory: Optional RuntimeToolFactory for tool types that build native
-                CrewAI BaseTool instances per run (mcp/database/gmail). When set,
+                CrewAI BaseTool instances per run (mcp/database/sql/mongodb/gmail).
+                When set,
                 `function` is only the sandbox-tester callable.
         """
         self.tool_id = tool_id
@@ -244,12 +245,15 @@ class ToolRegistry:
             )
             return
 
-        # Factory-backed tool types (mcp/database/gmail): registration stays inert —
-        # no connections are opened here. The runtime calls factory.build() per run,
-        # and the stored function is only the sandbox-tester callable.
+        # Factory-backed tool types: registration stays inert — no connections are
+        # opened here. The runtime calls factory.build() per run, and the stored
+        # function is only the sandbox-tester callable. The set of factory types
+        # is asked for rather than repeated, so a new factory works everywhere
+        # the moment it is registered.
         tool_type = (settings or {}).get("type", "function")
-        if tool_type in {"mcp", "database", "gmail"}:
-            from src.tools.runtime_tool_factories import create_runtime_factory
+        from src.tools.runtime_tool_factories import create_runtime_factory, is_factory_tool_type
+
+        if is_factory_tool_type(tool_type):
 
             factory = create_runtime_factory(
                 tool_type=tool_type,

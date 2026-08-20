@@ -8,12 +8,14 @@ def register_routers(app: FastAPI) -> None:
     from src.api.routers import (
         agents,
         api_providers,
+        audit,
         auth,
         builder,
         chat_stream,
         configs,
         crewai_config,
         deployments,
+        files,
         functions,
         health,
         integrations,
@@ -51,4 +53,6 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(triggers.webhook_router)
     app.include_router(deployments.router)
     app.include_router(deployments.pages_router)
+    app.include_router(files.router)
+    app.include_router(audit.router)
     app.include_router(health.router)

@@ -309,6 +309,7 @@ class ToolResponse(BaseModel):
     entrypoint: Optional[str] = None
     enabled: bool
     settings: dict[str, Any]
+    category: Optional[str] = None
 
 
 class ToolUpdateRequest(BaseModel):
@@ -319,6 +320,7 @@ class ToolUpdateRequest(BaseModel):
     entrypoint: Optional[str] = None
     enabled: Optional[bool] = None
     settings: Optional[dict[str, Any]] = None
+    category: Optional[str] = None
 
 
 # Swagger Import Models

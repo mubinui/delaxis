@@ -307,11 +307,22 @@ class GmailToolFactory(RuntimeToolFactory):
 # Dispatch
 # ---------------------------------------------------------------------------
 
+def _database_factories() -> dict[str, type[RuntimeToolFactory]]:
+    """Imported lazily: database_factories imports this module for the base class."""
+    from src.tools.database_factories import MongoToolFactory, SqlToolFactory
+
+    return {"sql": SqlToolFactory, "mongodb": MongoToolFactory}
+
+
 _FACTORY_TYPES: dict[str, type[RuntimeToolFactory]] = {
     "mcp": McpToolFactory,
     "database": DatabaseToolFactory,
     "gmail": GmailToolFactory,
 }
+
+
+def _all_factory_types() -> dict[str, type[RuntimeToolFactory]]:
+    return {**_FACTORY_TYPES, **_database_factories()}
 
 
 def create_runtime_factory(
@@ -321,11 +332,11 @@ def create_runtime_factory(
     description: str,
     settings: dict[str, Any],
 ) -> RuntimeToolFactory:
-    factory_cls = _FACTORY_TYPES.get(tool_type)
+    factory_cls = _all_factory_types().get(tool_type)
     if factory_cls is None:
         raise ValueError(f"No runtime factory for tool type '{tool_type}'")
     return factory_cls(tool_id, name, description, settings)
 
 
 def is_factory_tool_type(tool_type: str) -> bool:
-    return tool_type in _FACTORY_TYPES
+    return tool_type in _all_factory_types()
