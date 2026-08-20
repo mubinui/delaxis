@@ -126,6 +126,7 @@ const toolToLibraryItem = (tool: ToolConfig): LibraryItem => ({
     name: tool.name,
     description: tool.description,
     type: tool.settings?.type ?? 'function',
+    category: tool.category ?? null,
     config: {
         id: tool.id,
         name: tool.name,

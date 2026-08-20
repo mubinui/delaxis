@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Check, Copy, Download, Home, Layout, Moon, Play, Plus, Rocket, Save, ShieldCheck, Sparkles, Stethoscope, Sun, Upload, Zap } from 'lucide-react';
+import { Blocks, Check, Copy, Download, Home, Layout, Moon, Play, Plus, Rocket, Save, ShieldCheck, Stethoscope, Sun, Upload, Zap } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
@@ -287,7 +287,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
 
             {/* Actions */}
             <div className="flex shrink-0 items-center gap-1">
-                {/* AI Builder — collapses into this button; opens as a floating window */}
+                {/* Builder — collapses into this button; opens as a floating window */}
                 {onToggleBuilder && (
                     <button
                         onClick={onToggleBuilder}
@@ -295,9 +295,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
                             ? 'bg-[var(--color-primary)] text-white shadow-sm'
                             : 'border border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
                             }`}
-                        title={builderOpen ? 'Close the AI Builder' : 'Open the AI Builder — generate agents, tools, and workflows'}
+                        title={builderOpen ? 'Close the Builder' : 'Open the Builder — describe what you need and it drafts agents, tools, and workflows'}
                     >
-                        <Sparkles size={14} />
+                        <Blocks size={14} />
                         <span className="hidden md:inline">Builder</span>
                     </button>
                 )}

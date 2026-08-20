@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, Save, ChevronDown, ChevronRight, Check, Activity, ArrowLeftRight, FlaskConical, Gauge, Settings2, Sparkles, Wrench, Layers, Mail, Server, BookmarkPlus, ExternalLink } from 'lucide-react';
+import { X, Trash2, Save, ChevronDown, ChevronRight, Check, Activity, ArrowLeftRight, FlaskConical, Gauge, Settings2, Cpu, Wrench, Layers, Mail, Server, BookmarkPlus, ExternalLink } from 'lucide-react';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
@@ -1302,7 +1302,7 @@ export const PropertiesPanel = () => {
                     onChange={setActiveInspectorTab}
                     tabs={[
                         { id: 'overview', label: 'Overview', icon: Activity },
-                        { id: 'model', label: 'Driver', icon: Sparkles, disabled: selectedNode.type !== 'agent' },
+                        { id: 'model', label: 'Model', icon: Cpu, disabled: selectedNode.type !== 'agent' },
                         { id: 'tools', label: selectedNode.type === 'tool' || selectedNode.type === 'router' ? 'Config' : 'Tools', icon: Wrench, disabled: selectedNode.type === 'trigger' },
                         { id: 'runtime', label: 'Runtime', icon: Layers },
                         { id: 'data', label: 'Data', icon: ArrowLeftRight, disabled: selectedNode.type !== 'agent' && selectedNode.type !== 'tool' },

@@ -14,7 +14,7 @@ const WORKS: string[] = [
 
 const DOESNT: string[] = [
     'No LLM is called — agent replies are scripted, not generated',
-    'The AI Builder explains itself instead of designing workflows',
+    'The Builder explains itself instead of designing workflows',
     'Changes live in memory only and reset when you reload the page',
 ];
 

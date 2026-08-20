@@ -46,6 +46,8 @@ export interface ToolConfig {
     entrypoint?: string | null;
     enabled: boolean;
     settings: Record<string, any>;
+    /** Presentation grouping for the Library; never affects execution. */
+    category?: string | null;
 }
 
 export interface FunctionTool {
@@ -156,6 +158,7 @@ export interface LibraryItem {
     description?: string;
     config: Record<string, any>;
     type?: string;
+    category?: string | null;
     created_at?: string;
     updated_at?: string;
 }

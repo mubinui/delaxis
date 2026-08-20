@@ -1,5 +1,5 @@
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
     ReactFlow,
     Background,
@@ -39,6 +39,7 @@ const nodeTypes = {
 
 const WorkflowCanvasContent = () => {
     const reactFlowWrapper = useRef<HTMLDivElement>(null);
+    const [dropActive, setDropActive] = useState(false);
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, addNodes, addEdges, setCurrentWorkflow, setNodeDragging } = useWorkflowStore();
     const { savedAgents, savedTools } = useLibraryStore();
     const { screenToFlowPosition, fitView } = useReactFlow();
@@ -134,14 +135,32 @@ const WorkflowCanvasContent = () => {
         return newConfig;
     };
 
+    // A palette drag gives no feedback about where it can land unless the canvas
+    // says so. dragenter/dragleave fire for every child element crossed, so a
+    // depth counter is what keeps the highlight from flickering on the way in.
+    const dragDepth = useRef(0);
+
     const onDragOver = useCallback((event: React.DragEvent) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
     }, []);
 
+    const onDragEnter = useCallback((event: React.DragEvent) => {
+        if (!event.dataTransfer.types.includes('application/reactflow')) return;
+        dragDepth.current += 1;
+        setDropActive(true);
+    }, []);
+
+    const onDragLeave = useCallback(() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDropActive(false);
+    }, []);
+
     const onDrop = useCallback(
         (event: React.DragEvent) => {
             event.preventDefault();
+            dragDepth.current = 0;
+            setDropActive(false);
 
             const type = event.dataTransfer.getData('application/reactflow') as NodeType | 'workflow';
             const label = event.dataTransfer.getData('application/reactflow-label');
@@ -422,7 +441,12 @@ const WorkflowCanvasContent = () => {
     );
 
     return (
-        <div className="flex-grow h-full bg-[var(--color-canvas-bg)]" ref={reactFlowWrapper}>
+        <div
+            className={`relative flex-grow h-full bg-[var(--canvas-bg)] ${dropActive ? 'dlx-canvas-dropping' : ''}`}
+            ref={reactFlowWrapper}
+            onDragEnter={onDragEnter}
+            onDragLeave={onDragLeave}
+        >
             <ReactFlow
                 nodes={nodes}
                 edges={edges}

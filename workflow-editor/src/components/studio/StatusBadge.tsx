@@ -3,12 +3,14 @@ import { AlertTriangle, CheckCircle2, Circle, Loader2, XCircle } from 'lucide-re
 
 type StatusTone = 'ready' | 'warning' | 'error' | 'running' | 'muted';
 
-const toneClass: Record<StatusTone, string> = {
-    ready: 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400',
-    warning: 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-400',
-    error: 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400',
-    running: 'border-blue-200 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400',
-    muted: 'border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 text-gray-600 dark:text-gray-400',
+// Status colours come from the token set rather than Tailwind palette steps, so
+// one edit changes every badge in the app and light/dark can never drift apart.
+const toneVars: Record<StatusTone, { fg: string; bg: string }> = {
+    ready: { fg: 'var(--status-ready)', bg: 'var(--status-ready-bg)' },
+    warning: { fg: 'var(--status-warning)', bg: 'var(--status-warning-bg)' },
+    error: { fg: 'var(--status-error)', bg: 'var(--status-error-bg)' },
+    running: { fg: 'var(--status-running)', bg: 'var(--status-running-bg)' },
+    muted: { fg: 'var(--status-muted)', bg: 'var(--status-muted-bg)' },
 };
 
 const toneIcon: Record<StatusTone, LucideIcon> = {
@@ -33,8 +35,16 @@ export const StatusBadge = ({
     compact?: boolean;
 }) => {
     const Icon = icon ?? toneIcon[tone];
+    const { fg, bg } = toneVars[tone];
     return (
-        <span className={`inline-flex max-w-full items-center gap-1 rounded-md border ${compact ? 'px-1.5 py-px text-[9px]' : 'px-1.5 py-0.5 text-[10px]'} font-semibold ${toneClass[tone]} ${className}`}>
+        <span
+            className={`dlx-chip max-w-full ${compact ? 'px-1.5 py-px text-[9px]' : 'px-2 py-0.5 text-[10px]'} ${className}`}
+            style={{
+                color: fg,
+                backgroundColor: bg,
+                borderColor: `color-mix(in srgb, ${fg} 26%, transparent)`,
+            }}
+        >
             <Icon size={compact ? 9 : 11} className={tone === 'running' ? 'animate-spin' : ''} />
             <span className="truncate">{label}</span>
         </span>

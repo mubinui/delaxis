@@ -7,58 +7,258 @@
    dark theme" bug. This re-binds dark: to the class. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ==========================================================================
+   Design tokens
+
+   One scale, two themes. Every token below is defined in BOTH :root and .dark,
+   so a component that reaches for a token can never be theme-broken — which is
+   the failure mode that made panels look right in light mode and washed out in
+   dark. Components should reach for these, not for raw Tailwind palette steps.
+
+   Layers are named by elevation, not by colour:
+     surface-base  the canvas everything sits on
+     surface-1     panels docked to the canvas (rails, sidebars, headers)
+     surface-2     cards raised off a panel
+     surface-3     things floating above everything (modals, popovers, menus)
+   ========================================================================== */
+
 :root {
-    /* Rich, vibrant curated color palette */
-    --color-canvas-bg: #f3f5f8;
-    --color-canvas-dots: #cbd5e1;
-    --color-node-bg: rgba(255, 255, 255, 0.85);
-    --color-node-border: rgba(226, 232, 240, 0.8);
-    --color-node-shadow: rgba(15, 23, 42, 0.05);
-    --color-node-shadow-hover: rgba(15, 23, 42, 0.12);
+    color-scheme: light;
 
-    /* Primary Accent (Delaxis blue — premium indigo-blue ramp) */
-    --color-primary: #2563eb;
-    --color-primary-hover: #1d4ed8;
-    --color-primary-soft: rgba(37, 99, 235, 0.1);
-    --color-primary-ring: rgba(37, 99, 235, 0.35);
+    /* Surfaces */
+    --surface-base: #f6f7f9;
+    --surface-1: #ffffff;
+    --surface-2: #ffffff;
+    --surface-3: #ffffff;
+    --surface-sunken: #eef0f4;
+    --surface-hover: #f1f3f7;
+    --surface-active: #e7eaf0;
 
-    /* UI Colors */
-    --color-ui-border: rgba(226, 232, 240, 0.75);
-    --color-ui-bg: rgba(255, 255, 255, 0.9);
-    --color-ui-bg-subtle: rgba(248, 250, 252, 0.85);
-    --color-surface-raised: rgba(255, 255, 255, 0.95);
-    --color-text-primary: #0f172a;
-    --color-text-secondary: #334155;
-    --color-text-muted: #64748b;
-    --color-text-faint: #94a3b8;
+    /* Borders — three weights is enough; more and the hierarchy stops reading */
+    --border-subtle: #eceef2;
+    --border-default: #dfe3ea;
+    --border-strong: #c4cad6;
+
+    /* Text */
+    --text-primary: #0b1220;
+    --text-secondary: #3d4759;
+    --text-muted: #6b7488;
+    --text-faint: #98a0b0;
+    --text-on-accent: #ffffff;
+
+    /* Accent */
+    --accent: #3355ff;
+    --accent-hover: #2440e8;
+    --accent-active: #1c33bf;
+    --accent-soft: rgba(51, 85, 255, 0.09);
+    --accent-soft-hover: rgba(51, 85, 255, 0.14);
+    --accent-border: rgba(51, 85, 255, 0.28);
+    --accent-ring: rgba(51, 85, 255, 0.28);
+    --accent-text: #2440e8;
+
+    /* Status */
+    --status-ready: #0f9d63;
+    --status-ready-bg: rgba(15, 157, 99, 0.10);
+    --status-warning: #b5730b;
+    --status-warning-bg: rgba(181, 115, 11, 0.11);
+    --status-error: #d33c3c;
+    --status-error-bg: rgba(211, 60, 60, 0.10);
+    --status-running: #3355ff;
+    --status-running-bg: rgba(51, 85, 255, 0.10);
+    --status-muted: #6b7488;
+    --status-muted-bg: rgba(107, 116, 136, 0.10);
+
+    /* Component tones. Each is one hue expressed at four strengths, so a palette
+       tile, a canvas node and a library card can all be built from the same
+       family and still read as the same component type. */
+    --tone-agent: #3355ff;
+    --tone-agent-fg: #2440e8;
+    --tone-agent-bg: rgba(51, 85, 255, 0.10);
+    --tone-agent-border: rgba(51, 85, 255, 0.22);
+
+    --tone-tool: #e2680c;
+    --tone-tool-fg: #c25405;
+    --tone-tool-bg: rgba(226, 104, 12, 0.11);
+    --tone-tool-border: rgba(226, 104, 12, 0.22);
+
+    --tone-workflow: #7c46e0;
+    --tone-workflow-fg: #6a35cc;
+    --tone-workflow-bg: rgba(124, 70, 224, 0.10);
+    --tone-workflow-border: rgba(124, 70, 224, 0.22);
+
+    --tone-trigger: #0f9d63;
+    --tone-trigger-fg: #0b8353;
+    --tone-trigger-bg: rgba(15, 157, 99, 0.11);
+    --tone-trigger-border: rgba(15, 157, 99, 0.22);
+
+    --tone-logic: #9333c7;
+    --tone-logic-fg: #7f27b0;
+    --tone-logic-bg: rgba(147, 51, 199, 0.10);
+    --tone-logic-border: rgba(147, 51, 199, 0.22);
+
+    --tone-output: #d33c3c;
+    --tone-output-fg: #b92f2f;
+    --tone-output-bg: rgba(211, 60, 60, 0.10);
+    --tone-output-border: rgba(211, 60, 60, 0.22);
+
+    --tone-security: #0e7f9e;
+    --tone-security-fg: #0a6a85;
+    --tone-security-bg: rgba(14, 127, 158, 0.11);
+    --tone-security-border: rgba(14, 127, 158, 0.22);
+
+    --tone-data: #c2255c;
+    --tone-data-fg: #a81c4e;
+    --tone-data-bg: rgba(194, 37, 92, 0.10);
+    --tone-data-border: rgba(194, 37, 92, 0.22);
+
+    /* Elevation — light mode leans on shadow, dark mode on borders and glow */
+    --shadow-xs: 0 1px 2px rgba(11, 18, 32, 0.05);
+    --shadow-sm: 0 1px 3px rgba(11, 18, 32, 0.07), 0 1px 2px rgba(11, 18, 32, 0.04);
+    --shadow-md: 0 4px 12px rgba(11, 18, 32, 0.08), 0 1px 3px rgba(11, 18, 32, 0.04);
+    --shadow-lg: 0 12px 28px rgba(11, 18, 32, 0.11), 0 2px 6px rgba(11, 18, 32, 0.05);
+    --shadow-xl: 0 24px 56px rgba(11, 18, 32, 0.15), 0 4px 12px rgba(11, 18, 32, 0.06);
+
+    /* Canvas */
+    --canvas-bg: #f6f7f9;
+    --canvas-dots: #d4d9e2;
+    --canvas-edge: #a8b0c0;
+
+    /* Shape and motion */
+    --radius-sm: 6px;
+    --radius-md: 9px;
+    --radius-lg: 13px;
+    --radius-xl: 18px;
+    --radius-pill: 9999px;
+
+    --duration-fast: 120ms;
+    --duration-base: 180ms;
+    --duration-slow: 280ms;
+    /* A slight overshoot is what makes a dropped node feel placed rather than
+       teleported. Used for lift/scale, never for colour. */
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+    /* Legacy aliases — older components still reference these names. Pointing
+       them at the new tokens means the whole app moves together even before
+       every component is migrated. */
+    --color-canvas-bg: var(--canvas-bg);
+    --color-canvas-dots: var(--canvas-dots);
+    --color-node-bg: var(--surface-2);
+    --color-node-border: var(--border-default);
+    --color-node-shadow: rgba(11, 18, 32, 0.05);
+    --color-node-shadow-hover: rgba(11, 18, 32, 0.12);
+    --color-primary: var(--accent);
+    --color-primary-hover: var(--accent-hover);
+    --color-primary-soft: var(--accent-soft);
+    --color-primary-ring: var(--accent-ring);
+    --color-ui-border: var(--border-default);
+    --color-ui-bg: var(--surface-1);
+    --color-ui-bg-subtle: var(--surface-sunken);
+    --color-surface-raised: var(--surface-2);
+    --color-text-primary: var(--text-primary);
+    --color-text-secondary: var(--text-secondary);
+    --color-text-muted: var(--text-muted);
+    --color-text-faint: var(--text-faint);
 
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
 }
 
 .dark {
-    --color-canvas-bg: #030712;
-    --color-canvas-dots: #1e293b;
-    --color-node-bg: rgba(15, 23, 42, 0.75);
-    --color-node-border: rgba(51, 65, 85, 0.6);
-    --color-node-shadow: rgba(0, 0, 0, 0.6);
-    --color-node-shadow-hover: rgba(59, 130, 246, 0.25);
-    --color-primary: #3b82f6;
-    --color-primary-hover: #60a5fa;
-    --color-primary-soft: rgba(59, 130, 246, 0.14);
-    --color-primary-ring: rgba(96, 165, 250, 0.4);
-    --color-ui-border: rgba(30, 41, 59, 0.8);
-    --color-ui-bg: rgba(9, 13, 22, 0.85);
-    --color-ui-bg-subtle: rgba(15, 23, 42, 0.65);
-    --color-surface-raised: rgba(17, 24, 39, 0.9);
-    --color-text-primary: #f8fafc;
-    --color-text-secondary: #e2e8f0;
-    --color-text-muted: #94a3b8;
-    --color-text-faint: #64748b;
-    --color-accent-blue: #38bdf8;
-    --color-accent-emerald: #34d399;
-    --color-accent-gold: #fbbf24;
-    --color-accent-rose: #f43f5e;
+    color-scheme: dark;
+
+    /* Surfaces step up in lightness with elevation, the way physical layers do
+       under a single light source. Pure black is avoided — it flattens depth. */
+    --surface-base: #0a0d14;
+    --surface-1: #10141d;
+    --surface-2: #161b26;
+    --surface-3: #1c2230;
+    --surface-sunken: #070a10;
+    --surface-hover: #1a2030;
+    --surface-active: #222937;
+
+    --border-subtle: #1b2130;
+    --border-default: #252d3d;
+    --border-strong: #38425a;
+
+    --text-primary: #f2f5fa;
+    --text-secondary: #c3cad8;
+    --text-muted: #8892a5;
+    --text-faint: #616b7e;
+    --text-on-accent: #ffffff;
+
+    --accent: #5b7cff;
+    --accent-hover: #7590ff;
+    --accent-active: #90a6ff;
+    --accent-soft: rgba(91, 124, 255, 0.15);
+    --accent-soft-hover: rgba(91, 124, 255, 0.22);
+    --accent-border: rgba(91, 124, 255, 0.35);
+    --accent-ring: rgba(91, 124, 255, 0.40);
+    --accent-text: #9db0ff;
+
+    --status-ready: #34d399;
+    --status-ready-bg: rgba(52, 211, 153, 0.14);
+    --status-warning: #fbbf24;
+    --status-warning-bg: rgba(251, 191, 36, 0.14);
+    --status-error: #f87171;
+    --status-error-bg: rgba(248, 113, 113, 0.14);
+    --status-running: #5b7cff;
+    --status-running-bg: rgba(91, 124, 255, 0.16);
+    --status-muted: #8892a5;
+    --status-muted-bg: rgba(136, 146, 165, 0.14);
+
+    --tone-agent: #5b7cff;
+    --tone-agent-fg: #9db0ff;
+    --tone-agent-bg: rgba(91, 124, 255, 0.16);
+    --tone-agent-border: rgba(91, 124, 255, 0.32);
+
+    --tone-tool: #ff8f3d;
+    --tone-tool-fg: #ffb578;
+    --tone-tool-bg: rgba(255, 143, 61, 0.15);
+    --tone-tool-border: rgba(255, 143, 61, 0.30);
+
+    --tone-workflow: #a476ff;
+    --tone-workflow-fg: #c4a6ff;
+    --tone-workflow-bg: rgba(164, 118, 255, 0.16);
+    --tone-workflow-border: rgba(164, 118, 255, 0.32);
+
+    --tone-trigger: #34d399;
+    --tone-trigger-fg: #6ee7b7;
+    --tone-trigger-bg: rgba(52, 211, 153, 0.15);
+    --tone-trigger-border: rgba(52, 211, 153, 0.30);
+
+    --tone-logic: #c364f0;
+    --tone-logic-fg: #dda5f7;
+    --tone-logic-bg: rgba(195, 100, 240, 0.15);
+    --tone-logic-border: rgba(195, 100, 240, 0.30);
+
+    --tone-output: #f87171;
+    --tone-output-fg: #fca5a5;
+    --tone-output-bg: rgba(248, 113, 113, 0.15);
+    --tone-output-border: rgba(248, 113, 113, 0.30);
+
+    --tone-security: #38bdf8;
+    --tone-security-fg: #7dd3fc;
+    --tone-security-bg: rgba(56, 189, 248, 0.15);
+    --tone-security-border: rgba(56, 189, 248, 0.30);
+
+    --tone-data: #f472b6;
+    --tone-data-fg: #f9a8d4;
+    --tone-data-bg: rgba(244, 114, 182, 0.15);
+    --tone-data-border: rgba(244, 114, 182, 0.30);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+    --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.7);
+
+    --canvas-bg: #0a0d14;
+    --canvas-dots: #232a3a;
+    --canvas-edge: #3c4661;
+
+    --color-node-shadow: rgba(0, 0, 0, 0.5);
+    --color-node-shadow-hover: rgba(91, 124, 255, 0.25);
 }
 
 @theme {
@@ -67,8 +267,8 @@
 }
 
 body {
-    background-color: var(--color-canvas-bg);
-    color: var(--color-text-secondary);
+    background-color: var(--surface-base);
+    color: var(--text-secondary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
@@ -76,54 +276,306 @@ body {
 }
 
 .dark body {
+    /* Two very low-opacity washes give the dark canvas depth without the
+       "gamer RGB" look a saturated gradient produces. */
     background:
-        radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.10), transparent 40%),
-        radial-gradient(circle at 90% 90%, rgba(99, 102, 241, 0.08), transparent 40%),
-        linear-gradient(180deg, #020617 0%, #030712 50%, #050811 100%);
-    color: var(--color-text-secondary);
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(91, 124, 255, 0.07), transparent),
+        radial-gradient(ellipse 60% 50% at 100% 100%, rgba(164, 118, 255, 0.05), transparent),
+        var(--surface-base);
     background-attachment: fixed;
 }
 
-/* Glassmorphism custom components */
-.glass-panel {
-    background: var(--color-ui-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--color-ui-border);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
+/* ==========================================================================
+   Primitives
+
+   Small, composable classes so components stop hand-rolling colour. Each one
+   is theme-correct by construction because it only references tokens.
+   ========================================================================== */
+
+.dlx-surface { background-color: var(--surface-1); border-color: var(--border-default); }
+.dlx-surface-2 { background-color: var(--surface-2); border-color: var(--border-default); }
+.dlx-surface-3 { background-color: var(--surface-3); border-color: var(--border-default); }
+.dlx-sunken { background-color: var(--surface-sunken); border-color: var(--border-subtle); }
+
+.dlx-panel {
+    background-color: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
 }
 
-.dark .glass-panel {
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+.dlx-card {
+    background-color: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+    transition: border-color var(--duration-base) var(--ease-out),
+                box-shadow var(--duration-base) var(--ease-out),
+                transform var(--duration-base) var(--ease-out);
+}
+
+.dlx-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+}
+
+.dlx-text { color: var(--text-primary); }
+.dlx-text-secondary { color: var(--text-secondary); }
+.dlx-muted { color: var(--text-muted); }
+.dlx-faint { color: var(--text-faint); }
+
+.dlx-divider { background-color: var(--border-subtle); }
+
+/* Buttons */
+.dlx-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background-color var(--duration-fast) var(--ease-out),
+                border-color var(--duration-fast) var(--ease-out),
+                color var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.dlx-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.dlx-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dlx-btn-primary {
+    background-color: var(--accent);
+    color: var(--text-on-accent);
+    border: 1px solid transparent;
+    box-shadow: var(--shadow-xs);
+}
+.dlx-btn-primary:hover:not(:disabled) { background-color: var(--accent-hover); }
+.dlx-btn-primary:active:not(:disabled) { background-color: var(--accent-active); }
+
+.dlx-btn-secondary {
+    background-color: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+}
+.dlx-btn-secondary:hover:not(:disabled) {
+    background-color: var(--surface-hover);
+    border-color: var(--border-strong);
+}
+
+.dlx-btn-ghost {
+    background-color: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+}
+.dlx-btn-ghost:hover:not(:disabled) {
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
+}
+
+/* Inputs */
+.dlx-input {
+    width: 100%;
+    background-color: var(--surface-1);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    transition: border-color var(--duration-fast) var(--ease-out),
+                box-shadow var(--duration-fast) var(--ease-out);
+}
+.dlx-input::placeholder { color: var(--text-faint); }
+.dlx-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.dlx-input:disabled {
+    background-color: var(--surface-sunken);
+    color: var(--text-faint);
+    cursor: not-allowed;
+}
+
+/* Chips and badges */
+.dlx-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: var(--radius-pill);
+    font-weight: 600;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   Component tones
+
+   `data-tone` on any element selects the family. Used by palette tiles,
+   library cards, canvas nodes and category headers alike, which is what makes
+   a "tool" look like a tool everywhere in the product.
+   ========================================================================== */
+
+[data-tone] { --tone: var(--accent); --tone-fg: var(--accent-text); --tone-bg: var(--accent-soft); --tone-border: var(--accent-border); }
+[data-tone="agent"] { --tone: var(--tone-agent); --tone-fg: var(--tone-agent-fg); --tone-bg: var(--tone-agent-bg); --tone-border: var(--tone-agent-border); }
+[data-tone="tool"] { --tone: var(--tone-tool); --tone-fg: var(--tone-tool-fg); --tone-bg: var(--tone-tool-bg); --tone-border: var(--tone-tool-border); }
+[data-tone="workflow"] { --tone: var(--tone-workflow); --tone-fg: var(--tone-workflow-fg); --tone-bg: var(--tone-workflow-bg); --tone-border: var(--tone-workflow-border); }
+[data-tone="trigger"] { --tone: var(--tone-trigger); --tone-fg: var(--tone-trigger-fg); --tone-bg: var(--tone-trigger-bg); --tone-border: var(--tone-trigger-border); }
+[data-tone="logic"] { --tone: var(--tone-logic); --tone-fg: var(--tone-logic-fg); --tone-bg: var(--tone-logic-bg); --tone-border: var(--tone-logic-border); }
+[data-tone="output"] { --tone: var(--tone-output); --tone-fg: var(--tone-output-fg); --tone-bg: var(--tone-output-bg); --tone-border: var(--tone-output-border); }
+[data-tone="security"] { --tone: var(--tone-security); --tone-fg: var(--tone-security-fg); --tone-bg: var(--tone-security-bg); --tone-border: var(--tone-security-border); }
+[data-tone="data"] { --tone: var(--tone-data); --tone-fg: var(--tone-data-fg); --tone-bg: var(--tone-data-bg); --tone-border: var(--tone-data-border); }
+
+/* The icon chip that identifies a component everywhere it appears. */
+.dlx-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--tone-fg);
+    background-color: var(--tone-bg);
+    border: 1px solid var(--tone-border);
+    border-radius: var(--radius-md);
+    transition: transform var(--duration-base) var(--ease-spring),
+                box-shadow var(--duration-base) var(--ease-out),
+                background-color var(--duration-fast) var(--ease-out);
+}
+
+/* ==========================================================================
+   Palette tiles — the drag sources
+   ========================================================================== */
+
+.dlx-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 4px;
+    border-radius: var(--radius-lg);
+    border: 1px solid transparent;
+    cursor: grab;
+    transition: background-color var(--duration-fast) var(--ease-out),
+                border-color var(--duration-fast) var(--ease-out),
+                transform var(--duration-base) var(--ease-spring);
+}
+
+.dlx-tile:hover {
+    background-color: var(--surface-hover);
+    border-color: var(--tone-border);
+}
+
+.dlx-tile:hover .dlx-glyph {
+    transform: translateY(-2px) scale(1.06);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--tone) 28%, transparent);
+}
+
+.dlx-tile:active { cursor: grabbing; transform: scale(0.96); }
+
+.dlx-tile:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* The source dims while its ghost is under the cursor, so it is obvious which
+   tile is in flight. */
+.dlx-tile[data-dragging="true"],
+.dlx-card[data-dragging="true"] {
+    opacity: 0.35;
+    transform: scale(0.97);
+    box-shadow: none;
+}
+
+.dlx-tile-label {
+    width: 100%;
+    text-align: center;
+    font-size: 9.5px;
+    line-height: 1.2;
+    font-weight: 500;
+    color: var(--text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.dlx-tile:hover .dlx-tile-label { color: var(--text-primary); }
+
+/* Draggable library card: the same lift language as a tile, at card scale. */
+.dlx-draggable {
+    cursor: grab;
+    transition: border-color var(--duration-base) var(--ease-out),
+                box-shadow var(--duration-base) var(--ease-out),
+                transform var(--duration-base) var(--ease-out),
+                opacity var(--duration-fast) var(--ease-out);
+}
+.dlx-draggable:hover {
+    transform: translateY(-2px);
+    border-color: var(--tone-border);
+    box-shadow: var(--shadow-md);
+}
+.dlx-draggable:active { cursor: grabbing; transform: translateY(0) scale(0.99); }
+
+/* Canvas drop target: the whole canvas states clearly that it will accept the
+   drop, rather than leaving the user to guess mid-drag. */
+.dlx-canvas-dropping::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 2px dashed var(--accent-border);
+    border-radius: var(--radius-xl);
+    background: var(--accent-soft);
+    pointer-events: none;
+    z-index: 5;
+    animation: dropPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dropPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+}
+
+/* ==========================================================================
+   Legacy compatibility
+
+   Components not yet migrated still use these names. They now resolve to the
+   token set, so the app is visually coherent during the migration instead of
+   after it.
+   ========================================================================== */
+
+.glass-panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-lg);
 }
 
 .glass-panel-subtle {
-    background: var(--color-ui-bg-subtle);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid var(--color-ui-border);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-subtle);
 }
 
-.glow-border {
-    position: relative;
-}
-.glow-border::after {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    background: linear-gradient(90deg, var(--color-accent-blue), var(--color-primary), var(--color-accent-rose));
-    border-radius: inherit;
-    z-index: -1;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-.glow-border:hover::after {
-    opacity: 0.6;
+.ag-surface { background-color: var(--surface-1) !important; border-color: var(--border-default) !important; }
+.ag-surface-subtle { background-color: var(--surface-sunken) !important; border-color: var(--border-subtle) !important; }
+.ag-surface-raised { background-color: var(--surface-2) !important; border-color: var(--border-default) !important; }
+.ag-text { color: var(--text-primary) !important; }
+.ag-text-secondary { color: var(--text-secondary) !important; }
+.ag-muted { color: var(--text-muted) !important; }
+.ag-faint { color: var(--text-faint) !important; }
+
+.ag-label {
+    background-color: var(--surface-2) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-default);
 }
 
-/* Stunning gradient text animations */
+.dark .ag-label { box-shadow: var(--shadow-sm); }
+
 .text-gradient-primary {
-    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #818cf8 100%);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--tone-workflow) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -135,7 +587,7 @@ body {
     line-height: 1;
     font-weight: 800;
     letter-spacing: -0.02em;
-    color: var(--color-text-primary);
+    color: var(--text-primary);
 }
 
 .brand-lockup-tagline {
@@ -144,63 +596,61 @@ body {
     line-height: 1;
     font-weight: 600;
     letter-spacing: 0.05em;
-    color: var(--color-text-muted);
+    color: var(--text-muted);
     text-transform: uppercase;
 }
 
-.ag-surface {
-    background-color: var(--color-ui-bg) !important;
-    border-color: var(--color-ui-border) !important;
-    backdrop-filter: blur(12px);
+/* The dark-mode blanket overrides that used to live here forced every
+   `bg-white`/`text-gray-900` in the app to one hardcoded value with !important,
+   which is why panels could not be styled individually. They are replaced by
+   targeted mappings onto the token set. */
+.dark .bg-white,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-slate-50 {
+    background-color: var(--surface-2) !important;
 }
 
-.ag-surface-subtle {
-    background-color: var(--color-ui-bg-subtle) !important;
-    border-color: var(--color-ui-border) !important;
+.dark .text-gray-800,
+.dark .text-gray-900,
+.dark .text-slate-800,
+.dark .text-slate-900 {
+    color: var(--text-primary) !important;
 }
 
-.ag-surface-raised {
-    background-color: var(--color-surface-raised) !important;
-    border-color: var(--color-ui-border) !important;
-    backdrop-filter: blur(16px);
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-slate-200 {
+    border-color: var(--border-default) !important;
 }
 
-.ag-text {
-    color: var(--color-text-primary) !important;
-}
+/* ==========================================================================
+   Micro-interactions
+   ========================================================================== */
 
-.ag-text-secondary {
-    color: var(--color-text-secondary) !important;
-}
-
-.ag-muted {
-    color: var(--color-text-muted) !important;
-}
-
-.ag-faint {
-    color: var(--color-text-faint) !important;
-}
-
-.ag-label {
-    background-color: color-mix(in srgb, var(--color-ui-bg) 88%, transparent) !important;
-    color: var(--color-text-secondary) !important;
-    border: 1px solid var(--color-ui-border);
-    backdrop-filter: blur(4px);
-}
-
-.dark .ag-label {
-    background-color: rgba(15, 23, 42, 0.85) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* Subtle Micro-animations */
 @keyframes subtlePulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.02); }
 }
 
-.animate-micro-pulse {
-    animation: subtlePulse 3s infinite ease-in-out;
+.animate-micro-pulse { animation: subtlePulse 3s infinite ease-in-out; }
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Loading placeholder that reads as "content is coming", not "something broke". */
+.dlx-skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--surface-sunken) 25%,
+        var(--surface-hover) 50%,
+        var(--surface-sunken) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+    border-radius: var(--radius-md);
 }
 
 /* ---- Live voice visualiser ----
@@ -214,14 +664,12 @@ body {
     height: 20px;
 }
 
-.voice-viz.is-on {
-    display: flex;
-}
+.voice-viz.is-on { display: flex; }
 
 .voice-viz i {
     width: 3px;
     border-radius: 2px;
-    background: var(--color-primary);
+    background: var(--accent);
     opacity: 0.75;
     height: calc(3px + var(--b, 0) * 17px);
     transition: height 0.07s linear, opacity 0.18s linear;
@@ -229,7 +677,7 @@ body {
 
 /* The agent's own voice reads in a calmer tone, so it is obvious who is talking. */
 .voice-viz[data-speaking='true'] i {
-    background: var(--color-text-muted);
+    background: var(--text-muted);
     opacity: 0.95;
 }
 
@@ -238,13 +686,11 @@ body {
     position: absolute;
     inset: 0;
     border-radius: 9999px;
-    border: 2px solid var(--color-primary);
+    border: 2px solid var(--accent);
     pointer-events: none;
 }
 
-.voice-ring-ambient {
-    animation: voiceAmbient 2.2s ease-out infinite;
-}
+.voice-ring-ambient { animation: voiceAmbient 2.2s ease-out infinite; }
 
 .voice-ring-live {
     transform: scale(calc(1 + var(--voice-level, 0) * 0.55));
@@ -261,113 +707,97 @@ body {
     .voice-ring-ambient { animation: none; opacity: 0; }
     .voice-ring-live { transition: none; transform: none; opacity: 0.35; }
     .voice-viz i { transition: none; height: 9px; }
+    .dlx-skeleton { animation: none; }
+    .dlx-canvas-dropping::after { animation: none; }
+    .dlx-tile,
+    .dlx-glyph,
+    .dlx-card,
+    .dlx-draggable { transition: none; }
+    .dlx-tile:hover .dlx-glyph { transform: none; }
+    .dlx-draggable:hover { transform: none; }
 }
 
-/* Base override layers for smooth dark transitions */
-.dark .bg-white,
-.dark .bg-gray-50,
-.dark .bg-gray-100 {
-    background-color: rgba(15, 23, 42, 0.6) !important;
-}
+/* ==========================================================================
+   Scrollbars
+   ========================================================================== */
 
-.dark .text-gray-800,
-.dark .text-gray-900 {
-    color: #f8fafc !important;
-}
-
-.dark .border-gray-200,
-.dark .border-gray-300 {
-    border-color: rgba(51, 65, 85, 0.6) !important;
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-}
-
-::-webkit-scrollbar-track {
-    background: transparent;
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.4);
-    border-radius: 4px;
+    background: var(--border-strong);
+    border-radius: var(--radius-pill);
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
-.dark ::-webkit-scrollbar-thumb {
-    background: rgba(71, 85, 105, 0.5);
-}
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
 
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.7);
-}
+* { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; }
 
-/* ReactFlow Customizations */
+/* ==========================================================================
+   React Flow
+   ========================================================================== */
 
 /* Canvas nodes must NOT use backdrop-filter: every blurred node forces the browser to
    re-composite the layer behind it on each frame of a drag or pan, which is the main
    source of choppy node movement. Nodes sit on a flat dotted canvas, so a solid,
    opaque surface looks identical and is dramatically cheaper to move. */
-.react-flow__node .ag-surface-raised {
+.react-flow__node .ag-surface-raised,
+.react-flow__node .dlx-card {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    background-color: #ffffff !important;
-}
-
-.dark .react-flow__node .ag-surface-raised {
-    background-color: #0f172a !important;
+    background-color: var(--surface-2) !important;
 }
 
 .react-flow__edge-path {
-    stroke: #94a3b8;
+    stroke: var(--canvas-edge);
     stroke-width: 2;
-    transition: stroke 0.3s ease;
-}
-
-.dark .react-flow__edge-path {
-    stroke: #475569;
+    transition: stroke var(--duration-base) var(--ease-out), stroke-width var(--duration-base) var(--ease-out);
 }
 
 .react-flow__edge:hover .react-flow__edge-path {
-    stroke: var(--color-primary);
+    stroke: var(--accent);
+    stroke-width: 3;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--accent);
     stroke-width: 3;
 }
 
 .react-flow__controls {
-    backdrop-filter: blur(8px);
-    background: var(--color-ui-bg);
-    border: 1px solid var(--color-ui-border);
-    border-radius: 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-md);
 }
 
-.dark .react-flow {
-    background: transparent;
+.react-flow__controls-button {
+    background: var(--surface-1);
+    border-color: var(--border-subtle);
+    color: var(--text-secondary);
+    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
-.dark .react-flow__controls-button {
-    background: rgba(15, 23, 42, 0.8);
-    border-color: var(--color-ui-border);
-    color: #e2e8f0;
+.react-flow__controls-button:hover {
+    background: var(--surface-hover);
+    color: var(--text-primary);
 }
 
-.dark .react-flow__controls-button:hover {
-    background: rgba(30, 41, 59, 0.9);
-    color: #ffffff;
-}
+.react-flow__controls-button svg { fill: currentColor; }
+
+.dark .react-flow { background: transparent; }
 
 .react-flow__minimap {
-    backdrop-filter: blur(8px);
-    background: var(--color-ui-bg);
-    border-radius: 12px;
-    border: 1px solid var(--color-ui-border);
+    background: var(--surface-1);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-sm);
 }
 
-.dark .react-flow__minimap {
-    background: rgba(15, 23, 42, 0.85);
-}
+.react-flow__attribution { display: none; }
 
 /* The React Flow node wrapper is a plain rectangle — any outline/shadow on it
    draws a box that ignores the component's rounded shape. Selection visuals

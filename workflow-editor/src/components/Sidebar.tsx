@@ -1,62 +1,97 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Bot, Wrench, Play, GitBranch, Square, MessageSquare, Link, Settings, Plus, Brain, FileSearch, ShieldCheck, ListChecks, FolderOpen, X, Server, Database, Mail } from 'lucide-react';
+import {
+    Bot, Wrench, Play, GitBranch, Square, MessageSquare, Link, Settings, Plus, Brain,
+    FileSearch, ShieldCheck, ListChecks, FolderOpen, X, Server, Database, Mail, Search,
+    FileUp, ScanEye, ScrollText, Network, EyeOff,
+} from 'lucide-react';
 import type { NodeType } from '../types/workflow';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useLibraryModal } from '../App';
 import { ResourceCard } from './studio/ResourceCard';
+import type { ResourceTone } from './studio/ResourceCard';
 import { getAgentSummary, getToolSummary, getWorkflowSummary } from '../utils/studioDerivedState';
-
-type PaletteTone = 'agent' | 'tool' | 'workflow' | 'trigger' | 'logic' | 'output';
 
 interface PaletteItem {
     type: NodeType;
     label: string;
     icon: LucideIcon;
-    tone: PaletteTone;
+    tone: ResourceTone;
+    /** Shown in the tile tooltip and matched by palette search. */
+    hint: string;
     config: Record<string, any>;
 }
 
-// The base component palette, grouped for the icon rail. Each tile is a draggable
-// tone-colored icon; configuration happens after dropping, in the inspector.
-const PALETTE_GROUPS: { id: string; items: PaletteItem[] }[] = [
+interface PaletteGroup {
+    id: string;
+    /** Rendered above the group in the rail, so the palette has structure at a glance. */
+    label: string;
+    items: PaletteItem[];
+}
+
+// The base component palette. Each tile is a draggable tone-coloured glyph;
+// configuration happens after dropping, in the inspector.
+const PALETTE_GROUPS: PaletteGroup[] = [
     {
         id: 'triggers',
+        label: 'Start',
         items: [
-            { type: 'trigger', label: 'Manual Trigger', icon: Play, tone: 'trigger', config: { trigger_type: 'manual', label: 'Start' } },
-            { type: 'trigger', label: 'Chat Trigger', icon: MessageSquare, tone: 'trigger', config: { trigger_type: 'chat', label: 'On Chat' } },
-            { type: 'trigger', label: 'Webhook', icon: Link, tone: 'trigger', config: { trigger_type: 'webhook', label: 'Webhook' } },
+            { type: 'trigger', label: 'Manual', icon: Play, tone: 'trigger', hint: 'Run the workflow on demand', config: { trigger_type: 'manual', label: 'Start' } },
+            { type: 'trigger', label: 'Chat', icon: MessageSquare, tone: 'trigger', hint: 'Start when a user sends a message', config: { trigger_type: 'chat', label: 'On Chat' } },
+            { type: 'trigger', label: 'Webhook', icon: Link, tone: 'trigger', hint: 'Start from an inbound HTTP call', config: { trigger_type: 'webhook', label: 'Webhook' } },
         ],
     },
     {
         id: 'agents',
+        label: 'Agents',
         items: [
-            { type: 'agent', label: 'CrewAI Agent', icon: Bot, tone: 'agent', config: { type: 'LlmAgent', role: '', goal: '', backstory: '', tools: [] } },
-            { type: 'agent', label: 'CrewAI Task', icon: ListChecks, tone: 'agent', config: { type: 'LlmAgent', task: 'Describe the task objective', expected_output: 'Structured task result' } },
+            { type: 'agent', label: 'Agent', icon: Bot, tone: 'agent', hint: 'A CrewAI agent with a role, goal, and tools', config: { type: 'LlmAgent', role: '', goal: '', backstory: '', tools: [] } },
+            { type: 'agent', label: 'Task', icon: ListChecks, tone: 'agent', hint: 'A discrete task with an expected output', config: { type: 'LlmAgent', task: 'Describe the task objective', expected_output: 'Structured task result' } },
         ],
     },
     {
         id: 'logic',
+        label: 'Logic',
         items: [
-            { type: 'router', label: 'Flow Router', icon: GitBranch, tone: 'logic', config: { type: 'router', routing_mode: 'conditional' } },
-            { type: 'tool', label: 'Memory Store', icon: Brain, tone: 'tool', config: { type: 'memory', memory_enabled: true, retention: 'session' } },
-            { type: 'tool', label: 'Knowledge Source', icon: FileSearch, tone: 'tool', config: { type: 'knowledge', knowledge_enabled: true, top_k: 5 } },
-            { type: 'router', label: 'Guardrail', icon: ShieldCheck, tone: 'logic', config: { type: 'guardrail', guardrails_enabled: true, output_schema: 'text' } },
+            { type: 'router', label: 'Router', icon: GitBranch, tone: 'logic', hint: 'Branch the flow on a condition', config: { type: 'router', routing_mode: 'conditional' } },
+            { type: 'tool', label: 'Memory', icon: Brain, tone: 'tool', hint: 'Persist state across turns', config: { type: 'memory', memory_enabled: true, retention: 'session' } },
+            { type: 'tool', label: 'Knowledge', icon: FileSearch, tone: 'tool', hint: 'Retrieve from a knowledge source', config: { type: 'knowledge', knowledge_enabled: true, top_k: 5 } },
+            { type: 'router', label: 'Guardrail', icon: ShieldCheck, tone: 'logic', hint: 'Validate output before it continues', config: { type: 'guardrail', guardrails_enabled: true, output_schema: 'text' } },
+        ],
+    },
+    {
+        id: 'data',
+        label: 'Data',
+        items: [
+            { type: 'tool', label: 'SQL', icon: Database, tone: 'data', hint: 'Query a database with schema introspection, read-only by default', config: { type: 'sql', db_uri_env_var: '', allow_writes: false, max_rows: 200 } },
+            { type: 'tool', label: 'NL2SQL', icon: Database, tone: 'data', hint: 'Let the model write SQL from a plain-language question', config: { type: 'database', db_uri_env_var: '', allow_dml: false } },
+            { type: 'tool', label: 'MongoDB', icon: Database, tone: 'data', hint: 'List, sample, and query MongoDB collections', config: { type: 'mongodb', uri_env_var: '', database: '', collections: [] } },
+            { type: 'tool', label: 'Files', icon: FileUp, tone: 'data', hint: 'Analyse uploaded documents, spreadsheets, and images', config: { type: 'function', tool_ids: ['analyze_file', 'analyze_image', 'list_uploaded_files'] } },
+            { type: 'tool', label: 'Context', icon: Network, tone: 'data', hint: 'Browse, search, and read a file tree', config: { type: 'function', tool_ids: ['context_tree', 'search_context_tree', 'read_context_file'] } },
+        ],
+    },
+    {
+        id: 'governance',
+        label: 'Trust',
+        items: [
+            { type: 'tool', label: 'Security', icon: ScanEye, tone: 'security', hint: 'Scan for secrets and prompt injection', config: { type: 'function', tool_ids: ['security_scan', 'scan_for_secrets', 'detect_prompt_injection'] } },
+            { type: 'tool', label: 'PII', icon: EyeOff, tone: 'security', hint: 'Detect and redact personal information', config: { type: 'function', tool_ids: ['detect_pii', 'redact_pii'] } },
+            { type: 'tool', label: 'Audit', icon: ScrollText, tone: 'security', hint: 'Record and query the tamper-evident audit trail', config: { type: 'function', tool_ids: ['record_audit_event', 'query_audit_log'] } },
         ],
     },
     {
         id: 'integrations',
+        label: 'Connect',
         items: [
-            { type: 'tool', label: 'MCP Server', icon: Server, tone: 'tool', config: { type: 'mcp', transport: 'stdio', command: '', args: [], tool_filter: [] } },
-            { type: 'tool', label: 'Database', icon: Database, tone: 'tool', config: { type: 'database', db_uri_env_var: '', allow_dml: false } },
-            { type: 'tool', label: 'Gmail', icon: Mail, tone: 'tool', config: { type: 'gmail', account_email: '', capabilities: ['send', 'search', 'read'], max_results: 10 } },
+            { type: 'tool', label: 'MCP', icon: Server, tone: 'tool', hint: 'Attach an MCP server and its tools', config: { type: 'mcp', transport: 'stdio', command: '', args: [], tool_filter: [] } },
+            { type: 'tool', label: 'Gmail', icon: Mail, tone: 'tool', hint: 'Send, search, and read email', config: { type: 'gmail', account_email: '', capabilities: ['send', 'search', 'read'], max_results: 10 } },
         ],
     },
     {
         id: 'output',
+        label: 'End',
         items: [
-            { type: 'output', label: 'Output', icon: Square, tone: 'output', config: { type: 'output' } },
+            { type: 'output', label: 'Output', icon: Square, tone: 'output', hint: 'Where the workflow result leaves the graph', config: { type: 'output' } },
         ],
     },
 ];
@@ -66,7 +101,7 @@ interface SidebarItemProps {
     type: NodeType;
     label: string;
     icon: LucideIcon;
-    tone: PaletteTone;
+    tone: ResourceTone;
     config?: any;
     description?: string;
     children?: React.ReactNode;
@@ -81,7 +116,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
     config,
     description,
     children,
-    level = 0
+    level = 0,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const hasChildren = React.Children.count(children) > 0;
@@ -118,7 +153,10 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
             />
 
             {showChildren && (
-                <div className="border-l border-gray-100 dark:border-slate-800 ml-[22px] pl-1 relative">
+                <div
+                    className="relative ml-[22px] pl-1"
+                    style={{ borderLeft: '1px solid var(--border-subtle)' }}
+                >
                     {children}
                 </div>
             )}
@@ -126,17 +164,36 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
     );
 };
 
-
 export const Sidebar = () => {
     const { savedAgents, savedTools, savedWorkflows, fetchLibraryItems } = useLibraryStore();
     const { openLibraryModal } = useLibraryModal();
     const [libraryOpen, setLibraryOpen] = useState(false);
+    const [query, setQuery] = useState('');
 
     useEffect(() => {
         fetchLibraryItems();
     }, []);
 
     const savedCount = savedWorkflows.length + savedAgents.length + savedTools.length;
+
+    // Searching the palette filters within groups and drops groups that end up
+    // empty, so the rail collapses to just the matches rather than to a list of
+    // empty headings.
+    const visibleGroups = useMemo(() => {
+        const needle = query.trim().toLowerCase();
+        if (!needle) return PALETTE_GROUPS;
+        return PALETTE_GROUPS
+            .map((group) => ({
+                ...group,
+                items: group.items.filter(
+                    (item) =>
+                        item.label.toLowerCase().includes(needle) ||
+                        item.hint.toLowerCase().includes(needle) ||
+                        group.label.toLowerCase().includes(needle),
+                ),
+            }))
+            .filter((group) => group.items.length > 0);
+    }, [query]);
 
     // --- Helpers to resolve nested references for the library flyout ---
     const findAgentById = (id: string) => savedAgents.find(a => a.id === id || a.name === id || a.config?.id === id);
@@ -147,18 +204,15 @@ export const Sidebar = () => {
 
         return agentConfig.tools.map((toolRef: string) => {
             const tool = findToolById(toolRef);
-            const toolName = tool ? tool.name : toolRef;
-            const toolConfig = tool ? tool.config : {};
-
             return (
                 <SidebarItem
                     key={toolRef}
                     type="tool"
-                    label={toolName}
+                    label={tool ? tool.name : toolRef}
                     icon={Wrench}
                     tone="tool"
                     level={2}
-                    config={toolConfig}
+                    config={tool ? tool.config : {}}
                 />
             );
         });
@@ -169,18 +223,16 @@ export const Sidebar = () => {
         return nodes.map((node: any) => {
             const agentId = node.agent_id || node.id;
             const agent = findAgentById(agentId);
-            const label = agent ? agent.name : (node.name || agentId);
             const config = agent ? agent.config : {};
-            const desc = node.description || (agent ? agent.description : '');
 
             return (
                 <SidebarItem
                     key={node.id}
                     type="agent"
-                    label={label}
+                    label={agent ? agent.name : (node.name || agentId)}
                     icon={Bot}
                     tone="agent"
-                    description={desc}
+                    description={node.description || (agent ? agent.description : '')}
                     level={1}
                     config={config}
                 >
@@ -191,12 +243,12 @@ export const Sidebar = () => {
     };
 
     const flyoutSectionHeader = (label: string, icon: React.ReactNode, manageTab?: 'agents' | 'tools') => (
-        <div className="text-[11px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2 pl-1 flex items-center justify-between pr-1">
+        <div className="dlx-faint mb-2 flex items-center justify-between pl-1 pr-1 text-[10px] font-bold uppercase tracking-wider">
             <span className="flex items-center gap-1.5">{icon} {label}</span>
             {manageTab && (
                 <button
                     onClick={() => openLibraryModal(manageTab)}
-                    className="p-1 hover:bg-gray-200 dark:hover:bg-slate-800 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                    className="dlx-btn dlx-btn-ghost p-1"
                     title={`Manage ${label}`}
                 >
                     <Settings size={12} />
@@ -207,87 +259,167 @@ export const Sidebar = () => {
 
     return (
         <div className="relative z-20 flex h-full shrink-0">
-            {/* Icon rail — the whole component palette in 76px */}
-            <aside className="flex h-full w-[76px] shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-[var(--color-ui-border)] bg-white dark:bg-[#0b111b] py-3">
-                {PALETTE_GROUPS.map((group, groupIndex) => (
-                    <React.Fragment key={group.id}>
-                        {groupIndex > 0 && <div className="my-1.5 h-px w-10 shrink-0 bg-gray-200 dark:bg-slate-800" />}
-                        {group.items.map((item) => (
-                            <ResourceCard
-                                key={item.label}
-                                type={item.type}
-                                label={item.label}
-                                icon={item.icon}
-                                tone={item.tone}
-                                config={item.config}
-                                collapsed
-                            />
-                        ))}
-                        {/* Creating a tool is the natural next step after placing an
-                            agent/task, so the action sits with them rather than at
-                            the far bottom of the rail. */}
-                        {group.id === 'agents' && (
-                            <button
-                                onClick={() => openLibraryModal('tools')}
-                                title="Create a new tool"
-                                className="flex w-16 shrink-0 flex-col items-center gap-1 rounded-lg py-1.5 transition-all duration-150 hover:bg-gray-50 dark:hover:bg-slate-900"
-                            >
-                                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-orange-300 dark:border-orange-500/40 text-orange-500 dark:text-orange-400 transition-all duration-150 hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30">
-                                    <Plus size={15} strokeWidth={2.5} />
-                                </span>
-                                <span className="text-[9px] font-medium leading-none text-gray-500 dark:text-slate-400">New Tool</span>
-                            </button>
-                        )}
-                    </React.Fragment>
-                ))}
+            {/* Icon rail — the whole component palette in 80px */}
+            <aside
+                className="flex h-full w-[80px] shrink-0 flex-col overflow-hidden"
+                style={{
+                    backgroundColor: 'var(--surface-1)',
+                    borderRight: '1px solid var(--border-default)',
+                }}
+            >
+                {/* Palette search */}
+                <div className="shrink-0 px-2 pb-1.5 pt-2.5">
+                    <div className="relative">
+                        <Search
+                            size={11}
+                            className="dlx-faint pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
+                        />
+                        <input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Find"
+                            aria-label="Search components"
+                            className="dlx-input h-7 pl-6 pr-1.5 text-[10px] font-medium"
+                        />
+                    </div>
+                </div>
+
+                <div className="custom-scrollbar flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto px-1.5 pb-2">
+                    {visibleGroups.length === 0 && (
+                        <p className="dlx-faint px-1 pt-6 text-center text-[10px] leading-relaxed">
+                            No components match “{query}”.
+                        </p>
+                    )}
+
+                    {visibleGroups.map((group) => (
+                        <React.Fragment key={group.id}>
+                            <div className="dlx-faint mb-0.5 mt-2 w-full px-1 text-[8.5px] font-bold uppercase tracking-[0.09em]">
+                                {group.label}
+                            </div>
+
+                            {group.items.map((item) => (
+                                <ResourceCard
+                                    key={`${group.id}-${item.label}`}
+                                    type={item.type}
+                                    label={item.label}
+                                    description={item.hint}
+                                    icon={item.icon}
+                                    tone={item.tone}
+                                    config={item.config}
+                                    collapsed
+                                />
+                            ))}
+
+                            {/* Creating a tool is the natural next step after placing an
+                                agent/task, so the action sits with them rather than at
+                                the far bottom of the rail. */}
+                            {group.id === 'agents' && !query && (
+                                <button
+                                    onClick={() => openLibraryModal('tools')}
+                                    title="Create a new tool"
+                                    data-tone="tool"
+                                    className="dlx-tile"
+                                >
+                                    <span
+                                        className="dlx-glyph h-9 w-9"
+                                        style={{ borderStyle: 'dashed', backgroundColor: 'transparent' }}
+                                    >
+                                        <Plus size={15} strokeWidth={2.4} />
+                                    </span>
+                                    <span className="dlx-tile-label">New</span>
+                                </button>
+                            )}
+                        </React.Fragment>
+                    ))}
+                </div>
 
                 {/* Library, pinned to the bottom */}
-                <div className="mt-auto flex shrink-0 flex-col items-center gap-1 pt-2">
-                    <div className="mb-1 h-px w-10 bg-gray-200 dark:bg-slate-800" />
+                <div
+                    className="flex shrink-0 flex-col items-center px-1.5 pb-2.5 pt-2"
+                    style={{ borderTop: '1px solid var(--border-subtle)' }}
+                >
                     <button
                         onClick={() => setLibraryOpen((open) => !open)}
                         title="Saved library — workflows, agents, tools"
-                        className="flex w-16 flex-col items-center gap-1 rounded-lg py-1.5 transition-all duration-150 hover:bg-gray-50 dark:hover:bg-slate-900"
+                        data-tone="workflow"
+                        className="dlx-tile"
                     >
-                        <span className={`relative flex h-9 w-9 items-center justify-center rounded-xl border transition-all duration-150 ${libraryOpen
-                            ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-md'
-                            : 'border-[var(--color-ui-border)] text-gray-500 dark:text-slate-400'
-                            }`}>
+                        <span
+                            className="dlx-glyph relative h-9 w-9"
+                            style={
+                                libraryOpen
+                                    ? {
+                                        backgroundColor: 'var(--accent)',
+                                        borderColor: 'var(--accent)',
+                                        color: 'var(--text-on-accent)',
+                                    }
+                                    : undefined
+                            }
+                        >
                             <FolderOpen size={15} />
                             {savedCount > 0 && !libraryOpen && (
-                                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-primary)] px-0.5 text-[9px] font-bold text-white">
+                                <span
+                                    className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                                    style={{
+                                        backgroundColor: 'var(--accent)',
+                                        color: 'var(--text-on-accent)',
+                                    }}
+                                >
                                     {savedCount}
                                 </span>
                             )}
                         </span>
-                        <span className="text-[9px] font-medium leading-none text-gray-500 dark:text-slate-400">Library</span>
+                        <span className="dlx-tile-label">Library</span>
                     </button>
                 </div>
             </aside>
 
             {/* Library flyout — overlays the canvas on demand instead of consuming layout width */}
             {libraryOpen && (
-                <div className="absolute bottom-0 left-[76px] top-0 z-30 flex w-[300px] flex-col border-r border-[var(--color-ui-border)] bg-white/95 dark:bg-[#0b111b]/95 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-left-2 duration-150">
-                    <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-ui-border)] px-4 py-3">
+                <div
+                    className="absolute bottom-0 left-[80px] top-0 z-30 flex w-[310px] flex-col"
+                    style={{
+                        backgroundColor: 'var(--surface-1)',
+                        borderRight: '1px solid var(--border-default)',
+                        boxShadow: 'var(--shadow-xl)',
+                    }}
+                >
+                    <div
+                        className="flex shrink-0 items-center justify-between px-4 py-3"
+                        style={{ borderBottom: '1px solid var(--border-subtle)' }}
+                    >
                         <div>
-                            <div className="text-sm font-bold ag-text">Library</div>
-                            <div className="text-[11px] ag-muted">
+                            <div className="dlx-text text-sm font-bold">Library</div>
+                            <div className="dlx-muted text-[11px]">
                                 {savedWorkflows.length} workflows · {savedAgents.length} agents · {savedTools.length} tools
                             </div>
                         </div>
-                        <button
-                            onClick={() => setLibraryOpen(false)}
-                            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-gray-200"
-                            title="Close library"
-                        >
-                            <X size={15} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => openLibraryModal('browse')}
+                                className="dlx-btn dlx-btn-secondary px-2 py-1 text-[11px]"
+                                title="Open the full library"
+                            >
+                                Browse all
+                            </button>
+                            <button
+                                onClick={() => setLibraryOpen(false)}
+                                className="dlx-btn dlx-btn-ghost p-1.5"
+                                title="Close library"
+                            >
+                                <X size={15} />
+                            </button>
+                        </div>
                     </div>
 
                     <div className="custom-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto p-3">
                         {savedCount === 0 && (
-                            <div className="rounded-xl border border-dashed border-[var(--color-ui-border)] p-4 text-center text-xs ag-muted">
-                                Nothing saved yet. Build on the canvas and hit Save, or let the Builder generate a workflow for you.
+                            <div
+                                className="dlx-muted rounded-xl p-4 text-center text-xs"
+                                style={{ border: '1px dashed var(--border-default)' }}
+                            >
+                                Nothing saved yet. Build on the canvas and hit Save, or open Browse all
+                                to add something from the library.
                             </div>
                         )}
 

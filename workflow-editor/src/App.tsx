@@ -21,7 +21,7 @@ import '@xyflow/react/dist/style.css'; // Ensure styles are available
 import { createContext, useContext } from 'react';
 
 interface LibraryModalContextType {
-  openLibraryModal: (tab?: 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops') => void;
+  openLibraryModal: (tab?: 'browse' | 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops') => void;
 }
 
 export const LibraryModalContext = createContext<LibraryModalContextType>({
@@ -32,17 +32,17 @@ export const useLibraryModal = () => useContext(LibraryModalContext);
 
 function App() {
   const [libraryModalOpen, setLibraryModalOpen] = useState(false);
-  const [libraryModalTab, setLibraryModalTab] = useState<'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops'>('tools');
+  const [libraryModalTab, setLibraryModalTab] = useState<'browse' | 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops'>('browse');
 
   // Navigation views state: 'landing' | 'canvas' | 'tester' | 'deploy'
   const [currentScreen, setCurrentScreen] = useState<'landing' | 'canvas' | 'tester' | 'deploy'>('landing');
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  // AI Builder lives behind a header button as a floating window — it no longer
+  // The Builder lives behind a header button as a floating window — it no longer
   // consumes permanent layout width next to the canvas.
   const [builderOpen, setBuilderOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const openLibraryModal = (tab: 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops' = 'tools') => {
+  const openLibraryModal = (tab: 'browse' | 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops' = 'browse') => {
     setLibraryModalTab(tab);
     setLibraryModalOpen(true);
   };

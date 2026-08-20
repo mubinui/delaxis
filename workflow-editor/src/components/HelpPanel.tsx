@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BookOpen, CheckCircle2, Send, Sparkles, Stethoscope, X, XCircle } from 'lucide-react';
+import { AlertTriangle, BookOpen, CheckCircle2, Lightbulb, MessageCircleQuestion, Send, Stethoscope, X, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useShallow } from 'zustand/react/shallow';
@@ -204,14 +204,14 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                                             onClick={() => streamExplain(finding.id, { mode: 'explain', diagnostic: finding })}
                                             className="inline-flex items-center gap-1 rounded-md border border-blue-200 dark:border-blue-900/60 px-2 py-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 disabled:opacity-50 hover:bg-blue-50 dark:hover:bg-blue-950/40"
                                         >
-                                            <Sparkles size={10} /> {busy === finding.id ? 'Thinking…' : 'Explain'}
+                                            <MessageCircleQuestion size={10} /> {busy === finding.id ? 'Working…' : 'Explain'}
                                         </button>
                                         <button
                                             disabled={busy === `${finding.id}-fix`}
                                             onClick={() => streamExplain(`${finding.id}-fix`, { mode: 'fix', diagnostic: finding })}
                                             className="inline-flex items-center gap-1 rounded-md border border-blue-200 dark:border-blue-900/60 px-2 py-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 disabled:opacity-50 hover:bg-blue-50 dark:hover:bg-blue-950/40"
                                         >
-                                            <Sparkles size={10} /> {busy === `${finding.id}-fix` ? 'Thinking…' : 'Suggest a fix'}
+                                            <Lightbulb size={10} /> {busy === `${finding.id}-fix` ? 'Working…' : 'Suggest a fix'}
                                         </button>
                                     </div>
                                     {[finding.id, `${finding.id}-fix`].map((key) =>

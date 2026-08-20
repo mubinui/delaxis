@@ -628,7 +628,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold">
                             <Bot size={18} className="text-[var(--color-primary)]" />
-                            AI Builder
+                            Builder
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">{workflowId ? `Target: ${workflowId}` : 'No saved workflow selected'}</div>
                     </div>

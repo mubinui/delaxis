@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Wrench, Bot, Save, Loader2, Download, ChevronDown, ChevronRight, Globe, Code, Zap, Cpu, Settings2, Sparkles, Key, FileJson, Search, FunctionSquare, MessageSquareText, ServerCog, Database, Check } from 'lucide-react';
+import { X, Plus, Trash2, Wrench, Bot, Save, Loader2, Download, ChevronDown, ChevronRight, Globe, Code, Zap, Cpu, Settings2, Library, SlidersHorizontal, Key, FileJson, Search, FunctionSquare, MessageSquareText, ServerCog, Database, Check } from 'lucide-react';
 import { useLibraryStore } from '../stores/libraryStore';
 import type { LibraryItem, ItemType } from '../stores/libraryStore';
 import { SwaggerImportModal } from './SwaggerImportModal';
 import { AGENT_TYPES, HUMAN_INPUT_MODES } from '../constants/agentOptions';
+import { LibraryStore, toStoreEntries } from './studio/LibraryStore';
+import type { StoreEntry } from './studio/LibraryStore';
 
 // --- Shared Constants (Matched with PropertiesPanel.tsx) ---
 interface LibraryModalProps {
@@ -12,7 +14,7 @@ interface LibraryModalProps {
     initialTab?: ResourceTab;
 }
 
-type ResourceTab = 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops';
+type ResourceTab = 'browse' | 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops';
 
 // --- Premium Reusable Structural Block: Section ---
 const Section = ({ title, icon: Icon, children, defaultOpen = true, className = "" }: { title: string; icon: any; children: React.ReactNode; defaultOpen?: boolean; className?: string }) => {
@@ -110,10 +112,11 @@ const FormSelect = ({ label, value, onChange, options, icon: Icon, helpText }: {
     </div>
 );
 
-export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryModalProps) => {
+export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: LibraryModalProps) => {
     const {
         savedTools,
         savedAgents,
+        savedWorkflows,
         functions,
         prompts,
         providers,
@@ -339,6 +342,20 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
         }
     };
 
+    /** Open a store entry in the editor tab that can actually edit it. */
+    const handleInspectEntry = (entry: StoreEntry) => {
+        if (entry.kind === 'agent') {
+            setActiveTab('agents');
+        } else if (entry.kind === 'workflow') {
+            // Workflows are edited on the canvas, not in this modal.
+            onClose();
+            return;
+        } else {
+            setActiveTab('tools');
+        }
+        handleEdit(entry.item);
+    };
+
     const handleSave = async () => {
         if (!formData.name.trim()) {
             alert('Name is required');
@@ -438,7 +455,12 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
     const items = activeTab === 'tools' ? savedTools : activeTab === 'agents' ? savedAgents : [];
     const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
+    const storeEntries = toStoreEntries(savedTools, savedAgents, savedWorkflows);
+
+    // Browsing is the common case and editing is the exception, so Browse leads
+    // and the per-type editors sit behind it.
     const resourceTabs: Array<{ id: ResourceTab; label: string; count?: number }> = [
+        { id: 'browse', label: 'Browse', count: storeEntries.length },
         { id: 'tools', label: 'Tools', count: savedTools.length },
         { id: 'agents', label: 'Agents', count: savedAgents.length },
         { id: 'functions', label: 'Functions', count: functions.length },
@@ -518,10 +540,13 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                     <div className="h-16 px-6 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 shrink-0 z-20 relative">
                         <div className="flex items-center gap-6">
                             <div className="flex items-center gap-2">
-                                <div className="p-1.5 rounded-lg bg-blue-600 text-white shadow-sm">
-                                    <Sparkles size={16} />
+                                <div
+                                    className="p-1.5 rounded-lg"
+                                    style={{ backgroundColor: 'var(--accent)', color: 'var(--text-on-accent)' }}
+                                >
+                                    <Library size={16} />
                                 </div>
-                                <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 tracking-tight uppercase">Library Vault</h2>
+                                <h2 className="dlx-text text-sm font-bold tracking-tight">Library</h2>
                             </div>
 
                             {/* Seamless Tab Controller Strip */}
@@ -553,7 +578,18 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                         </button>
                     </div>
 
-                    {/* --- Deep Master-Detail Grid Framework --- */}
+                    {/* --- Browse: the store view --- */}
+                    {activeTab === 'browse' ? (
+                        <div className="flex flex-1 overflow-hidden min-h-0">
+                            <LibraryStore
+                                entries={storeEntries}
+                                onInspect={handleInspectEntry}
+                                onManage={() => setActiveTab('tools')}
+                            />
+                        </div>
+                    ) : (
+
+                    /* --- Master-detail editor --- */
                     <div className="flex flex-1 overflow-hidden min-h-0">
 
                         {/* --- Active Resource Index Sidebar --- */}
@@ -565,7 +601,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/10 hover:-translate-y-0.5"
                                 >
                                     <Plus size={15} />
-                                    New {activeTab === 'tools' ? 'Specialist Tool' : 'Execution Agent'}
+                                    New {activeTab === 'tools' ? 'tool' : 'agent'}
                                 </button>
 
                                 {activeTab === 'tools' && (
@@ -583,7 +619,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                     <Search size={13} className="absolute left-3 text-slate-400 dark:text-slate-500" />
                                     <input
                                         type="text"
-                                        placeholder="Quick filter registry..."
+                                        placeholder="Filter by name"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 transition-all font-medium h-9"
@@ -597,8 +633,8 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                         <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-2 border border-slate-200 dark:border-slate-700">
                                             <Search size={16} className="text-slate-400 dark:text-slate-500" />
                                         </div>
-                                        <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Vault Registry Empty</p>
-                                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Initialize a blueprint instance to record setup context.</p>
+                                        <p className="dlx-text-secondary text-xs font-bold">Nothing saved yet</p>
+                                        <p className="dlx-faint mt-0.5 text-[11px]">Create one with the button above, or import from OpenAPI.</p>
                                     </div>
                                 ) : (
                                     filteredItems.map(item => (
@@ -640,7 +676,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                         <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 relative overflow-hidden min-w-0">
                             {activeTab === 'functions' ? (
                                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                    <Section title="Generated Python Function Tools" icon={FunctionSquare}>
+                                    <Section title="Python Function Tools" icon={FunctionSquare}>
                                         <div className="grid grid-cols-2 gap-5">
                                             <FormInput label="Tool ID" value={functionForm.id} onChange={(v) => setFunctionForm({ ...functionForm, id: v })} placeholder="snake_case_tool_id" mono />
                                             <FormInput label="Function Name" value={functionForm.name} onChange={(v) => setFunctionForm({ ...functionForm, name: v })} placeholder="my_tool" mono />
@@ -1111,7 +1147,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                                 </Section>
 
                                                 {(['LlmAgent', 'ReasoningAgent', 'conversable', 'SequentialAgent'].includes(agentConfig.agentType) || agentConfig.is_selector) && (
-                                                    <Section title="Hyperparameter Inference Tuning" icon={Sparkles}>
+                                                    <Section title="Model Parameters" icon={SlidersHorizontal}>
                                                         <div className="space-y-5">
                                                             <div className="grid grid-cols-2 gap-4">
                                                                 <FormSelect
@@ -1185,7 +1221,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                                     <div className="border border-slate-200/80 dark:border-slate-800/80 rounded-xl bg-slate-50/40 dark:bg-slate-900/40 p-4 max-h-56 overflow-y-auto">
                                                         {savedTools.length === 0 ? (
                                                             <div className="text-xs text-slate-400 dark:text-slate-500 text-center py-5 font-medium">
-                                                                No accessible tools compiled. Build function blocks to bind references.
+                                                                No tools available yet. Create one in the Tools tab to attach it here.
                                                             </div>
                                                         ) : (
                                                             <div className="grid grid-cols-2 gap-2">
@@ -1232,13 +1268,14 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'tools' }: LibraryM
                                             className="flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-70"
                                         >
                                             {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} className="text-blue-400" />}
-                                            {editingItem ? 'Commit State Overlay' : 'Instantiate Node Template'}
+                                            {editingItem ? 'Save changes' : 'Create'}
                                         </button>
                                     </div>
                                 </>
                             )}
                         </div>
                     </div>
+                    )}
                 </div>
             </div>
             <SwaggerImportModal isOpen={isSwaggerModalOpen} onClose={() => setIsSwaggerModalOpen(false)} />

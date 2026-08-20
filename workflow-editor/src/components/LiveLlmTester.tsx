@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Sparkles, Cpu, DollarSign, Clock, RefreshCw, X } from 'lucide-react';
+import { Play, FlaskConical, Cpu, DollarSign, Clock, RefreshCw, X } from 'lucide-react';
 import { useLibraryStore } from '../stores/libraryStore';
 
 interface LiveLlmTesterProps {
@@ -78,12 +78,15 @@ export const LiveLlmTester: React.FC<LiveLlmTesterProps> = ({ onClose }) => {
             {/* Top Toolbar Strip */}
             <div className="h-14 bg-white dark:bg-[#0b111b] border-b border-gray-200 dark:border-slate-800 flex items-center justify-between px-6 shrink-0 shadow-sm">
                 <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
-                    <span className="font-bold text-xs text-gray-900 dark:text-white uppercase tracking-wider">
-                        Live LLM Validation Playground
+                    <FlaskConical className="w-4 h-4" style={{ color: 'var(--accent-text)' }} />
+                    <span className="dlx-text text-xs font-bold tracking-wide">
+                        Model tester
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold">
-                        LiteLLM Core Engine
+                    <span
+                        className="dlx-chip px-2 py-0.5 text-[10px]"
+                        style={{ color: 'var(--accent-text)', backgroundColor: 'var(--accent-soft)', borderColor: 'var(--accent-border)' }}
+                    >
+                        via LiteLLM
                     </span>
                 </div>
                 <button
@@ -265,8 +268,8 @@ export const LiveLlmTester: React.FC<LiveLlmTesterProps> = ({ onClose }) => {
                         </div>
                     ) : (
                         <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-slate-800/60 text-xs text-blue-800 dark:text-sky-300 mb-4 flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 shrink-0" />
-                            <span>Configure target inputs and launch inference test to monitor runtime trace allocations real-time.</span>
+                            <FlaskConical className="w-4 h-4 shrink-0" />
+                            <span>Pick a provider and model, write a prompt, then run it to see the reply, latency, token usage, and estimated cost.</span>
                         </div>
                     )}
 
