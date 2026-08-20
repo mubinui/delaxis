@@ -33,7 +33,8 @@ No install, no API key — the real Studio running against an in-browser stub of
 - [Installation](#installation)
 - [Choosing an LLM provider](#choosing-an-llm-provider) — OpenAI, Gemini, Grok, Claude, local models
 - [Live voice](#live-voice) — talking to a chatbot over Gemini Live
-- [The AI Builder](#the-ai-builder) — per-step model routing and spoken progress
+- [The Builder](#the-builder) — per-step model routing and spoken progress
+- [Tools](#tools) — data access, privacy, security, and audit
 - [Core concepts](#core-concepts)
 - [How it works](#how-it-works)
 - [Configuration reference](#configuration-reference)
@@ -50,14 +51,16 @@ No install, no API key — the real Studio running against an in-browser stub of
 
 Delaxis is a self-hosted platform for building multi-agent AI applications:
 
-- 🎨 **Visual Studio** — a React Flow canvas for composing agent workflows (selector, sequential, parallel topologies) with drag-and-drop agents, tools, and triggers
-- 🤖 **CrewAI runtime** — workflows execute on [CrewAI](https://crewai.com), with any LLM via LiteLLM (OpenAI, Gemini, Grok, Claude, OpenRouter, self-hosted vLLM, local Ollama)
-- 🛠️ **Tools out of the box** — web search, RAG, a calculator, Gmail, and any REST API via Swagger/OpenAPI import
-- ⚡ **Live LLM tester** — validate keys, models, latency, and cost before wiring them into agents
-- 🚀 **Flash deployments** — publish any workflow as a standalone chat page at `/d/<name>/`, with conversation history, starter prompts and a settings drawer; embed it anywhere with one script tag
-- 🎙️ **Live voice** — [talk to a chatbot](#live-voice) over Gemini Live, in the Studio test panel or on a deployed page; audio is relayed server-side so the provider key never reaches the browser
-- 🔐 **Optional auth** — local users + API keys (SQL-backed), or Keycloak SSO
-- 📦 **One container** — API, Studio UI, and SQLite persistence in a single Docker image
+- **Visual Studio** — a React Flow canvas for composing agent workflows (selector, sequential, parallel topologies) with drag-and-drop agents, tools, and triggers
+- **CrewAI runtime** — workflows execute on [CrewAI](https://crewai.com), with any LLM via LiteLLM (OpenAI, Gemini, Grok, Claude, OpenRouter, self-hosted vLLM, local Ollama)
+- **Tools out of the box** — web search, RAG, a calculator, Gmail, and any REST API via Swagger/OpenAPI import
+- **Data access** — [SQL and MongoDB](#data-tools) with schema introspection and read-only enforcement, a browsable file tree, and analysis of uploaded PDFs, spreadsheets, and images
+- **Privacy, security, and audit** — [PII detection and redaction](#trust-tools), secret and prompt-injection scanning, and an append-only, hash-chained audit trail
+- **Live LLM tester** — validate keys, models, latency, and cost before wiring them into agents
+- **Flash deployments** — publish any workflow as a standalone chat page at `/d/<name>/`, with conversation history, starter prompts and a settings drawer; embed it anywhere with one script tag
+- **Live voice** — [talk to a chatbot](#live-voice) over Gemini Live, in the Studio test panel or on a deployed page; audio is relayed server-side so the provider key never reaches the browser
+- **Optional auth** — local users + API keys (SQL-backed), or Keycloak SSO
+- **One container** — API, Studio UI, and SQLite persistence in a single Docker image
 
 Everything is configuration-driven. Agents, workflows, tools, prompts, and providers live in `configs/*.json` and are editable via the Studio UI, the REST API, or a text editor (hot-reload in development).
 
@@ -234,7 +237,7 @@ Use the **Live API** tester in the Studio to verify a key, model, latency, and c
 You can talk to a chatbot instead of typing, powered by the **Gemini Live** realtime audio API. It shows up in two places:
 
 - the Studio's test panel — a mic next to Send, so you can hear a workflow before deploying it
-- the Studio's **Builder** — talk through what you want to build; see [The AI Builder](#the-ai-builder)
+- the Studio's **Builder** — talk through what you want to build; see [The Builder](#the-builder)
 - a deployed page at `/d/<name>/` — enable **Live voice** in the Launchpad's Deploy tab
 
 Setup is one key:
@@ -283,7 +286,7 @@ A realtime session bills for as long as it is open, and WebSocket connections do
 
 The realtime model id is configuration, not code — Google has published these under several names, so the allow-list lives under the provider's `live.models` in `configs/api_providers.json`. A model that does not look like a realtime audio model is refused before a session can open.
 
-## The AI Builder
+## The Builder
 
 The Studio's Builder panel turns a one-line brief into agents, tools, a workflow, and a deployable frontend.
 
@@ -300,6 +303,54 @@ Pick a specific model from the dropdown and that choice is always honoured — a
 **You can describe it out loud.** The mic under the brief box opens a Gemini Live conversation with a build assistant: it asks one clarifying question at a time — who uses it, which APIs it needs, what it must never do — and everything you say is appended to the brief above, so the conversation produces exactly the text the Build button consumes. It deliberately does not claim to build anything; realtime voice cannot call the platform's endpoints, so it helps you write the brief and you press Build.
 
 **And it narrates while it works.** The speaker button in the Builder header reads progress out loud — which model it escalated to, how many agents came back, whether the generated page passed validation — so a 30-second build is not a silent spinner. Narration uses the browser's built-in speech synthesis rather than a cloud voice: it starts instantly, costs nothing, needs no key, and cannot fail a build. Off until you turn it on; the preference is remembered.
+
+## Tools
+
+Every capability below is a tool your agents call, registered in
+[`configs/tools.json`](configs/tools.json) and grouped by `category` so the
+Studio's Library can shelve it. Add your own as a Python function, a REST
+endpoint, or an MCP server.
+
+### Data tools
+
+| Tool type | What it does |
+|---|---|
+| `sql` | Schema introspection plus a query runner over any SQLAlchemy URL — PostgreSQL, MySQL, SQLite, SQL Server, Oracle, whatever dialect you have installed. Read-only unless you set `allow_writes`. |
+| `database` | NL2SQL: the model writes the query from a plain-language question. Use `sql` instead when you want to control what runs. |
+| `mongodb` | Collection listing, schema sampling (Mongo has no declared schema, so it infers one), and `find`. Read-only by default. |
+| `context_tree` and friends | Let an agent walk a file tree, search it, and open only what matters, instead of being handed a whole corpus. |
+| `analyze_file`, `analyze_image` | Read uploaded PDFs, DOCX, XLSX, CSV, and JSON — CSVs come back with a per-column profile. Images report dimensions always, and a written description when a vision model is configured. |
+
+**Read-only is enforced, not requested.** The `sql` tool parses the statement:
+stacked statements, writes hidden inside a CTE, and verbs obscured by comments
+are all rejected. Treat that as a second line of defence — for a production
+database, a read-only database role is still the control that matters.
+
+**Uploads and the sandbox.** Files posted to `POST /api/v1/files` land in the
+uploads directory, which is also a context root. Every path an agent supplies is
+resolved before it is checked, so `../`, absolute paths, and symlinks planted
+inside the tree all fail rather than escape. Roots are configured with
+`DELAXIS_CONTEXT_ROOTS`; the default is the uploads directory plus
+`data/context`, never the whole filesystem.
+
+### Trust tools
+
+| Tool | What it does |
+|---|---|
+| `detect_pii`, `redact_pii` | Find emails, phone numbers, cards, national IDs, IBANs, keys, and dates of birth — validated with Luhn, IBAN mod-97, and SSA issuance rules rather than raw pattern matching, so the hit rate is worth acting on. Redact by masking, labelling, hashing, or removing. Install `presidio-analyzer` to add names, places, and organisations. |
+| `scan_for_secrets` | Credential-shaped strings confirmed by an entropy floor, with placeholders like `your_key_here` ignored. Findings are reported masked. |
+| `detect_prompt_injection` | Weighted scoring over instruction-override, role-reassignment, exfiltration, and guardrail-bypass signals. Run it on anything from outside the workflow before an agent acts on it. |
+| `security_scan` | All three at once, returning one verdict: pass, review, or block. |
+| `record_audit_event`, `query_audit_log`, `verify_audit_integrity` | An append-only, hash-chained trail. Alter or drop a row and every hash after it breaks; verification names the first entry that fails. |
+
+The audit trail lives in `data/audit_trail.db` and is readable through
+`GET /api/v1/audit/entries`, with `GET /api/v1/audit/verify` for the integrity
+check. There is deliberately no write endpoint — entries come from the code path
+that performed the action, not from whoever can reach the API.
+
+These raise the cost of an attack and give a workflow something concrete to
+branch on. They do not make an agent safe to point at hostile input on their
+own.
 
 ## Core concepts
 

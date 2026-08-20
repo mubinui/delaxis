@@ -114,7 +114,37 @@
         "http_method": "GET",
         "auth_type": "none",
         "timeout": 30,
-        "forward_user_context": false
+        "forward_user_context": false,
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "description": "Latitude of the location, e.g. 52.52",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "description": "Longitude of the location, e.g. 13.41",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "current_weather",
+            "in": "query",
+            "required": false,
+            "description": "Pass true to include current conditions",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ]
       },
       "version": 1,
       "last_updated": "2026-07-11T00:00:00Z",

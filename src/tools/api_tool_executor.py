@@ -106,9 +106,13 @@ def create_api_tool_function(
     Returns:
         A callable async function that can be registered with CrewAI
     """
-    # Extract parameter metadata from _swagger_metadata if available
+    # Parameter metadata comes from a Swagger import when there was one, and
+    # otherwise from a `parameters` list written by hand in settings. Without
+    # the second source, a hand-authored API tool documented its parameters in
+    # its description but fell through to the zero-argument fallback below —
+    # so an agent calling it exactly as described got a TypeError.
     swagger_metadata = settings.get("_swagger_metadata", {})
-    parameters = swagger_metadata.get("parameters", [])
+    parameters = swagger_metadata.get("parameters") or settings.get("parameters") or []
     
     # Build parameter info for function signature and docstring
     param_docs = []
@@ -205,10 +209,13 @@ async def {tool_id}({params_str}) -> dict:
                 fallback="using_simple_wrapper",
             )
     
-    # Fallback: Create a simple no-argument function for tools without parameters
-    async def api_tool_func() -> dict[str, Any]:
+    # Fallback for tools with no declared parameters. It still accepts and
+    # forwards keyword arguments: execute_api_tool maps them onto the request,
+    # so an undeclared-but-documented parameter degrades to "untyped" rather
+    # than "uncallable".
+    async def api_tool_func(**kwargs: Any) -> dict[str, Any]:
         """Execute the API tool."""
-        return await execute_api_tool(tool_id, settings)
+        return await execute_api_tool(tool_id, settings, **kwargs)
     
     # Set function metadata
     api_tool_func.__name__ = tool_id

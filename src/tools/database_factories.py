@@ -132,8 +132,9 @@ class SqlToolFactory(RuntimeToolFactory):
         """Introspect tables and columns."""
         from sqlalchemy import inspect as sa_inspect
 
-        engine = self._engine()
+        engine = None
         try:
+            engine = self._engine()
             inspector = sa_inspect(engine)
             allowed = self._allowed_tables()
             names = [
@@ -186,10 +187,15 @@ class SqlToolFactory(RuntimeToolFactory):
                 indent=2,
                 default=str,
             )
+        except ValueError as exc:
+            # Configuration problems are the caller's to fix, so they are
+            # reported verbatim rather than wrapped in "introspection failed".
+            return json.dumps({"error": str(exc)})
         except Exception as exc:
             return json.dumps({"error": f"Schema introspection failed: {exc}"})
         finally:
-            engine.dispose()
+            if engine is not None:
+                engine.dispose()
 
     def run_query(self, sql: str) -> str:
         """Execute one statement and return rows as JSON."""
@@ -216,9 +222,10 @@ class SqlToolFactory(RuntimeToolFactory):
                     }
                 )
 
-        engine = self._engine()
+        engine = None
         limit = self._row_limit()
         try:
+            engine = self._engine()
             with engine.connect() as connection:
                 result = connection.execute(text(sql))
                 if not result.returns_rows:
@@ -237,10 +244,13 @@ class SqlToolFactory(RuntimeToolFactory):
                 indent=2,
                 default=str,
             )
+        except ValueError as exc:
+            return json.dumps({"error": str(exc)})
         except Exception as exc:
             return json.dumps({"error": f"Query failed: {exc}"})
         finally:
-            engine.dispose()
+            if engine is not None:
+                engine.dispose()
 
     def sample_table(self, table: str, limit: int = 10) -> str:
         """Return the first rows of a table without the agent writing SQL."""
@@ -333,13 +343,18 @@ class MongoToolFactory(RuntimeToolFactory):
 
     @contextlib.contextmanager
     def _client(self):
+        # Settings are resolved first: a missing 'database' is the caller's
+        # problem to fix, and reporting "install pymongo" for it sends them
+        # after the wrong thing.
+        uri = self._resolve_uri()
+        self._database_name()
         try:
             from pymongo import MongoClient
         except ImportError as exc:
             raise RuntimeError(
                 "MongoDB tools need the 'pymongo' package. Install with: uv pip install pymongo"
             ) from exc
-        client = MongoClient(self._resolve_uri(), serverSelectionTimeoutMS=8000)
+        client = MongoClient(uri, serverSelectionTimeoutMS=8000)
         try:
             yield client
         finally:
@@ -370,6 +385,8 @@ class MongoToolFactory(RuntimeToolFactory):
                     },
                     indent=2,
                 )
+        except ValueError as exc:
+            return json.dumps({"error": str(exc)})
         except Exception as exc:
             return json.dumps({"error": f"Could not list collections: {exc}"})
 
