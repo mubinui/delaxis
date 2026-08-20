@@ -477,6 +477,24 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.json:
+        # Tool registration logs to stdout via structlog. In JSON mode that
+        # would sit in front of the payload and make it unparseable, so the
+        # logging is quietened rather than left to corrupt the output.
+        import logging
+
+        logging.disable(logging.CRITICAL)
+        try:
+            import structlog
+
+            structlog.configure(
+                processors=[],
+                logger_factory=structlog.ReturnLoggerFactory(),
+                cache_logger_on_first_use=True,
+            )
+        except Exception:
+            pass
+
     with tempfile.TemporaryDirectory(prefix="delaxis-harness-") as workspace:
         root = Path(workspace)
         seed_workspace(root)
