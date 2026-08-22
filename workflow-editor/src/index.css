@@ -812,24 +812,45 @@ body {
     stroke-width: 3;
 }
 
+/* React Flow ships its own stylesheet, and it is imported from the canvas
+   component — which lands AFTER this file in the bundle. Its rules use the same
+   single-class specificity as ours, so source order decided the winner and the
+   zoom buttons stayed at its hardcoded #fefefe in dark mode.
+
+   The library exposes --xy-* variables for exactly this, so the theme is set
+   through those rather than by escalating specificity. That also survives a
+   library upgrade, which an !important arms race would not. */
+.react-flow {
+    --xy-controls-button-background-color: var(--surface-1);
+    --xy-controls-button-background-color-hover: var(--surface-hover);
+    --xy-controls-button-color: var(--text-secondary);
+    --xy-controls-button-color-hover: var(--text-primary);
+    --xy-controls-button-border-color: var(--border-subtle);
+    --xy-controls-box-shadow: var(--shadow-md);
+
+    --xy-minimap-background-color: var(--surface-1);
+    --xy-minimap-mask-background-color: var(--minimap-mask);
+    --xy-minimap-node-background-color: var(--minimap-node);
+
+    --xy-edge-stroke: var(--canvas-edge);
+    --xy-edge-stroke-selected: var(--accent);
+    --xy-connectionline-stroke: var(--accent);
+
+    --xy-handle-background-color: var(--surface-2);
+    --xy-handle-border-color: var(--border-strong);
+
+    --xy-background-pattern-color: var(--canvas-dots);
+}
+
 .react-flow__controls {
-    background: var(--surface-1);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-lg);
     overflow: hidden;
-    box-shadow: var(--shadow-md);
 }
 
 .react-flow__controls-button {
-    background: var(--surface-1);
-    border-color: var(--border-subtle);
-    color: var(--text-secondary);
-    transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
-}
-
-.react-flow__controls-button:hover {
-    background: var(--surface-hover);
-    color: var(--text-primary);
+    transition: background-color var(--duration-fast) var(--ease-out),
+                color var(--duration-fast) var(--ease-out);
 }
 
 .react-flow__controls-button svg { fill: currentColor; }

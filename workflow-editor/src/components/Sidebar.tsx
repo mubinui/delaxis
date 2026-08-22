@@ -258,7 +258,7 @@ export const Sidebar = () => {
     );
 
     return (
-        <div className="relative z-20 flex h-full shrink-0">
+        <div className="relative z-[45] flex h-full shrink-0">
             {/* Icon rail — the whole component palette in 80px */}
             <aside
                 className="flex h-full w-[80px] shrink-0 flex-col overflow-hidden"
@@ -377,7 +377,7 @@ export const Sidebar = () => {
             {/* Library flyout — overlays the canvas on demand instead of consuming layout width */}
             {libraryOpen && (
                 <div
-                    className="absolute bottom-0 left-[80px] top-0 z-30 flex w-[310px] flex-col"
+                    className="absolute bottom-0 left-[80px] top-0 z-10 flex w-[310px] flex-col"
                     style={{
                         backgroundColor: 'var(--surface-1)',
                         borderRight: '1px solid var(--border-default)',
