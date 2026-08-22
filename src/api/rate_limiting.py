@@ -4,7 +4,8 @@ import time
 from typing import Dict, Optional
 
 import structlog
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -97,6 +98,40 @@ class RateLimitingMiddleware:
         
         return False
     
+    @staticmethod
+    def _too_many_requests(
+        request: Request,
+        message: str,
+        retry_after: int,
+        limit: int,
+        window: str,
+    ) -> JSONResponse:
+        """Build the 429 response.
+
+        This returns rather than raises. An HTTPException raised inside an
+        ``app.middleware("http")`` function never reaches FastAPI's exception
+        handlers — those are installed inside the routing layer, below this —
+        so it fell through to ServerErrorMiddleware and the client was told
+        every throttled request was a 500. Returning the response keeps the
+        status honest and preserves the Retry-After header, which a client
+        needs in order to back off correctly.
+        """
+        import uuid
+
+        request_id = getattr(request.state, "request_id", None) or str(uuid.uuid4())
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={
+                "error_code": "RATE_LIMIT_EXCEEDED",
+                "error_message": message,
+                "error_type": "RateLimitExceeded",
+                "request_id": request_id,
+                "timestamp": time.time(),
+                "details": {"limit": limit, "window": window, "retry_after_seconds": retry_after},
+            },
+            headers={"Retry-After": str(retry_after)},
+        )
+
     async def __call__(self, request: Request, call_next):
         """Apply rate limiting based on user type."""
         # Skip rate limiting for health checks and static files
@@ -126,12 +161,14 @@ class RateLimitingMiddleware:
                 limit=requests_per_minute,
                 path=request.url.path
             )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded: {requests_per_minute} requests per minute",
-                headers={"Retry-After": "60"}
+            return self._too_many_requests(
+                request,
+                f"Rate limit exceeded: {requests_per_minute} requests per minute",
+                retry_after=60,
+                limit=requests_per_minute,
+                window="minute",
             )
-        
+
         # Check hour-based rate limit
         if self._is_rate_limited(f"{user_id}:hour", requests_per_hour, 3600):
             logger.warning(
@@ -141,10 +178,12 @@ class RateLimitingMiddleware:
                 limit=requests_per_hour,
                 path=request.url.path
             )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded: {requests_per_hour} requests per hour",
-                headers={"Retry-After": "3600"}
+            return self._too_many_requests(
+                request,
+                f"Rate limit exceeded: {requests_per_hour} requests per hour",
+                retry_after=3600,
+                limit=requests_per_hour,
+                window="hour",
             )
         
         # Log successful rate limit check
