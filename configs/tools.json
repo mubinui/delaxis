@@ -16,22 +16,22 @@
       "category": "research"
     },
     {
-      "_comment": "RAG Tools - Remote RAG Pipeline service. Requires RAG_PIPELINE_BASE_URL and RAG_PIPELINE_ENABLED=true. Optional: RAG_PIPELINE_API_KEY for authenticated access.",
       "id": "rag_ingest_file",
       "name": "rag_ingest_file",
-      "description": "Ingest a file (PDF or text) into the RAG pipeline for a specific collection. Parameters: collection (string), file_path (string).",
+      "description": "Index a file into a retrieval collection so agents can search it. Handles PDF, DOCX, XLSX, CSV, JSON and text. Parameters: file_path (string), collection (string, optional).",
       "entrypoint": "src.tools.rag_pipeline:ingest_file",
       "enabled": true,
       "is_async": true,
       "settings": {},
       "version": 1,
       "last_updated": "2024-12-07T00:00:00Z",
-      "category": "knowledge"
+      "category": "knowledge",
+      "_comment": "Retrieval runs in-process. Vectors go to RAG_BACKEND (sqlite by default; also qdrant, pgvector, pinecone, faiss, chromadb) and embeddings to RAG_EMBEDDING_PROVIDER (local by default; also openai, gemini). No external service and no API key is required for the defaults."
     },
     {
       "id": "rag_query",
       "name": "rag_query",
-      "description": "Query the RAG pipeline to retrieve relevant documents and generate answers. Parameters: collection (string), query (string), top_k (integer, default 5), rerank (boolean, default true).",
+      "description": "Search indexed documents and return the passages most relevant to a question, with their source and similarity score. Parameters: query (string), collection (string, optional), top_k (integer, default 5).",
       "entrypoint": "src.tools.rag_pipeline:query_rag",
       "enabled": true,
       "is_async": true,
@@ -43,7 +43,7 @@
     {
       "id": "rag_list_files",
       "name": "rag_list_files",
-      "description": "List all files in a RAG collection. Parameters: collection (string).",
+      "description": "List the documents indexed in a retrieval collection, with chunk counts. Parameters: collection (string, optional).",
       "entrypoint": "src.tools.rag_pipeline:list_files",
       "enabled": true,
       "is_async": true,
@@ -55,7 +55,7 @@
     {
       "id": "rag_delete_file",
       "name": "rag_delete_file",
-      "description": "Delete a file and all its chunks from a RAG collection. Parameters: collection (string), filename (string).",
+      "description": "Remove a document and all of its chunks from a retrieval collection. Parameters: filename (string), collection (string, optional).",
       "entrypoint": "src.tools.rag_pipeline:delete_file",
       "enabled": true,
       "is_async": true,
@@ -67,7 +67,7 @@
     {
       "id": "rag_get_stats",
       "name": "rag_get_stats",
-      "description": "Get detailed statistics about a RAG collection. Parameters: collection (string).",
+      "description": "Counts and configuration for a retrieval collection: chunks, documents, vector dimensions, which store and which embedding provider are in use. Parameters: collection (string, optional).",
       "entrypoint": "src.tools.rag_pipeline:get_stats",
       "enabled": true,
       "is_async": true,
@@ -365,6 +365,30 @@
       "category": "files",
       "version": 1,
       "last_updated": "2026-08-20T00:00:00Z"
+    },
+    {
+      "id": "rag_ingest_text",
+      "name": "rag_ingest_text",
+      "description": "Index a block of text directly into a retrieval collection, without it having to be a file first. Use for notes, transcripts, or scraped pages. Parameters: text (string), source (string, a label), collection (string, optional).",
+      "entrypoint": "src.tools.rag_pipeline:ingest_text",
+      "enabled": true,
+      "is_async": true,
+      "settings": {},
+      "version": 1,
+      "last_updated": "2026-08-23T00:00:00Z",
+      "category": "knowledge"
+    },
+    {
+      "id": "rag_collections",
+      "name": "rag_collections",
+      "description": "List every retrieval collection that exists, with the vector store and embedding provider in use. Call before querying if unsure what is indexed. No parameters.",
+      "entrypoint": "src.tools.rag_pipeline:list_collections",
+      "enabled": true,
+      "is_async": true,
+      "settings": {},
+      "version": 1,
+      "last_updated": "2026-08-23T00:00:00Z",
+      "category": "knowledge"
     }
   ]
 }

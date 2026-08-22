@@ -1,711 +1,275 @@
-"""Tool for interacting with the RAG Pipeline API.
+"""Retrieval tools for agents.
 
-This module provides callable tools that agents can use to interact with
-the RAG Pipeline API for document ingestion, querying, and management.
-The RAG Pipeline integrates Qdrant vector database with Redis caching
-for production-grade retrieval-augmented generation.
+These used to be an HTTP client for a separate "RAG Pipeline" service on
+``localhost:8003``. Nothing in this repository started that service, so on any
+fresh install every one of these tools timed out — retrieval was configured,
+documented, offered to agents in the library, and non-functional.
 
-Usage in agent workflows:
-    - ingest_file: Upload documents to RAG collection
-    - query_rag: Retrieve relevant documents and generate answers
-    - list_files: List documents in collection
-    - delete_file: Remove documents from collection
-    - get_stats: Get collection statistics
+They now run the pipeline in ``src.rag`` directly: chunk, embed, store, search,
+in this process. The default store is SQLite in the data directory and the
+default embedder needs no API key, so retrieval works immediately after
+uploading a file. Pointing ``RAG_BACKEND`` at Qdrant, pgvector, Pinecone, FAISS
+or Chroma changes where the vectors live and nothing else.
+
+The function names, arguments and return shapes are unchanged, because the
+CrewAI runtime, ``configs/tools.json`` and the workflow knowledge nodes all call
+them by that contract.
 """
 
-import json
+from __future__ import annotations
+
+import asyncio
 from pathlib import Path
 from typing import Any, Optional
 
-import httpx
 import structlog
 
-from src.config.settings import get_settings
+from src.rag.service import get_rag_service
 
 logger = structlog.get_logger(__name__)
 
 
-async def ingest_file(
-    collection: str,
-    file_path: str,
-) -> dict[str, Any]:
+def _enabled() -> bool:
+    """Whether retrieval is switched on.
+
+    Kept because deployments set it, though it no longer means "is the remote
+    service reachable" — there is no remote service.
     """
-    Ingest a file (PDF or text) into the RAG pipeline.
+    try:
+        from src.config.settings import get_settings
+
+        return bool(get_settings().external_services.rag_pipeline_enabled)
+    except Exception:  # settings problems must not take retrieval down
+        return True
+
+
+def _disabled(**extra: Any) -> dict[str, Any]:
+    return {
+        "success": False,
+        "error": "Retrieval is disabled (RAG_PIPELINE_ENABLED is false)",
+        "message": "Retrieval is disabled",
+        **extra,
+    }
+
+
+async def ingest_file(
+    collection: Optional[str] = None,
+    file_path: str = "",
+) -> dict[str, Any]:
+    """Index a file so agents can retrieve from it.
 
     Args:
-        collection: Collection name to ingest into
-        file_path: Path to the file to ingest
+        collection: Collection to ingest into (defaults to the configured one)
+        file_path: Path to the file — PDF, DOCX, XLSX, CSV, JSON or text
 
     Returns:
-        dict with:
-            - success: Boolean indicating success
-            - message: Status message
-            - documents_processed: Number of documents processed
-            - error: Error message if request failed
-
-    Example:
-        result = await ingest_file(
-            collection="knowledge_base",
-            file_path="/path/to/document.pdf"
-        )
+        success, message, documents_processed, and error when it failed.
     """
-    settings = get_settings()
+    if not _enabled():
+        return _disabled(documents_processed=0)
+    if not file_path:
+        return {"success": False, "message": "file_path is required",
+                "documents_processed": 0, "error": "file_path is required"}
 
-    if not settings.external_services.rag_pipeline_enabled:
-        logger.warning("rag_pipeline_disabled")
-        return {
-            "success": False,
-            "message": "RAG Pipeline is not enabled",
-            "documents_processed": 0,
-            "error": "RAG Pipeline is not enabled",
-        }
-
-    # Validate file exists
-    file_path_obj = Path(file_path)
-    if not file_path_obj.exists():
-        logger.error("file_not_found", file_path=file_path)
-        return {
-            "success": False,
-            "message": f"File not found: {file_path}",
-            "documents_processed": 0,
-            "error": f"File not found: {file_path}",
-        }
-
-    # Build URL
-    base_url = settings.external_services.rag_pipeline_base_url.rstrip("/")
-    url = f"{base_url}/collections/{collection}/ingest/file"
-
-    # Build headers
-    headers = {}
-    if settings.external_services.rag_pipeline_api_key:
-        headers["Authorization"] = f"Bearer {settings.external_services.rag_pipeline_api_key}"
-
-    logger.info(
-        "ingesting_file_to_rag",
-        collection=collection,
-        file_path=file_path,
-        url=url,
-    )
-
+    service = get_rag_service()
     try:
-        async with httpx.AsyncClient(
-            timeout=settings.external_services.rag_pipeline_timeout
-        ) as client:
-            with open(file_path_obj, "rb") as f:
-                files = {"file": (file_path_obj.name, f, "application/octet-stream")}
-                response = await client.post(
-                    url,
-                    files=files,
-                    headers=headers,
-                )
+        # Extraction and embedding are blocking, and this runs inside the
+        # request loop.
+        result = await asyncio.to_thread(
+            service.ingest_file, Path(file_path), collection=collection
+        )
+    except FileNotFoundError as exc:
+        return {"success": False, "message": str(exc), "documents_processed": 0,
+                "error": str(exc)}
+    except Exception as exc:
+        logger.exception("rag_ingest_failed", file_path=file_path)
+        return {"success": False, "message": f"Ingestion failed: {exc}",
+                "documents_processed": 0, "error": str(exc)}
 
-            # Parse response
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                response_data = {"message": response.text}
+    if not result.chunks:
+        return {"success": False, "message": result.note or "nothing to index",
+                "documents_processed": 0, "collection": result.collection,
+                "error": result.note or "no text could be extracted"}
 
-            success = 200 <= response.status_code < 300
+    return {
+        "success": True,
+        "message": (
+            f"Indexed '{result.source}' as {result.chunks} chunk(s) "
+            f"in collection '{result.collection}'"
+        ),
+        "documents_processed": result.chunks,
+        "collection": result.collection,
+        "source": result.source,
+        "characters": result.characters,
+        "replaced": result.replaced,
+    }
 
-            logger.info(
-                "rag_ingest_response",
-                status_code=response.status_code,
-                success=success,
-                documents_processed=response_data.get("documents_processed", 0),
-            )
 
-            if success:
-                return {
-                    "success": response_data.get("success", True),
-                    "message": response_data.get("message", "File ingested successfully"),
-                    "documents_processed": response_data.get("documents_processed", 0),
-                    "error": None,
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": response_data.get("message", "Failed to ingest file"),
-                    "documents_processed": 0,
-                    "error": response_data.get("detail", response_data.get("message")),
-                }
-
-    except httpx.TimeoutException:
-        logger.error("rag_ingest_timeout", url=url, file_path=file_path)
-        return {
-            "success": False,
-            "message": "RAG Pipeline request timed out",
-            "documents_processed": 0,
-            "error": "Request timed out",
-        }
-    except httpx.HTTPError as e:
-        logger.error("rag_ingest_http_error", url=url, error=str(e))
-        return {
-            "success": False,
-            "message": f"RAG Pipeline request failed: {str(e)}",
-            "documents_processed": 0,
-            "error": str(e),
-        }
-    except Exception as e:
-        logger.error("rag_ingest_error", url=url, error=str(e), exc_info=True)
-        return {
-            "success": False,
-            "message": f"Unexpected error: {str(e)}",
-            "documents_processed": 0,
-            "error": str(e),
-        }
+async def ingest_text(
+    text: str,
+    source: str = "note",
+    collection: Optional[str] = None,
+) -> dict[str, Any]:
+    """Index text directly, without it having to be a file first."""
+    if not _enabled():
+        return _disabled(documents_processed=0)
+    service = get_rag_service()
+    try:
+        result = await asyncio.to_thread(
+            service.ingest_text, text, source=source, collection=collection
+        )
+    except Exception as exc:
+        logger.exception("rag_ingest_text_failed", source=source)
+        return {"success": False, "message": f"Ingestion failed: {exc}",
+                "documents_processed": 0, "error": str(exc)}
+    return {
+        "success": bool(result.chunks),
+        "message": f"Indexed '{source}' as {result.chunks} chunk(s)",
+        "documents_processed": result.chunks,
+        "collection": result.collection,
+        "source": result.source,
+    }
 
 
 async def ingest_batch(
-    collection: str,
-    file_paths: list[str],
+    collection: Optional[str] = None,
+    file_paths: Optional[list[str]] = None,
 ) -> dict[str, Any]:
-    """
-    Ingest multiple files into the RAG pipeline.
+    """Index several files. One failure does not abandon the rest."""
+    if not _enabled():
+        return _disabled(documents_processed=0)
 
-    Args:
-        collection: Collection name to ingest into
-        file_paths: List of file paths to ingest
+    results = []
+    total = 0
+    failures = []
+    for path in file_paths or []:
+        outcome = await ingest_file(collection=collection, file_path=path)
+        results.append(outcome)
+        total += int(outcome.get("documents_processed", 0))
+        if not outcome.get("success"):
+            failures.append({"file": path, "error": outcome.get("error")})
 
-    Returns:
-        dict with:
-            - success: Boolean indicating success
-            - message: Status message
-            - documents_processed: Total number of documents processed
-            - error: Error message if request failed
-
-    Example:
-        result = await ingest_batch(
-            collection="knowledge_base",
-            file_paths=["/path/to/doc1.pdf", "/path/to/doc2.txt"]
-        )
-    """
-    settings = get_settings()
-
-    if not settings.external_services.rag_pipeline_enabled:
-        logger.warning("rag_pipeline_disabled")
-        return {
-            "success": False,
-            "message": "RAG Pipeline is not enabled",
-            "documents_processed": 0,
-            "error": "RAG Pipeline is not enabled",
-        }
-
-    # Validate files exist
-    file_objs = []
-    for fp in file_paths:
-        file_path_obj = Path(fp)
-        if not file_path_obj.exists():
-            logger.warning("file_not_found_in_batch", file_path=fp)
-            continue
-        file_objs.append(file_path_obj)
-
-    if not file_objs:
-        return {
-            "success": False,
-            "message": "No valid files found",
-            "documents_processed": 0,
-            "error": "No valid files found",
-        }
-
-    # Build URL
-    base_url = settings.external_services.rag_pipeline_base_url.rstrip("/")
-    url = f"{base_url}/collections/{collection}/ingest/batch"
-
-    # Build headers
-    headers = {}
-    if settings.external_services.rag_pipeline_api_key:
-        headers["Authorization"] = f"Bearer {settings.external_services.rag_pipeline_api_key}"
-
-    logger.info(
-        "ingesting_batch_to_rag",
-        collection=collection,
-        file_count=len(file_objs),
-        url=url,
-    )
-
-    try:
-        async with httpx.AsyncClient(
-            timeout=settings.external_services.rag_pipeline_timeout * 2  # Longer timeout for batch
-        ) as client:
-            files = [
-                ("files", (fp.name, open(fp, "rb"), "application/octet-stream"))
-                for fp in file_objs
-            ]
-            
-            response = await client.post(
-                url,
-                files=files,
-                headers=headers,
-            )
-
-            # Close file handles
-            for _, (_, f, _) in files:
-                f.close()
-
-            # Parse response
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                response_data = {"message": response.text}
-
-            success = 200 <= response.status_code < 300
-
-            logger.info(
-                "rag_batch_ingest_response",
-                status_code=response.status_code,
-                success=success,
-                documents_processed=response_data.get("documents_processed", 0),
-            )
-
-            if success:
-                return {
-                    "success": response_data.get("success", True),
-                    "message": response_data.get("message", "Files ingested successfully"),
-                    "documents_processed": response_data.get("documents_processed", 0),
-                    "error": None,
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": response_data.get("message", "Failed to ingest files"),
-                    "documents_processed": 0,
-                    "error": response_data.get("detail", response_data.get("message")),
-                }
-
-    except httpx.TimeoutException:
-        logger.error("rag_batch_ingest_timeout", url=url)
-        return {
-            "success": False,
-            "message": "RAG Pipeline batch request timed out",
-            "documents_processed": 0,
-            "error": "Request timed out",
-        }
-    except httpx.HTTPError as e:
-        logger.error("rag_batch_ingest_http_error", url=url, error=str(e))
-        return {
-            "success": False,
-            "message": f"RAG Pipeline request failed: {str(e)}",
-            "documents_processed": 0,
-            "error": str(e),
-        }
-    except Exception as e:
-        logger.error("rag_batch_ingest_error", url=url, error=str(e), exc_info=True)
-        return {
-            "success": False,
-            "message": f"Unexpected error: {str(e)}",
-            "documents_processed": 0,
-            "error": str(e),
-        }
+    return {
+        "success": bool(file_paths) and not failures,
+        "message": f"Indexed {total} chunk(s) from {len(results) - len(failures)} file(s)",
+        "documents_processed": total,
+        "files": results,
+        "failures": failures,
+        "error": f"{len(failures)} file(s) failed" if failures else None,
+    }
 
 
 async def query_rag(
-    query: str,
+    query: str = "",
     collection: Optional[str] = None,
     top_k: int = 5,
     rerank: bool = True,
-    rerank_top_k: Optional[int] = None,
 ) -> dict[str, Any]:
-    """
-    Query the RAG pipeline to retrieve relevant documents.
+    """Retrieve the passages most likely to answer a question.
 
     Args:
-        query: Query text
-        collection: Collection name (defaults to configured default)
-        top_k: Number of results to retrieve
-        rerank: Whether to rerank results
-        rerank_top_k: Number of results after reranking
+        query: What to search for
+        collection: Collection to search (defaults to the configured one)
+        top_k: How many passages to return
+        rerank: Accepted for compatibility; ranking is by similarity either way
 
     Returns:
-        dict with:
-            - query: Original query
-            - results: List of search results with id, text, score, metadata
-            - total_results: Number of results returned
-            - success: Boolean indicating success
-            - error: Error message if request failed
-
-    Example:
-        result = await query_rag(
-            query="What is the capital of France?",
-            collection="knowledge_base",
-            top_k=5
-        )
+        query, results (text, score, source), total_results, success, error.
     """
-    settings = get_settings()
+    if not _enabled():
+        return {"query": query, "results": [], "total_results": 0, **_disabled()}
+    if not (query or "").strip():
+        return {"query": query, "results": [], "total_results": 0,
+                "success": False, "error": "query is required"}
 
-    if not settings.external_services.rag_pipeline_enabled:
-        logger.warning("rag_pipeline_disabled")
-        return {
-            "query": query,
-            "results": [],
-            "total_results": 0,
-            "success": False,
-            "error": "RAG Pipeline is not enabled",
-        }
+    service = get_rag_service()
+    try:
+        hits = await asyncio.to_thread(
+            service.query, query, collection=collection, top_k=max(1, int(top_k or 5))
+        )
+    except Exception as exc:
+        logger.exception("rag_query_failed", collection=collection)
+        return {"query": query, "results": [], "total_results": 0,
+                "success": False, "error": str(exc)}
 
-    # Use default collection if not provided
-    if not collection:
-        collection = settings.external_services.rag_pipeline_default_collection
-
-    # Build URL
-    base_url = settings.external_services.rag_pipeline_base_url.rstrip("/")
-    url = f"{base_url}/collections/{collection}/query"
-
-    # Build headers
-    headers = {"Content-Type": "application/json"}
-    if settings.external_services.rag_pipeline_api_key:
-        headers["Authorization"] = f"Bearer {settings.external_services.rag_pipeline_api_key}"
-
-    # Build request body
-    payload = {
+    return {
         "query": query,
-        "top_k": top_k,
-        "rerank": rerank,
+        "results": hits,
+        "total_results": len(hits),
+        "collection": service.collection_for(collection),
+        "success": True,
+        "error": None,
     }
-    if rerank_top_k is not None:
-        payload["rerank_top_k"] = rerank_top_k
 
-    logger.info(
-        "querying_rag",
-        collection=collection,
-        query_length=len(query),
-        top_k=top_k,
-        rerank=rerank,
-        url=url,
-    )
 
+async def list_files(collection: Optional[str] = None) -> dict[str, Any]:
+    """List the documents indexed in a collection."""
+    if not _enabled():
+        return _disabled(files=[], total_files=0)
+    service = get_rag_service()
     try:
-        async with httpx.AsyncClient(
-            timeout=settings.external_services.rag_pipeline_timeout
-        ) as client:
-            response = await client.post(
-                url,
-                json=payload,
-                headers=headers,
-            )
-
-            # Parse response
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                response_data = {"error": response.text}
-
-            success = 200 <= response.status_code < 300
-
-            logger.info(
-                "rag_query_response",
-                status_code=response.status_code,
-                success=success,
-                total_results=response_data.get("total_results", 0),
-            )
-
-            if success:
-                return {
-                    "query": response_data.get("query", query),
-                    "results": response_data.get("results", []),
-                    "total_results": response_data.get("total_results", 0),
-                    "success": True,
-                    "error": None,
-                }
-            else:
-                return {
-                    "query": query,
-                    "results": [],
-                    "total_results": 0,
-                    "success": False,
-                    "error": response_data.get("detail", response_data.get("error", "Query failed")),
-                }
-
-    except httpx.TimeoutException:
-        logger.error("rag_query_timeout", url=url)
-        return {
-            "query": query,
-            "results": [],
-            "total_results": 0,
-            "success": False,
-            "error": "Query timed out",
-        }
-    except httpx.HTTPError as e:
-        logger.error("rag_query_http_error", url=url, error=str(e))
-        return {
-            "query": query,
-            "results": [],
-            "total_results": 0,
-            "success": False,
-            "error": str(e),
-        }
-    except Exception as e:
-        logger.error("rag_query_error", url=url, error=str(e), exc_info=True)
-        return {
-            "query": query,
-            "results": [],
-            "total_results": 0,
-            "success": False,
-            "error": str(e),
-        }
+        documents = await asyncio.to_thread(service.documents, collection)
+    except Exception as exc:
+        logger.exception("rag_list_failed", collection=collection)
+        return {"collection": collection, "files": [], "total_files": 0,
+                "success": False, "error": str(exc)}
+    return {
+        "collection": service.collection_for(collection),
+        "files": [item["source"] for item in documents],
+        "documents": documents,
+        "total_files": len(documents),
+        "success": True,
+        "error": None,
+    }
 
 
-async def list_files(
-    collection: Optional[str] = None,
-) -> dict[str, Any]:
-    """
-    List all files in a RAG collection.
-
-    Args:
-        collection: Collection name (defaults to configured default)
-
-    Returns:
-        dict with:
-            - collection: Collection name
-            - files: List of file names
-            - total_files: Number of files
-            - success: Boolean indicating success
-            - error: Error message if request failed
-
-    Example:
-        result = await list_files(collection="knowledge_base")
-    """
-    settings = get_settings()
-
-    if not settings.external_services.rag_pipeline_enabled:
-        logger.warning("rag_pipeline_disabled")
-        return {
-            "collection": collection or "",
-            "files": [],
-            "total_files": 0,
-            "success": False,
-            "error": "RAG Pipeline is not enabled",
-        }
-
-    # Use default collection if not provided
-    if not collection:
-        collection = settings.external_services.rag_pipeline_default_collection
-
-    # Build URL
-    base_url = settings.external_services.rag_pipeline_base_url.rstrip("/")
-    url = f"{base_url}/collections/{collection}/files"
-
-    # Build headers
-    headers = {}
-    if settings.external_services.rag_pipeline_api_key:
-        headers["Authorization"] = f"Bearer {settings.external_services.rag_pipeline_api_key}"
-
-    logger.info("listing_rag_files", collection=collection, url=url)
-
+async def delete_file(filename: str, collection: Optional[str] = None) -> dict[str, Any]:
+    """Remove a document and all of its chunks from a collection."""
+    if not _enabled():
+        return _disabled()
+    if not filename:
+        return {"success": False, "message": "filename is required",
+                "error": "filename is required"}
+    service = get_rag_service()
     try:
-        async with httpx.AsyncClient(
-            timeout=settings.external_services.rag_pipeline_timeout
-        ) as client:
-            response = await client.get(url, headers=headers)
-
-            # Parse response
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                response_data = {"error": response.text}
-
-            success = 200 <= response.status_code < 300
-
-            if success:
-                files = response_data.get("files", [])
-                return {
-                    "collection": collection,
-                    "files": files,
-                    "total_files": len(files),
-                    "success": True,
-                    "error": None,
-                }
-            else:
-                return {
-                    "collection": collection,
-                    "files": [],
-                    "total_files": 0,
-                    "success": False,
-                    "error": response_data.get("detail", "Failed to list files"),
-                }
-
-    except httpx.TimeoutException:
-        logger.error("rag_list_files_timeout", url=url)
-        return {
-            "collection": collection,
-            "files": [],
-            "total_files": 0,
-            "success": False,
-            "error": "Request timed out",
-        }
-    except Exception as e:
-        logger.error("rag_list_files_error", url=url, error=str(e), exc_info=True)
-        return {
-            "collection": collection,
-            "files": [],
-            "total_files": 0,
-            "success": False,
-            "error": str(e),
-        }
+        removed = await asyncio.to_thread(service.delete_document, filename, collection)
+    except Exception as exc:
+        logger.exception("rag_delete_failed", filename=filename)
+        return {"success": False, "message": f"Delete failed: {exc}", "error": str(exc)}
+    return {
+        "success": removed > 0,
+        "message": (
+            f"Removed '{filename}' ({removed} chunk(s))" if removed
+            else f"'{filename}' was not in this collection"
+        ),
+        "chunks_removed": removed,
+        "collection": service.collection_for(collection),
+        "error": None if removed else "not found",
+    }
 
 
-async def delete_file(
-    filename: str,
-    collection: Optional[str] = None,
-) -> dict[str, Any]:
-    """
-    Delete a file and all its chunks from a RAG collection.
-
-    Args:
-        filename: Name of the file to delete
-        collection: Collection name (defaults to configured default)
-
-    Returns:
-        dict with:
-            - success: Boolean indicating success
-            - message: Status message
-            - error: Error message if request failed
-
-    Example:
-        result = await delete_file(
-            filename="document.pdf",
-            collection="knowledge_base"
-        )
-    """
-    settings = get_settings()
-
-    if not settings.external_services.rag_pipeline_enabled:
-        logger.warning("rag_pipeline_disabled")
-        return {
-            "success": False,
-            "message": "RAG Pipeline is not enabled",
-            "error": "RAG Pipeline is not enabled",
-        }
-
-    # Use default collection if not provided
-    if not collection:
-        collection = settings.external_services.rag_pipeline_default_collection
-
-    # Build URL
-    base_url = settings.external_services.rag_pipeline_base_url.rstrip("/")
-    url = f"{base_url}/collections/{collection}/files/{filename}"
-
-    # Build headers
-    headers = {}
-    if settings.external_services.rag_pipeline_api_key:
-        headers["Authorization"] = f"Bearer {settings.external_services.rag_pipeline_api_key}"
-
-    logger.info("deleting_rag_file", collection=collection, filename=filename, url=url)
-
+async def get_stats(collection: Optional[str] = None) -> dict[str, Any]:
+    """Counts and configuration for a collection."""
+    if not _enabled():
+        return _disabled()
+    service = get_rag_service()
     try:
-        async with httpx.AsyncClient(
-            timeout=settings.external_services.rag_pipeline_timeout
-        ) as client:
-            response = await client.delete(url, headers=headers)
-
-            # Parse response
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                response_data = {"message": response.text}
-
-            success = 200 <= response.status_code < 300
-
-            if success:
-                return {
-                    "success": True,
-                    "message": response_data.get("message", f"File '{filename}' deleted successfully"),
-                    "error": None,
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": response_data.get("message", "Failed to delete file"),
-                    "error": response_data.get("detail", "Failed to delete file"),
-                }
-
-    except httpx.TimeoutException:
-        logger.error("rag_delete_file_timeout", url=url)
-        return {
-            "success": False,
-            "message": "Request timed out",
-            "error": "Request timed out",
-        }
-    except Exception as e:
-        logger.error("rag_delete_file_error", url=url, error=str(e), exc_info=True)
-        return {
-            "success": False,
-            "message": f"Unexpected error: {str(e)}",
-            "error": str(e),
-        }
+        stats = await asyncio.to_thread(service.stats, collection)
+        collections = await asyncio.to_thread(service.collections)
+    except Exception as exc:
+        logger.exception("rag_stats_failed", collection=collection)
+        return {"success": False, "error": str(exc)}
+    return {**stats, "collections": collections, "success": True, "error": None}
 
 
-async def get_stats(
-    collection: Optional[str] = None,
-) -> dict[str, Any]:
-    """
-    Get detailed statistics about a RAG collection.
-
-    Args:
-        collection: Collection name (defaults to configured default)
-
-    Returns:
-        dict with collection statistics and metadata
-
-    Example:
-        result = await get_stats(collection="knowledge_base")
-    """
-    settings = get_settings()
-
-    if not settings.external_services.rag_pipeline_enabled:
-        logger.warning("rag_pipeline_disabled")
-        return {
-            "success": False,
-            "error": "RAG Pipeline is not enabled",
-        }
-
-    # Use default collection if not provided
-    if not collection:
-        collection = settings.external_services.rag_pipeline_default_collection
-
-    # Build URL
-    base_url = settings.external_services.rag_pipeline_base_url.rstrip("/")
-    url = f"{base_url}/collections/{collection}/stats"
-
-    # Build headers
-    headers = {}
-    if settings.external_services.rag_pipeline_api_key:
-        headers["Authorization"] = f"Bearer {settings.external_services.rag_pipeline_api_key}"
-
-    logger.info("getting_rag_stats", collection=collection, url=url)
-
+async def list_collections() -> dict[str, Any]:
+    """Every collection this store knows about."""
+    if not _enabled():
+        return _disabled(collections=[])
+    service = get_rag_service()
     try:
-        async with httpx.AsyncClient(
-            timeout=settings.external_services.rag_pipeline_timeout
-        ) as client:
-            response = await client.get(url, headers=headers)
-
-            # Parse response
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                response_data = {"error": response.text}
-
-            success = 200 <= response.status_code < 300
-
-            if success:
-                response_data["success"] = True
-                response_data["error"] = None
-                return response_data
-            else:
-                return {
-                    "success": False,
-                    "error": response_data.get("detail", "Failed to get stats"),
-                }
-
-    except httpx.TimeoutException:
-        logger.error("rag_stats_timeout", url=url)
-        return {
-            "success": False,
-            "error": "Request timed out",
-        }
-    except Exception as e:
-        logger.error("rag_stats_error", url=url, error=str(e), exc_info=True)
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        collections = await asyncio.to_thread(service.collections)
+    except Exception as exc:
+        return {"success": False, "collections": [], "error": str(exc)}
+    return {"success": True, "collections": collections,
+            "backend": service.store.name, "embeddings": service.embedder.name, "error": None}
