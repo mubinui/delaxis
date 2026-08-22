@@ -15,6 +15,7 @@ def register_routers(app: FastAPI) -> None:
         configs,
         crewai_config,
         deployments,
+        documents,
         files,
         functions,
         health,
@@ -56,5 +57,6 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(deployments.pages_router)
     app.include_router(files.router)
     app.include_router(rag.router)
+    app.include_router(documents.router)
     app.include_router(audit.router)
     app.include_router(health.router)

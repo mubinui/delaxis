@@ -389,6 +389,30 @@
       "version": 1,
       "last_updated": "2026-08-23T00:00:00Z",
       "category": "knowledge"
+    },
+    {
+      "id": "generate_document",
+      "name": "generate_document",
+      "description": "Write a document the user can download \u2014 PDF, Word, Excel, HTML, Markdown, CSV, JSON or text. Write the body as Markdown (headings, bullets, numbered lists, tables and code blocks all render) and it is converted to the chosen format. Returns a download_url. Use this whenever the user asks for a report, summary, export or 'send me a file'. Parameters: content (string, Markdown), filename (string, no extension), format (string, default pdf), title (string, optional).",
+      "entrypoint": "src.tools.documents:generate_document",
+      "enabled": true,
+      "is_async": false,
+      "settings": {},
+      "version": 1,
+      "last_updated": "2026-08-23T00:00:00Z",
+      "category": "files"
+    },
+    {
+      "id": "list_generated_documents",
+      "name": "list_generated_documents",
+      "description": "List the documents generated so far, newest first, with their download links. Parameters: limit (integer, default 100).",
+      "entrypoint": "src.tools.documents:list_generated_documents",
+      "enabled": true,
+      "is_async": false,
+      "settings": {},
+      "version": 1,
+      "last_updated": "2026-08-23T00:00:00Z",
+      "category": "files"
     }
   ]
 }
