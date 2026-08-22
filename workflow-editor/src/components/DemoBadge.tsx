@@ -43,26 +43,27 @@ export const DemoBadge = () => {
 
             {open && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-                    <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/10 bg-[#0b111b] p-6 shadow-2xl">
+                    <div className="dlx-surface max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-6"
+                        style={{ backgroundColor: 'var(--surface-1)', borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-xl)' }}>
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <h2 className="text-lg font-bold text-white">You're in the Delaxis demo</h2>
-                                <p className="mt-1 text-[13px] leading-relaxed text-slate-400">
+                                <h2 className="dlx-text text-lg font-bold">You're in the Delaxis demo</h2>
+                                <p className="dlx-muted mt-1 text-[13px] leading-relaxed">
                                     This is the real Studio running against an in-browser stub of the API, so
                                     everything is clickable without a server, a database, or an API key.
                                 </p>
                             </div>
-                            <button onClick={close} className="shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-300" title="Close">
+                            <button onClick={close} className="dlx-btn dlx-btn-ghost shrink-0 p-1.5" title="Close">
                                 <X size={16} />
                             </button>
                         </div>
 
                         <div className="mt-5">
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">What works</div>
+                            <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--status-ready)' }}>What works</div>
                             <ul className="mt-2 space-y-1.5">
                                 {WORKS.map((item) => (
-                                    <li key={item} className="flex gap-2 text-[13px] leading-relaxed text-slate-300">
-                                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                                    <li key={item} className="dlx-text-secondary flex gap-2 text-[13px] leading-relaxed">
+                                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full" style={{ backgroundColor: 'var(--status-ready)' }} />
                                         {item}
                                     </li>
                                 ))}
@@ -73,7 +74,7 @@ export const DemoBadge = () => {
                             <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400">What doesn't</div>
                             <ul className="mt-2 space-y-1.5">
                                 {DOESNT.map((item) => (
-                                    <li key={item} className="flex gap-2 text-[13px] leading-relaxed text-slate-400">
+                                    <li key={item} className="dlx-muted flex gap-2 text-[13px] leading-relaxed">
                                         <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-amber-400" />
                                         {item}
                                     </li>
@@ -84,7 +85,7 @@ export const DemoBadge = () => {
                         <div className="mt-6 flex flex-wrap gap-2">
                             <button
                                 onClick={close}
-                                className="flex-grow rounded-lg bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)]"
+                                className="dlx-btn dlx-btn-primary flex-grow px-4 py-2.5 text-sm"
                             >
                                 Explore the Studio
                             </button>
@@ -92,7 +93,7 @@ export const DemoBadge = () => {
                                 href={REPO_URL}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5"
+                                className="dlx-btn dlx-btn-secondary items-center gap-2 px-4 py-2.5 text-sm"
                             >
                                 <Github size={15} />
                                 Source
@@ -101,7 +102,7 @@ export const DemoBadge = () => {
                                 href={`${REPO_URL}#installation`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex items-center gap-2 rounded-lg border border-white/10 px-4 py-2.5 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5"
+                                className="dlx-btn dlx-btn-secondary items-center gap-2 px-4 py-2.5 text-sm"
                             >
                                 <BookOpen size={15} />
                                 Run it for real
