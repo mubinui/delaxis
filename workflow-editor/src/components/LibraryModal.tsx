@@ -141,6 +141,17 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
     } = useLibraryStore();
 
     const [activeTab, setActiveTab] = useState<ResourceTab>(initialTab);
+
+    // Escape closes the dialog. Users expect it of any modal, and without it the
+    // only way out is one small unlabelled button in the corner.
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isOpen, onClose]);
     const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
     const [isSwaggerModalOpen, setIsSwaggerModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -578,7 +589,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                             </div>
                         </div>
 
-                        <button onClick={onClose} type="button" className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all">
+                        <button aria-label="Close library" title="Close library" onClick={onClose} type="button" className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all">
                             <X size={18} />
                         </button>
                     </div>

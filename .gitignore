@@ -71,3 +71,9 @@ tmp/
 
 # Provider API keys pasted in the studio (never commit)
 data/provider_secrets.json
+
+# Rendered video and its intermediates. The pipeline that builds them lives in
+# scripts/video/ and is committed; the output is attached to the release, where
+# a 19 MB binary belongs rather than in every clone of the repository.
+docs/video/*.mp4
+docs/video/build/
