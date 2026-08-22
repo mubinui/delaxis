@@ -103,6 +103,16 @@ class TestRecentConversation:
         assert "Recent conversation" not in build_system_instruction(system_prompt="P", history=[])
 
 
+def _flat(text: str) -> str:
+    """The instruction with its line wrapping collapsed.
+
+    Persona text is hard-wrapped, so a phrase worth asserting on routinely
+    straddles a newline; matching on the raw string pins the wrap column
+    instead of the wording.
+    """
+    return " ".join(text.split())
+
+
 class TestBuilderPersona:
     """The Studio's spoken build assistant.
 
@@ -111,21 +121,38 @@ class TestBuilderPersona:
     feature feel broken is an assistant that says "done!" and changed nothing.
     """
 
-    def test_disclaims_having_built_anything(self):
+    def test_is_told_to_act_rather_than_describe(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        # The session now declares canvas tools, so the assistant can change the
+        # graph while it talks. It used to be told the opposite — "never claim to
+        # have finished building" — because it genuinely could not act, and that
+        # disclaimer would now make it refuse work it is able to do.
+        instruction = build_builder_instruction()
+        assert "you can change the canvas yourself" in _flat(instruction)
+        assert "Use them." in _flat(instruction)
+        assert "Never claim to have finished building" not in _flat(instruction)
+
+    def test_requires_reading_state_before_answering_about_it(self):
+        from src.api.voice.persona import build_builder_instruction
+
+        # Guessing at the canvas is the failure that makes a build partner
+        # untrustworthy, so reading it is spelled out rather than implied.
+        instruction = build_builder_instruction()
+        assert "describe_canvas" in _flat(instruction)
+        assert "Never guess at the current state." in _flat(instruction)
+
+    def test_treats_deletion_as_different_from_addition(self):
         from src.api.voice.persona import build_builder_instruction
 
         instruction = build_builder_instruction()
-        assert "Never claim to have finished building" in instruction
-        assert "the build runs separately" in instruction
+        assert "only remove something when they clearly" in _flat(instruction)
 
-    def test_knows_the_spoken_build_command_launches_it(self):
+    def test_must_not_pretend_a_failed_call_succeeded(self):
         from src.api.voice.persona import build_builder_instruction
 
         instruction = build_builder_instruction()
-        # The client listens for these phrases in the user's speech, so the
-        # assistant has to expect them and not talk over the hand-off.
-        assert "start building" in instruction
-        assert "do not say it until they have asked" in instruction
+        assert "do not pretend it succeeded" in _flat(instruction)
 
     def test_always_carries_the_speaking_rules(self):
         from src.api.voice.persona import build_builder_instruction

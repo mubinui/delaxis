@@ -17,8 +17,9 @@ import asyncio
 import base64
 import contextlib
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import structlog
 import websockets
@@ -48,6 +49,8 @@ class SessionStats:
     bytes_in: int = 0
     bytes_out: int = 0
     turns: int = 0
+    #: Canvas operations the model asked for during the session.
+    tool_calls: int = 0
     reason: str = p.REASON_CLIENT
     user_text: list[str] = field(default_factory=list)
     agent_text: list[str] = field(default_factory=list)
@@ -58,7 +61,13 @@ class SessionStats:
 # --------------------------------------------------------------------------- #
 
 
-def build_setup_frame(config: LiveVoiceConfig, *, system_instruction: str, voice_name: str = "") -> dict[str, Any]:
+def build_setup_frame(
+    config: LiveVoiceConfig,
+    *,
+    system_instruction: str,
+    voice_name: str = "",
+    tools: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """The first frame the upstream socket expects.
 
     ``responseModalities`` is placed under ``generationConfig``, which is where
@@ -72,17 +81,22 @@ def build_setup_frame(config: LiveVoiceConfig, *, system_instruction: str, voice
             "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice_name}}
         }
 
-    return {
-        "setup": {
-            "model": config.upstream_model,
-            "generationConfig": generation_config,
-            "systemInstruction": {"parts": [{"text": system_instruction}]},
-            # Transcripts are what let a spoken turn be persisted into the same
-            # message history the text chat uses.
-            "inputAudioTranscription": {},
-            "outputAudioTranscription": {},
-        }
+    setup: dict[str, Any] = {
+        "model": config.upstream_model,
+        "generationConfig": generation_config,
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+        # Transcripts are what let a spoken turn be persisted into the same
+        # message history the text chat uses.
+        "inputAudioTranscription": {},
+        "outputAudioTranscription": {},
     }
+    # Without this the session is audio-only: the model can describe a change but
+    # has no mechanism to make one, which is why the build persona used to have
+    # to forbid it from claiming otherwise.
+    if tools:
+        setup["tools"] = tools
+
+    return {"setup": setup}
 
 
 def encode_audio_chunk(config: LiveVoiceConfig, pcm: bytes) -> dict[str, Any]:
@@ -123,6 +137,7 @@ async def run_bridge(
     api_key: str,
     system_instruction: str,
     voice_name: str = "",
+    tools: list[dict[str, Any]] | None = None,
     client_receive: Callable[[], Awaitable[dict[str, Any]]],
     client_send_bytes: Callable[[bytes], Awaitable[None]],
     client_send_json: Callable[[dict[str, Any]], Awaitable[None]],
@@ -158,7 +173,7 @@ async def run_bridge(
 
     async with upstream_cm as upstream:
         await upstream.send(json.dumps(build_setup_frame(
-            config, system_instruction=system_instruction, voice_name=voice_name,
+            config, system_instruction=system_instruction, voice_name=voice_name, tools=tools,
         )))
 
         try:
@@ -203,6 +218,15 @@ async def run_bridge(
                 kind = frame.get("t")
                 if kind == p.CLIENT_STOP:
                     await upstream.send(json.dumps(encode_audio_stream_end()))
+                elif kind == p.CLIENT_TOOL_RESULT:
+                    # The browser owns the canvas, so its report of what happened
+                    # is the authoritative one; it goes straight back upstream so
+                    # the model can speak about the real outcome.
+                    responses = frame.get("responses") or []
+                    if responses:
+                        await upstream.send(json.dumps({
+                            "toolResponse": {"functionResponses": responses}
+                        }))
                 elif kind == p.CLIENT_BYE:
                     stats.reason = p.REASON_CLIENT
                     return
@@ -211,6 +235,19 @@ async def run_bridge(
             """Upstream -> browser."""
             async for raw in upstream:
                 frame = _as_json(raw)
+
+                tool_call = frame.get("toolCall") or frame.get("tool_call")
+                if tool_call:
+                    calls = tool_call.get("functionCalls") or tool_call.get("function_calls") or []
+                    for call in calls:
+                        stats.tool_calls += 1
+                        await client_send_json({
+                            "t": p.SERVER_TOOL_CALL,
+                            "id": call.get("id") or call.get("name"),
+                            "name": call.get("name"),
+                            "args": call.get("args") or {},
+                        })
+                    continue
 
                 server_content = frame.get("serverContent") or frame.get("server_content")
                 if server_content:

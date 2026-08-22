@@ -19,8 +19,11 @@ from typing import Final
 # (binary frame) raw PCM16 mono at the negotiated input rate
 CLIENT_STOP: Final = "stop"  # user released the mic; end of this turn's audio
 CLIENT_BYE: Final = "bye"  # graceful teardown
+# The outcome of a canvas operation the model asked for. The browser owns the
+# canvas, so it — not the server — decides what actually happened.
+CLIENT_TOOL_RESULT: Final = "tool_result"
 
-CLIENT_FRAME_TYPES: Final = frozenset({CLIENT_STOP, CLIENT_BYE})
+CLIENT_FRAME_TYPES: Final = frozenset({CLIENT_STOP, CLIENT_BYE, CLIENT_TOOL_RESULT})
 
 # --- server -> client ------------------------------------------------------
 # (binary frame) raw PCM16 mono at the negotiated output rate
@@ -31,6 +34,9 @@ SERVER_INTERRUPTED: Final = "interrupted"  # barge-in: drop queued playback now
 SERVER_TURN_END: Final = "turn_end"
 SERVER_ERROR: Final = "error"
 SERVER_ENDED: Final = "ended"
+# The model wants to change the canvas. Carries the call id, the function name
+# and its arguments; the browser applies it and answers with CLIENT_TOOL_RESULT.
+SERVER_TOOL_CALL: Final = "tool_call"
 
 SERVER_FRAME_TYPES: Final = frozenset(
     {
@@ -41,6 +47,7 @@ SERVER_FRAME_TYPES: Final = frozenset(
         SERVER_TURN_END,
         SERVER_ERROR,
         SERVER_ENDED,
+        SERVER_TOOL_CALL,
     }
 )
 

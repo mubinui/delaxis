@@ -19,7 +19,15 @@ from uuid import UUID
 
 import structlog
 from cachetools import TTLCache
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from pydantic import BaseModel
 
 from src.api.auth import CurrentUser, get_current_user
@@ -28,6 +36,7 @@ from src.api.session_manager import get_session_manager
 from src.api.voice import protocol as p
 from src.api.voice import tickets
 from src.api.voice.bridge import VoiceUpstreamError, run_bridge
+from src.api.voice.canvas_tools import build_tool_declaration
 from src.api.voice.config import VoiceConfigError, live_api_key, load_live_config, voice_providers
 from src.api.voice.persona import build_builder_instruction, build_system_instruction
 from src.config.settings import get_settings
@@ -279,6 +288,10 @@ async def voice_websocket(websocket: WebSocket, ticket: str = "") -> None:
                 api_key=api_key,
                 system_instruction=instruction,
                 voice_name=voice_name,
+                # Only a build conversation gets canvas tools. A deployed
+                # chatbot's visitor must not be able to talk the Studio into
+                # editing a workflow.
+                tools=build_tool_declaration() if purpose == tickets.PURPOSE_BUILDER else None,
                 client_receive=websocket.receive,
                 client_send_bytes=websocket.send_bytes,
                 client_send_json=websocket.send_json,
