@@ -1299,27 +1299,18 @@
  ],
  "ragCollections": {
   "collections": [
-   "rongdhonu_documents",
-   "brac_hrm_documents",
-   "multimodal",
-   "hrm_documents",
-   "brac_procurement_guideline",
-   "brac_global",
-   "rongdhonu_hrm_documents",
-   "Brac Procurement Guideline",
+   "product_documentation",
+   "hr_handbook",
+   "procurement_policy",
+   "engineering_notes",
+   "support_transcripts",
+   "onboarding_guides",
+   "release_notes",
+   "security_policies",
    "semantic_cache",
-   "brac_table_of_authority",
-   "rongdhanu_knowledge_base",
-   "documents",
-   "Test01",
-   "brac_technology_knowledge",
-   "test_kb1",
-   "test",
-   "file_test",
-   "products",
-   "toa"
+   "sample_uploads"
   ],
-  "total": 19
+  "total": 10
  },
  "ragService": {
   "base_url": "http://10.42.65.199:8000",

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BookOpen, CheckCircle2, Lightbulb, MessageCircleQuestion, Send, Stethoscope, X, XCircle } from 'lucide-react';
+import { AlertTriangle, BookOpen, CheckCircle2, Lightbulb, MessageCircleQuestion, Send, Sparkle, Stethoscope, Wrench, X, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useShallow } from 'zustand/react/shallow';
@@ -8,6 +8,9 @@ import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { ALL_COMPONENT_HELP, helpForDiagnostic } from '../utils/componentHelp';
 import { diagnoseWorkflow, summarizeDiagnostics } from '../utils/graphDiagnostics';
+import { autoFixable, fixFor } from '../utils/diagnosticFixes';
+import type { Diagnostic } from '../utils/graphDiagnostics';
+import type { FixContext } from '../utils/diagnosticFixes';
 import { StatusBadge } from './studio/StatusBadge';
 
 type Tab = 'issues' | 'components' | 'ask';
@@ -44,11 +47,13 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
     const [question, setQuestion] = useState('');
     const [askAnswer, setAskAnswer] = useState('');
 
-    const { nodes, edges, onNodesChange } = useWorkflowStore(
+    const { nodes, edges, onNodesChange, setNodes, setEdges } = useWorkflowStore(
         useShallow((state) => ({
             nodes: state.nodes,
             edges: state.edges,
             onNodesChange: state.onNodesChange,
+            setNodes: state.setNodes,
+            setEdges: state.setEdges,
         })),
     );
 
@@ -67,6 +72,58 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
         [nodes, edges, savedAgents, savedTools, providers],
     );
     const summary = useMemo(() => summarizeDiagnostics(diagnostics), [diagnostics]);
+
+    // Repairs act on the canvas directly. Each reports what it did rather than
+    // silently mutating the graph — a fix the user cannot see is a fix they
+    // cannot trust or undo.
+    const [applied, setApplied] = useState<Record<string, string>>({});
+
+    const fixContext: FixContext = useMemo(
+        () => ({ nodes, edges, agents: savedAgents, tools: savedTools, providers }),
+        [nodes, edges, savedAgents, savedTools, providers],
+    );
+
+    const runFix = (diagnostic: Diagnostic) => {
+        const fix = fixFor(diagnostic);
+        if (!fix) return;
+        const result = fix.apply(diagnostic, fixContext);
+        if (!result) return;
+        if (result.nodes) setNodes(result.nodes);
+        if (result.edges) setEdges(result.edges);
+        setApplied((prev) => ({ ...prev, [diagnostic.id]: result.summary }));
+    };
+
+    const repairable = useMemo(() => autoFixable(diagnostics, fixContext), [diagnostics, fixContext]);
+
+    const fixEverything = () => {
+        // Re-derive the context between repairs: each one changes the graph the
+        // next one reasons about, so applying them against one stale snapshot
+        // would drop or double-apply edits.
+        let workingNodes = nodes;
+        let workingEdges = edges;
+        const done: Record<string, string> = {};
+
+        for (const diagnostic of repairable) {
+            const fix = fixFor(diagnostic);
+            if (!fix) continue;
+            const context = { ...fixContext, nodes: workingNodes, edges: workingEdges };
+            let result = null;
+            try {
+                result = fix.apply(diagnostic, context);
+            } catch {
+                continue;
+            }
+            if (!result) continue;
+            if (result.nodes) workingNodes = result.nodes;
+            if (result.edges) workingEdges = result.edges;
+            done[diagnostic.id] = result.summary;
+        }
+
+        if (!Object.keys(done).length) return;
+        setNodes(workingNodes);
+        setEdges(workingEdges);
+        setApplied((prev) => ({ ...prev, ...done }));
+    };
 
     const streamExplain = async (key: string, payload: Record<string, unknown>) => {
         setBusy(key);
@@ -149,6 +206,20 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                {tab === 'issues' && repairable.length > 0 && (
+                    <div
+                        className="flex items-center justify-between gap-3 rounded-xl p-2.5"
+                        style={{ backgroundColor: 'var(--accent-soft)', border: '1px solid var(--accent-border)' }}
+                    >
+                        <span className="dlx-text-secondary text-[11px] font-medium">
+                            {repairable.length} of these can be fixed automatically.
+                        </span>
+                        <button onClick={fixEverything} className="dlx-btn dlx-btn-primary shrink-0 px-2.5 py-1 text-[10px]">
+                            <Sparkle size={11} /> Fix all
+                        </button>
+                    </div>
+                )}
+
                 {tab === 'issues' && diagnostics.length === 0 && (
                     <div className="rounded-xl border border-dashed border-emerald-300 dark:border-emerald-900/60 p-6 text-center">
                         <CheckCircle2 size={22} className="mx-auto mb-2 text-emerald-500" />
@@ -194,9 +265,21 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                                         {finding.nodeId && (
                                             <button
                                                 onClick={() => selectNode(finding.nodeId!)}
-                                                className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:border-blue-500"
+                                                className="dlx-btn dlx-btn-secondary px-2 py-1 text-[10px]"
                                             >
                                                 Show node
+                                            </button>
+                                        )}
+                                        {fixFor(finding) && (
+                                            <button
+                                                onClick={() => runFix(finding)}
+                                                disabled={Boolean(applied[finding.id])}
+                                                title={fixFor(finding)!.describe(finding, fixContext)}
+                                                className={`dlx-btn px-2 py-1 text-[10px] ${fixFor(finding)!.destructive ? 'dlx-btn-secondary' : 'dlx-btn-primary'}`}
+                                                style={fixFor(finding)!.destructive ? { color: 'var(--status-error)' } : undefined}
+                                            >
+                                                <Wrench size={10} />
+                                                {applied[finding.id] ? 'Fixed' : fixFor(finding)!.label}
                                             </button>
                                         )}
                                         <button
@@ -214,6 +297,18 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                                             <Lightbulb size={10} /> {busy === `${finding.id}-fix` ? 'Working…' : 'Suggest a fix'}
                                         </button>
                                     </div>
+                                    {applied[finding.id] ? (
+                                        <p
+                                            className="rounded-lg px-2 py-1.5 text-[10px] font-medium"
+                                            style={{ color: 'var(--status-ready)', backgroundColor: 'var(--status-ready-bg)' }}
+                                        >
+                                            {applied[finding.id]}
+                                        </p>
+                                    ) : fixFor(finding) ? (
+                                        <p className="dlx-muted text-[10px] italic">
+                                            {fixFor(finding)!.describe(finding, fixContext)}
+                                        </p>
+                                    ) : null}
                                     {[finding.id, `${finding.id}-fix`].map((key) =>
                                         answers[key] ? (
                                             <div key={key} className="markdown-help rounded-lg bg-slate-50 dark:bg-slate-950/60 p-2 text-[10px] leading-relaxed text-slate-700 dark:text-slate-300">

@@ -1099,7 +1099,8 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
     if not ready:
         return _normalize_plan(_fallback_plan(body.prompt), body.prompt)
 
-    tool_ids = _known_tool_ids()
+    from src.api.builder_context import TOOL_SELECTION_GUIDANCE, render_capability_brief
+
     messages = [
         {
             "role": "system",
@@ -1107,7 +1108,7 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
                 "You design build plans for a CrewAI-based chatbot platform.\n"
                 "Return ONLY a JSON object with keys: summary, agents, tools, functions, workflow, "
                 "triggers, missing_secrets.\n\n"
-                "agents[]: {id (snake_case), type: 'conversable', name, description, instruction, "
+                "agents[]: {id (snake_case), type: 'LlmAgent', name, description, instruction, "
                 "tools: [tool_id], llm_config: {provider_id, model, temperature, max_tokens}}\n"
                 "workflow: {id, name, description, pattern, entry_agent_id, workflow_type: 'chatbot', "
                 "topology: {type, entry_node, nodes: [{id, agent_id, description, tools: [tool_id]}], edges: "
@@ -1115,26 +1116,22 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
                 "Rules:\n"
                 "- Every topology node's agent_id MUST be one of the agents you define.\n"
                 "- topology.entry_node MUST be one of the node ids.\n"
-                f"- Only reference these existing tool ids: {', '.join(tool_ids) or 'none available'}. "
-                "Define anything else under tools[] first.\n"
+                "- Only reference tool ids from the catalogue below. Define anything "
+                "else under tools[] first.\n"
                 "- Repeat each agent's tools on its topology node.\n"
                 "- Prefer the fewest agents that do the job. One is fine.\n"
                 "\n"
-                "Tools are opt-in, not a menu to fill:\n"
-                "- The list above is what you MAY use, not what you should. Most chatbots\n"
-                "  need zero or one tool. An agent with no tools is a normal, good answer.\n"
-                "- Attach a tool only when the brief describes something the agent cannot\n"
-                "  do by talking: looking up live data, doing arithmetic it must get exactly\n"
-                "  right, reading the user's documents, calling a named system.\n"
-                "- Never attach a tool speculatively, 'in case it is useful', or because it\n"
-                "  exists. A tool the agent does not need makes it slower and less reliable.\n"
-                "- rag_* tools only make sense when the brief mentions a document set,\n"
-                "  knowledge base or internal content to search. Do not add them otherwise.\n"
-                "- For every tool you attach, add an entry to tool_rationale mapping the\n"
-                "  tool id to one short sentence quoting the part of the brief that needs\n"
-                "  it. If you cannot write that sentence, do not attach the tool.\n"
-                "\n"
-                "tool_rationale: {tool_id: reason} — required whenever any agent has tools.\n"
+                # The catalogue carries each tool's purpose, not just its id. Without
+                # it the model cannot tell what `context_tree` or `detect_pii` are for,
+                # so it either ignores the whole set or attaches tools at random.
+                + render_capability_brief(include_agents=True, include_workflows=False)
+                + "\n\n"
+                + TOOL_SELECTION_GUIDANCE
+                + "\n\n"
+                "tool_rationale: {tool_id: reason} — required whenever any agent has "
+                "tools. One short sentence per tool, quoting the part of the brief "
+                "that needs it. If you cannot write that sentence, do not attach the "
+                "tool.\n"
                 "- No prose, no markdown outside the JSON."
             ),
         },

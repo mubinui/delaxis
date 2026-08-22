@@ -270,7 +270,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
         <header className="h-14 shrink-0 bg-white dark:bg-[#0b111b] border-b border-[var(--color-ui-border)] flex items-center justify-between gap-3 px-4 z-20 shadow-sm transition-colors">
             {/* Brand + workflow identity */}
             <div className="flex min-w-0 items-center gap-3">
-                <DelaxisLogo className="w-8 h-8 rounded-lg shadow-sm shrink-0" />
+                <DelaxisLogo className="w-8 h-8 shrink-0" />
                 <div className="flex min-w-0 flex-col">
                     <div className="flex items-baseline gap-1.5 whitespace-nowrap">
                         <span className="brand-lockup-title">Delaxis</span>

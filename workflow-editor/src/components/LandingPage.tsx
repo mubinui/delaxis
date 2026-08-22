@@ -158,7 +158,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Nav */}
             <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-8 py-6">
                 <div className="flex items-center gap-3">
-                    <DelaxisLogo className="h-8 w-8 rounded-lg" />
+                    <DelaxisLogo className="h-8 w-8" />
                     <div className="leading-tight">
                         <div className="dlx-text text-sm font-semibold tracking-tight">Delaxis</div>
                         <div className="dlx-muted text-[11px]">Multi-agent development studio</div>
