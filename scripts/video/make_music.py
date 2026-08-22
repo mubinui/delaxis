@@ -1,37 +1,36 @@
 #!/usr/bin/env python
-"""Synthesise the background bed for the tour.
+"""Synthesise the music for the tour: plucked strings in a hall.
 
-Generated rather than licensed: a stock track means a licence to track and a
-file to ship, and this only has to sit under narration without asking for
-attention. Everything here is pure synthesis, so it is royalty-free by
-construction and can be rendered to whatever length the cut happens to be.
+Generated rather than licensed — a stock track means a licence to track and a
+file to ship, and this has to render to whatever length the cut happens to be.
 
-The bed is a slow eight-chord phrase in A minor. Eight rather than four because
-the tour runs three and a half minutes: a four-chord loop comes round seven
-times and starts to nag, where this comes round twice and reads as one long
-idea.
+Two earlier attempts stacked sine harmonics into sustained pads and both sounded
+like a signal generator, because that is what they were. Additive synthesis of a
+held chord has no attack, no decay and no room, and no amount of choosing
+harmonics fixes that: the ear identifies an instrument by how a note *starts and
+stops*, not by its spectrum.
 
-Every note is a waveform, not a tone. An earlier version stacked bare sines and
-put a pure sine an octave below the root, and the result buzzed: a sine at 73 Hz
-is a hum rather than a note, and three sines with nothing between them read as a
-test signal. Each voice is now a harmonic series with a steep roll-off — the
-shape of a filtered sawtooth, which is what a pad actually is — and the bass
-carries its own second and third harmonics so it lands as a bass note.
+So this plays notes instead. Each one is a plucked string, modelled rather than
+drawn — Karplus-Strong: excite a delay line the length of one period with a
+short burst of noise, then feed it back through itself with a gentle averaging
+filter. The noise decorrelates into a pitch, the high harmonics die away first,
+and what comes out has the attack and the decay of something struck. It is four
+lines of arithmetic and it sounds like an instrument, which twenty sine
+oscillators did not.
 
-Over the pads sit two things with an attack, because pads alone read as a held
-drone: a sparse pluck every couple of seconds through the body, and an opening
-motif — four rising notes timed to the logo assembling itself, resolving into
-the tonic as the wordmark lands.
+The other half is the room. Notes are convolved with a real impulse response —
+exponentially decaying noise, darkened, decorrelated between the two channels —
+so they ring and overlap into each other. Reverb is most of what makes music
+sound soothing rather than dry, and an echo with a few taps is not reverb.
 
-Level follows the film rather than sitting flat — it opens, steps back under the
-dense middle where the narration is working hardest, and swells again for the
-closing card. The opening motif sits outside that envelope, since fading it up
-over five seconds would swallow the very notes it exists to play.
+The arrangement is a slow rolling arpeggio through eight chords in A minor: up
+through the chord and back down, one note every one and a quarter seconds, each
+ringing for three or four. They overlap into a wash. Underneath sits a very
+quiet pad, only for warmth.
 
     python scripts/video/make_music.py --seconds 150
 
-Needs numpy (per-sample Python at 48 kHz for three minutes is minutes of work)
-and ffmpeg for the final shaping.
+Needs numpy and ffmpeg.
 """
 
 from __future__ import annotations
@@ -50,8 +49,7 @@ RATE = 48_000
 
 # Am - F - C - G, then Am - Dm - F - G. The second phrase leaves the tonic
 # sooner, which is what stops the repeat sounding like the same bar again.
-# Written as frequencies rather than note names so the voicing is explicit.
-PROGRESSION: list[tuple[float, ...]] = [
+PROGRESSION: list[tuple[float, float, float]] = [
     (220.00, 261.63, 329.63),   # Am
     (174.61, 261.63, 349.23),   # F
     (261.63, 329.63, 392.00),   # C
@@ -63,254 +61,229 @@ PROGRESSION: list[tuple[float, ...]] = [
 ]
 
 CHORD_SECONDS = 7.5
-#: Crossfade between chords. A chord therefore sounds for CHORD_SECONDS plus
-#: this, overlapping its successor for the whole of it — the overlap is what
-#: makes the change read as a swell rather than a switch.
-CROSSFADE = 2.8
+#: Six notes per chord, so one lands every one and a quarter seconds. Slower
+#: than feels right on paper and exactly right in the room, because each note is
+#: still ringing when the next three arrive.
+ARPEGGIO = 6
 
-#: Harmonics above this are not generated. The bed is meant to sit under a
-#: voice, and anything up here only competes with consonants.
-CUTOFF = 1800.0
-#: How far apart the two copies of each voice sit. A fixed offset in hertz, not
-#: a ratio: detuning by a ratio makes every harmonic beat at its own rate, so
-#: the top of the spectrum shimmers several times a second. That was the buzz.
-CHORUS_HZ = 0.18
-#: The octave-down root, quiet enough to be felt rather than heard.
-BASS_LEVEL = 0.34
-
-# Working headroom for the synthesis; the real level is set by the
-# normalisation below, not here.
-PEAK = 0.16
-#: What the finished bed is normalised to — average level, not peak. The
-#: assembler sets the balance against this, so changing the synthesis cannot
-#: quietly change the mix. Peak is the wrong anchor: a richer waveform has a
-#: higher crest factor, so normalising by peak made the bed audibly quieter the
-#: moment the sines became harmonic voices, without a single gain being touched.
+PEAK = 0.68
+#: What the finished piece is normalised to — average level, not peak. Peak is
+#: the wrong anchor for a mix whose crest factor changes with the arrangement.
 TARGET_RMS_DBFS = -18.0
-#: Never let the correction push a transient into the ceiling.
 CEILING_DBFS = -1.5
 
-#: Rendered in blocks so a three-minute bed does not need a dozen
-#: multi-hundred-megabyte arrays alive at once. Phase comes off global time, so
-#: the blocks join seamlessly.
-BLOCK_SECONDS = 15.0
-
 
 # --------------------------------------------------------------------------- #
-# Voices
+# A plucked string
 # --------------------------------------------------------------------------- #
 
 
-def _voice(t: np.ndarray, frequency: float) -> np.ndarray:
-    """One sustained pad note: a harmonic series with a steep roll-off.
+def pluck(frequency: float, seconds: float, half_life: float = 1.8,
+          softness: float = 0.5) -> np.ndarray:
+    """One plucked note, by Karplus-Strong.
 
-    This is the shape of a filtered sawtooth rather than a sine, which is the
-    difference between a chord that sounds like an instrument and one that
-    sounds like a signal generator.
+    A delay line one period long is filled with noise and then fed back through
+    a two-sample average. The averaging is a gentle low-pass, so each trip round
+    the loop loses a little more of the top: the note starts bright, settles
+    into its fundamental and fades, which is what a real string does.
+
+    ``half_life`` is how long the note takes to fall by half, in seconds. It is
+    given in time rather than as a feedback coefficient because the loop runs
+    once per period: the same coefficient rings for two seconds at the bottom of
+    the range and under half a second at the top, which makes an arpeggio sound
+    like it is speeding up as it rises.
+
+    ``softness`` blurs the initial noise burst. A raw burst sounds like a
+    plectrum; a blurred one sounds closer to a harp, which is the tone this
+    wants.
     """
-    count = max(1, min(10, int(CUTOFF // frequency)))
-    tone = np.zeros_like(t)
-    total = 0.0
-    for harmonic in range(1, count + 1):
-        amplitude = 1.0 / (harmonic ** 1.6)
-        total += amplitude
-        f = frequency * harmonic
-        tone += amplitude * (
-            np.sin(2 * np.pi * f * t)
-            + np.sin(2 * np.pi * (f + CHORUS_HZ) * t + 1.1)
+    length = max(2, int(round(RATE / frequency)))
+    count = int(seconds * RATE)
+    # Per-trip loss that lands on the requested half-life at this pitch.
+    damping = 0.5 ** (length / (RATE * half_life))
+
+    # Seeded from the pitch, so a given note is identical between renders.
+    rng = np.random.default_rng(int(frequency * 1000) % (2 ** 31))
+    excitation = rng.uniform(-1.0, 1.0, length)
+
+    width = max(3, int(length * softness) | 1)  # odd, so the blur stays centred
+    window = np.hanning(width)
+    excitation = np.convolve(excitation, window / window.sum(), mode="same")
+
+    # One sample of history in front, because the feedback reads two samples back.
+    buffer = np.zeros(count + length + 1)
+    buffer[1:length + 1] = excitation
+
+    # Advanced a whole period at a time: everything a block needs was written by
+    # the block before it, so the loop runs a few hundred times rather than a
+    # few hundred thousand.
+    for start in range(length + 1, count + length + 1, length):
+        end = min(start + length, count + length + 1)
+        buffer[start:end] = damping * 0.5 * (
+            buffer[start - length:end - length] + buffer[start - length - 1:end - length - 1]
         )
-    return tone / (2 * total)
+
+    note = buffer[1:count + 1]
+    # Ease the tail to nothing so a note that is still ringing when the piece
+    # ends does not cut off square.
+    tail = int(0.25 * RATE)
+    if count > tail:
+        note[-tail:] *= np.linspace(1.0, 0.0, tail) ** 2
+
+    # Normalise: a shorter delay line concentrates the same excitation into
+    # fewer samples, so without this the top of the arpeggio stabs out several
+    # times louder than the bottom.
+    loudest = np.abs(note).max()
+    return note / loudest if loudest > 0 else note
 
 
-def _bass(t: np.ndarray, frequency: float) -> np.ndarray:
-    """The root an octave down, with enough harmonic to read as a note.
-
-    A bare sine here sits between 73 and 130 Hz, which a listener hears as the
-    room vibrating rather than as music.
-    """
-    return (
-        np.sin(2 * np.pi * frequency * t)
-        + 0.30 * np.sin(2 * np.pi * frequency * 2 * t + 0.7)
-        + 0.12 * np.sin(2 * np.pi * frequency * 3 * t + 1.4)
-    ) / 1.42
-
-
-def _struck(local: np.ndarray, frequency: float) -> np.ndarray:
-    """A plucked note — the same harmonics, weighted for something with an edge."""
-    return (
-        np.sin(2 * np.pi * frequency * local)
-        + 0.40 * np.sin(2 * np.pi * frequency * 2 * local)
-        + 0.16 * np.sin(2 * np.pi * frequency * 3 * local)
-        + 0.07 * np.sin(2 * np.pi * frequency * 4 * local)
-    ) / 1.63
-
-
-# --------------------------------------------------------------------------- #
-# Shape
-# --------------------------------------------------------------------------- #
-
-
-def _chord_envelope(local: np.ndarray, length: float) -> np.ndarray:
-    """Equal-power fade in and out, overlapping the neighbouring chords.
-
-    The chord occupies ``length + CROSSFADE``: it rises over the first
-    CROSSFADE, holds, then falls over the last CROSSFADE — which is exactly the
-    window in which the next chord is rising. Sine against cosine keeps the two
-    summing to constant power through the change.
-
-    Fading a chord in and out inside its own slot instead, however gently, puts
-    a hole in the bed at every boundary, because both neighbours reach zero at
-    the same instant.
-    """
-    rising = np.sin(np.pi / 2 * np.clip(local / CROSSFADE, 0, 1))
-    falling = np.cos(np.pi / 2 * np.clip((local - length) / CROSSFADE, 0, 1))
-    inside = (local >= 0) & (local <= length + CROSSFADE)
-    return rising * falling * inside
-
-
-def _arc(t: np.ndarray | float, seconds: float) -> np.ndarray | float:
-    """Level across the whole piece: in, back for the middle, up for the close.
-
-    The narration is densest through the body, so the bed gives way there and
-    only comes forward again once the closing card is on screen.
-    """
-    opening = np.clip(t / 5.0, 0, 1)                       # fade up under the title
-    holding = np.clip((6.0 - t) / 6.0, 0, 1)               # full while the title holds
-    closing = np.clip((t - (seconds - 16.0)) / 9.0, 0, 1)  # swell for the outro
-    forward = np.maximum(holding, closing)                 # full at both ends, back between
-    return opening * (0.70 + 0.30 * forward)
-
-
-# --------------------------------------------------------------------------- #
-# Layers
-# --------------------------------------------------------------------------- #
-
-
-def _pads(t: np.ndarray) -> np.ndarray:
-    """The sustained chords for one block of time.
-
-    Envelopes are accumulated per *pitch* before any oscillator runs. Two
-    overlapping chords often share a note — Am and F both hold middle C — and
-    generating it twice with different phases makes the two copies fight each
-    other through the whole crossfade. Summed first, the common tone simply
-    sustains through the change, which is what it is supposed to do.
-    """
-    length = CHORD_SECONDS
-    first = max(0, int(t[0] / length) - 1)
-    last = int(t[-1] / length) + 1
-
-    pad_envelope: dict[float, np.ndarray] = {}
-    bass_envelope: dict[float, np.ndarray] = {}
-
-    for slot in range(first, last + 1):
-        chord = PROGRESSION[slot % len(PROGRESSION)]
-        envelope = _chord_envelope(t - slot * length, length)
-        if not envelope.any():
-            continue
-
-        for partial, frequency in enumerate(chord):
-            # Upper voices quieter, as they are in anything acoustic.
-            weight = 0.62 ** partial
-            if frequency in pad_envelope:
-                pad_envelope[frequency] += envelope * weight
-            else:
-                pad_envelope[frequency] = envelope * weight
-
-        root = chord[0] / 2
-        if root in bass_envelope:
-            bass_envelope[root] += envelope
-        else:
-            bass_envelope[root] = envelope
-
-    out = np.zeros_like(t)
-    for frequency, envelope in pad_envelope.items():
-        out += _voice(t, frequency) * envelope
-    for frequency, envelope in bass_envelope.items():
-        out += _bass(t, frequency) * envelope * BASS_LEVEL
-    return out
-
-
-def _add_note(
-    out: np.ndarray, at: float, frequency: float,
-    seconds: float, amplitude: float, decay: float,
-) -> None:
-    """Strike one note into the mix, decaying from its own start.
-
-    Phase runs from the note's own beginning rather than global time, which is
-    what gives it an attack — the pads do the opposite, and that is the whole
-    difference between something struck and something held.
-    """
+def _place(out: np.ndarray, at: float, note: np.ndarray, gain: float) -> None:
     start = int(at * RATE)
-    if start >= len(out) or start < 0:
+    if start < 0 or start >= len(out):
         return
-    count = min(int(seconds * RATE), len(out) - start)
-    if count <= 0:
-        return
-
-    local = np.arange(count) / RATE
-    envelope = np.exp(-local * decay) * np.clip(local / 0.012, 0, 1)  # soft edge, no click
-    out[start:start + count] += (_struck(local, frequency) * envelope * amplitude).astype(out.dtype)
+    count = min(len(note), len(out) - start)
+    if count > 0:
+        out[start:start + count] += (note[:count] * gain).astype(out.dtype)
 
 
-#: Rising A minor, landing on the octave. Timed against the title card: the
-#: notes fall where the axis draws, the nodes pop, and the wordmark arrives.
-MOTIF: tuple[tuple[float, float], ...] = (
-    (0.45, 220.00),   # A3, as the axis draws
-    (0.95, 261.63),   # C4
-    (1.45, 329.63),   # E4
-    (1.95, 440.00),   # A4, as the wordmark lands
+# --------------------------------------------------------------------------- #
+# Arrangement
+# --------------------------------------------------------------------------- #
+
+
+def _arc(t: float, seconds: float) -> float:
+    """Level across the piece: in, back under the busy middle, up for the close."""
+    opening = min(max(t / 4.0, 0.0), 1.0)
+    holding = min(max((7.0 - t) / 7.0, 0.0), 1.0)
+    closing = min(max((t - (seconds - 15.0)) / 8.0, 0.0), 1.0)
+    return opening * (0.70 + 0.30 * max(holding, closing))
+
+
+#: The reveal: four notes rising to the octave, landing as the wordmark does.
+OPENING: tuple[tuple[float, float], ...] = (
+    (0.55, 220.00),   # A3, as the axis draws
+    (1.15, 261.63),   # C4
+    (1.75, 329.63),   # E4
+    (2.35, 440.00),   # A4, as the wordmark lands
 )
 
 
-def _intro_motif(out: np.ndarray) -> None:
-    for index, (at, frequency) in enumerate(MOTIF):
-        _add_note(out, at, frequency, 3.4, 0.62 - index * 0.04, 0.95)
-    # The tonic underneath, so the four notes resolve into something rather than
-    # simply stopping.
-    for partial, frequency in enumerate(PROGRESSION[0]):
-        _add_note(out, 2.1, frequency, 7.0, 0.24 * (0.55 ** partial), 0.40)
+def _opening(out: np.ndarray) -> None:
+    for index, (at, frequency) in enumerate(OPENING):
+        _place(out, at, pluck(frequency, 6.0, half_life=2.4, softness=0.45),
+               0.62 - index * 0.03)
+    # The chord underneath, so the four notes arrive somewhere rather than
+    # simply stopping. Rolled very slightly, the way a hand would play it.
+    for index, frequency in enumerate((110.00, 220.00, 261.63, 329.63, 440.00)):
+        _place(out, 3.05 + index * 0.055, pluck(frequency, 8.0, half_life=3.0, softness=0.6),
+               0.30 - index * 0.02)
 
 
-def _plucks(out: np.ndarray, seconds: float) -> None:
-    """A note every couple of seconds, drawn from whichever chord is sounding.
+def _arpeggio(out: np.ndarray, seconds: float) -> None:
+    """Up through each chord and back down, one note at a time."""
+    step = CHORD_SECONDS / ARPEGGIO
+    at = CHORD_SECONDS + 0.6   # let the opening ring out first
+    index = 0
 
-    Deliberately not a melody: a figure that rocks between two notes of the
-    chord gives the bed forward motion without ever becoming something the
-    viewer follows instead of the narration.
+    while at < seconds - 2.0:
+        low, middle, high = PROGRESSION[int(at / CHORD_SECONDS) % len(PROGRESSION)]
+        # Up and back: root, middle, top, octave, top, middle.
+        note = (low, middle, high, low * 2, high, middle)[index % ARPEGGIO]
+
+        level = _arc(at, seconds)
+        # The first note of each chord is the one that says the harmony changed,
+        # so it is a little stronger than the ones filling in behind it.
+        weight = 0.34 if index % ARPEGGIO == 0 else 0.21
+        _place(out, at, pluck(note, 5.0, half_life=1.9, softness=0.5), weight * level)
+
+        # The root an octave down on the chord change, quiet, for the floor.
+        if index % ARPEGGIO == 0:
+            _place(out, at, pluck(low / 2, 7.0, half_life=2.8, softness=0.75), 0.24 * level)
+
+        at += step
+        index += 1
+
+
+def _pad(seconds: float) -> np.ndarray:
+    """A very quiet sustained bed under the strings, for warmth only.
+
+    Deliberately dull and deliberately faint: the plucks and the room carry the
+    piece, and anything assertive here is what made the earlier versions drone.
     """
-    step = 0
-    at = CHORD_SECONDS + 1.5  # let the opening motif finish first
-    while at < seconds - 6.0:
-        chord = PROGRESSION[int(at / CHORD_SECONDS) % len(PROGRESSION)]
-        pick = (chord[2], chord[1], chord[2] * 2, chord[1])[step % 4]
-        # Alternating weight, so the figure breathes instead of ticking, and
-        # following the arc so it ducks under the busy middle with everything else.
-        weight = 0.075 if step % 2 == 0 else 0.046
-        _add_note(out, at, pick, 2.4, weight * float(_arc(at, seconds)), 1.5)
-        at += CHORD_SECONDS / 4
-        step += 1
-
-
-def render(seconds: float) -> np.ndarray:
     total = int(seconds * RATE)
     out = np.zeros(total, dtype=np.float32)
+    block = int(15 * RATE)
 
-    block = int(BLOCK_SECONDS * RATE)
     for begin in range(0, total, block):
         end = min(begin + block, total)
         t = np.arange(begin, end, dtype=np.float64) / RATE
-        chunk = _pads(t)
-        chunk *= 0.85 + 0.15 * np.sin(2 * np.pi * t / 19.0)  # a very slow breath
-        chunk *= _arc(t, seconds)
+        chunk = np.zeros_like(t)
+
+        first = max(0, int(t[0] / CHORD_SECONDS) - 1)
+        last = int(t[-1] / CHORD_SECONDS) + 1
+        for slot in range(first, last + 1):
+            chord = PROGRESSION[slot % len(PROGRESSION)]
+            local = t - slot * CHORD_SECONDS
+            # Equal power in and out, overlapping the neighbouring chord for the
+            # whole crossfade — fading inside its own slot would leave a hole at
+            # every boundary, because both neighbours reach zero together.
+            rising = np.sin(np.pi / 2 * np.clip(local / 3.0, 0, 1))
+            falling = np.cos(np.pi / 2 * np.clip((local - CHORD_SECONDS) / 3.0, 0, 1))
+            envelope = rising * falling * ((local >= 0) & (local <= CHORD_SECONDS + 3.0))
+            if not envelope.any():
+                continue
+            for partial, frequency in enumerate(chord):
+                chunk += np.sin(2 * np.pi * frequency * t + partial * 1.7) * envelope * (0.5 ** partial)
+
+        arc = np.array([_arc(x, seconds) for x in t[::2048]])
+        chunk *= np.interp(t, t[::2048], arc)
         out[begin:end] += chunk.astype(np.float32)
 
-    _plucks(out, seconds)
-    # After the arc: the opening motif plays over the title card, where the arc
-    # is still ramping up from silence and would fade it out from underneath.
-    _intro_motif(out)
+    return out * 0.055
 
+
+def render(seconds: float) -> np.ndarray:
+    out = np.zeros(int(seconds * RATE), dtype=np.float32)
+    _opening(out)
+    _arpeggio(out, seconds)
+    out += _pad(seconds)
     out *= PEAK
     return np.clip(out, -1.0, 1.0)
+
+
+# --------------------------------------------------------------------------- #
+# The room
+# --------------------------------------------------------------------------- #
+
+
+def impulse_response(seconds: float = 2.6) -> np.ndarray:
+    """A hall, as decaying noise.
+
+    Reverb is the difference between notes and music, and a handful of echo taps
+    is not reverb — it is a few distinct repeats that comb-filter whatever goes
+    through them. Thousands of dense random reflections decaying exponentially
+    is what a room actually does.
+
+    The two channels are generated independently, so they are decorrelated and
+    the result has width without anything being panned.
+    """
+    count = int(seconds * RATE)
+    rng = np.random.default_rng(20260822)
+    response = rng.normal(0.0, 1.0, (count, 2))
+
+    t = np.arange(count) / RATE
+    decay = np.exp(-t * (6.5 / seconds))
+    decay *= np.clip(t / 0.018, 0, 1)          # a build-up, not a click
+    response *= decay[:, None]
+
+    # A real room absorbs the top end as the tail dies. Smoothing does this
+    # crudely and cheaply, and the result is a darker, softer tail.
+    window = np.hanning(21)
+    window /= window.sum()
+    for channel in range(2):
+        response[:, channel] = np.convolve(response[:, channel], window, mode="same")
+
+    return response / np.abs(response).max()
 
 
 # --------------------------------------------------------------------------- #
@@ -319,25 +292,32 @@ def render(seconds: float) -> np.ndarray:
 def _ffmpeg(command: list[str], what: str) -> str:
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        sys.stderr.write(result.stderr[-1500:])
+        sys.stderr.write(result.stderr[-1800:])
         raise SystemExit(f"ffmpeg failed while {what}")
     return result.stderr
 
 
+def _write(path: Path, samples: np.ndarray, channels: int = 1) -> None:
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(channels)
+        handle.setsampwidth(2)
+        handle.setframerate(RATE)
+        handle.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
+
+
 def _levels(path: Path) -> tuple[float, float]:
-    """Return (mean, peak) in dBFS."""
     report = _ffmpeg(
         ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path),
          "-af", "volumedetect", "-f", "null", "-"],
-        "measuring the bed",
+        "measuring the music",
     )
     found: dict[str, float] = {}
     for line in report.splitlines():
         for key in ("mean_volume", "max_volume"):
             if key in line:
                 found[key] = float(line.split(key + ":")[1].split("dB")[0])
-    if "mean_volume" not in found or "max_volume" not in found:
-        raise SystemExit("could not read the bed's level")
+    if len(found) < 2:
+        raise SystemExit("could not read the level")
     return found["mean_volume"], found["max_volume"]
 
 
@@ -348,49 +328,40 @@ def main() -> int:
     args = parser.parse_args()
 
     BUILD.mkdir(parents=True, exist_ok=True)
-    raw = BUILD / "music-raw.wav"
-    shaped = BUILD / "music-shaped.wav"
-    with wave.open(str(raw), "wb") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(RATE)
-        handle.writeframes((render(args.seconds) * 32767).astype("<i2").tobytes())
+    dry = BUILD / "music-dry.wav"
+    room = BUILD / "music-ir.wav"
+    wet = BUILD / "music-wet.wav"
+
+    _write(dry, render(args.seconds))
+    _write(room, impulse_response().reshape(-1), channels=2)
 
     _ffmpeg(
-        ["ffmpeg", "-y", "-i", str(raw),
-         "-af", ",".join([
-             # Gentle: the harmonics were rolled off during synthesis, so this
-             # only takes the last of the edge off rather than doing the work.
-             "lowpass=f=2600",
-             "highpass=f=58",
-             # Short, dense taps read as a small room. The earlier 180 and
-             # 340 ms pair was long enough to hear as separate repeats, and it
-             # comb-filtered the pad into something metallic.
-             "aecho=0.9:0.75:29|41|67|113:0.16|0.12|0.09|0.06",
-             "aformat=channel_layouts=stereo",
-             "afade=t=in:st=0:d=0.8",  # short: the motif shapes its own entrance
-             f"afade=t=out:st={max(args.seconds - 3.0, 0):.2f}:d=3.0",
-         ]),
-         "-ar", "48000", str(shaped)],
-        "shaping the bed",
+        ["ffmpeg", "-y", "-i", str(dry), "-i", str(room),
+         "-filter_complex",
+         # irlink=false keeps the two sides of the room independent, which is
+         # where the width comes from.
+         "[0:a]aformat=channel_layouts=stereo[d];"
+         "[d][1:a]afir=dry=0.72:wet=0.85:irlink=false:maxir=4[r];"
+         "[r]highpass=f=48,lowpass=f=7000,"
+         "afade=t=in:st=0:d=0.5,"
+         f"afade=t=out:st={max(args.seconds - 3.5, 0):.2f}:d=3.5[out]",
+         "-map", "[out]", "-ar", "48000", str(wet)],
+        "putting the strings in a room",
     )
 
-    # The filter chain above loses several dB in places that are awkward to
-    # predict. Rather than hand-tuning PEAK against it, measure what came out
-    # and correct to a fixed level, so the assembler can set the balance
-    # against a number that does not move.
-    mean, peak = _levels(shaped)
+    mean, peak = _levels(wet)
     correction = TARGET_RMS_DBFS - mean
     if peak + correction > CEILING_DBFS:
         correction = CEILING_DBFS - peak
+
     _ffmpeg(
-        ["ffmpeg", "-y", "-i", str(shaped), "-af", f"volume={correction:.2f}dB",
+        ["ffmpeg", "-y", "-i", str(wet), "-af", f"volume={correction:.2f}dB",
          "-ar", "48000", str(args.out)],
-        "levelling the bed",
+        "levelling the music",
     )
 
-    raw.unlink(missing_ok=True)
-    shaped.unlink(missing_ok=True)
+    for scratch in (dry, room, wet):
+        scratch.unlink(missing_ok=True)
     print(f"  {args.out}  ({args.seconds:.1f}s, {mean + correction:.1f} dBFS mean, "
           f"{peak + correction:.1f} dBFS peak)")
     return 0

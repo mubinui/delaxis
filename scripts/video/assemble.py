@@ -49,7 +49,9 @@ CARDS = frozenset({"intro", "outro"})
 # gains are relative to each other and moving one without the other is what
 # makes a bed either inaudible or distracting.
 VOICE_GAIN_DB = 5.0   # after compression, to land the film near broadcast level
-BED_GAIN_DB = -5.5    # lands the bed around -25 dBFS in the narration gaps
+BED_GAIN_DB = -2.5    # lands the music around -25 dBFS in the narration gaps.
+                      # Higher than a sustained bed needed: plucked notes decay,
+                      # so the same peak reads several dB quieter.
 DUCK_THRESHOLD = 0.1  # the bed starts giving way once the voice passes -20 dBFS
 DUCK_RATIO = 3.0      # about 10 dB of duck at speaking level
 
