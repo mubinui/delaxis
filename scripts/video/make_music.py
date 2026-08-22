@@ -7,15 +7,21 @@ attention. Everything here is pure synthesis, so it is royalty-free by
 construction and can be rendered to whatever length the cut happens to be.
 
 The bed is a slow eight-chord phrase in A minor. Eight rather than four because
-the tour runs about two and a half minutes: a four-chord loop comes round five
+the tour runs three and a half minutes: a four-chord loop comes round seven
 times and starts to nag, where this comes round twice and reads as one long
-idea. Each chord is three sine partials with a little detune plus a root an
-octave down, and a soft bell marks the change.
+idea.
 
-Over the top of the pads sit two things with an attack, because pads alone read
-as a held drone: a sparse pluck every couple of seconds through the body, and an
-opening motif — four rising notes timed to the logo assembling itself, resolving
-into the tonic as the wordmark lands.
+Every note is a waveform, not a tone. An earlier version stacked bare sines and
+put a pure sine an octave below the root, and the result buzzed: a sine at 73 Hz
+is a hum rather than a note, and three sines with nothing between them read as a
+test signal. Each voice is now a harmonic series with a steep roll-off — the
+shape of a filtered sawtooth, which is what a pad actually is — and the bass
+carries its own second and third harmonics so it lands as a bass note.
+
+Over the pads sit two things with an attack, because pads alone read as a held
+drone: a sparse pluck every couple of seconds through the body, and an opening
+motif — four rising notes timed to the logo assembling itself, resolving into
+the tonic as the wordmark lands.
 
 Level follows the film rather than sitting flat — it opens, steps back under the
 dense middle where the narration is working hardest, and swells again for the
@@ -24,8 +30,8 @@ over five seconds would swallow the very notes it exists to play.
 
     python scripts/video/make_music.py --seconds 150
 
-Needs numpy (per-sample Python at 48 kHz for two minutes is minutes of work) and
-ffmpeg for the final shaping.
+Needs numpy (per-sample Python at 48 kHz for three minutes is minutes of work)
+and ffmpeg for the final shaping.
 """
 
 from __future__ import annotations
@@ -44,7 +50,7 @@ RATE = 48_000
 
 # Am - F - C - G, then Am - Dm - F - G. The second phrase leaves the tonic
 # sooner, which is what stops the repeat sounding like the same bar again.
-# Written as frequencies rather than note names so the detune below is obvious.
+# Written as frequencies rather than note names so the voicing is explicit.
 PROGRESSION: list[tuple[float, ...]] = [
     (220.00, 261.63, 329.63),   # Am
     (174.61, 261.63, 349.23),   # F
@@ -61,12 +67,87 @@ CHORD_SECONDS = 7.5
 #: this, overlapping its successor for the whole of it — the overlap is what
 #: makes the change read as a swell rather than a switch.
 CROSSFADE = 2.8
-# Working headroom for the synthesis; the real level is set by the normalisation
-# below, not here.
+
+#: Harmonics above this are not generated. The bed is meant to sit under a
+#: voice, and anything up here only competes with consonants.
+CUTOFF = 1800.0
+#: How far apart the two copies of each voice sit. A fixed offset in hertz, not
+#: a ratio: detuning by a ratio makes every harmonic beat at its own rate, so
+#: the top of the spectrum shimmers several times a second. That was the buzz.
+CHORUS_HZ = 0.18
+#: The octave-down root, quiet enough to be felt rather than heard.
+BASS_LEVEL = 0.34
+
+# Working headroom for the synthesis; the real level is set by the
+# normalisation below, not here.
 PEAK = 0.16
-#: What the finished bed is normalised to. The assembler sets the balance
-#: against this, so changing the synthesis cannot quietly change the mix.
-TARGET_PEAK_DBFS = -3.0
+#: What the finished bed is normalised to — average level, not peak. The
+#: assembler sets the balance against this, so changing the synthesis cannot
+#: quietly change the mix. Peak is the wrong anchor: a richer waveform has a
+#: higher crest factor, so normalising by peak made the bed audibly quieter the
+#: moment the sines became harmonic voices, without a single gain being touched.
+TARGET_RMS_DBFS = -18.0
+#: Never let the correction push a transient into the ceiling.
+CEILING_DBFS = -1.5
+
+#: Rendered in blocks so a three-minute bed does not need a dozen
+#: multi-hundred-megabyte arrays alive at once. Phase comes off global time, so
+#: the blocks join seamlessly.
+BLOCK_SECONDS = 15.0
+
+
+# --------------------------------------------------------------------------- #
+# Voices
+# --------------------------------------------------------------------------- #
+
+
+def _voice(t: np.ndarray, frequency: float) -> np.ndarray:
+    """One sustained pad note: a harmonic series with a steep roll-off.
+
+    This is the shape of a filtered sawtooth rather than a sine, which is the
+    difference between a chord that sounds like an instrument and one that
+    sounds like a signal generator.
+    """
+    count = max(1, min(10, int(CUTOFF // frequency)))
+    tone = np.zeros_like(t)
+    total = 0.0
+    for harmonic in range(1, count + 1):
+        amplitude = 1.0 / (harmonic ** 1.6)
+        total += amplitude
+        f = frequency * harmonic
+        tone += amplitude * (
+            np.sin(2 * np.pi * f * t)
+            + np.sin(2 * np.pi * (f + CHORUS_HZ) * t + 1.1)
+        )
+    return tone / (2 * total)
+
+
+def _bass(t: np.ndarray, frequency: float) -> np.ndarray:
+    """The root an octave down, with enough harmonic to read as a note.
+
+    A bare sine here sits between 73 and 130 Hz, which a listener hears as the
+    room vibrating rather than as music.
+    """
+    return (
+        np.sin(2 * np.pi * frequency * t)
+        + 0.30 * np.sin(2 * np.pi * frequency * 2 * t + 0.7)
+        + 0.12 * np.sin(2 * np.pi * frequency * 3 * t + 1.4)
+    ) / 1.42
+
+
+def _struck(local: np.ndarray, frequency: float) -> np.ndarray:
+    """A plucked note — the same harmonics, weighted for something with an edge."""
+    return (
+        np.sin(2 * np.pi * frequency * local)
+        + 0.40 * np.sin(2 * np.pi * frequency * 2 * local)
+        + 0.16 * np.sin(2 * np.pi * frequency * 3 * local)
+        + 0.07 * np.sin(2 * np.pi * frequency * 4 * local)
+    ) / 1.63
+
+
+# --------------------------------------------------------------------------- #
+# Shape
+# --------------------------------------------------------------------------- #
 
 
 def _chord_envelope(local: np.ndarray, length: float) -> np.ndarray:
@@ -87,7 +168,7 @@ def _chord_envelope(local: np.ndarray, length: float) -> np.ndarray:
     return rising * falling * inside
 
 
-def _arc(t: np.ndarray, seconds: float) -> np.ndarray:
+def _arc(t: np.ndarray | float, seconds: float) -> np.ndarray | float:
     """Level across the whole piece: in, back for the middle, up for the close.
 
     The narration is densest through the body, so the bed gives way there and
@@ -98,6 +179,55 @@ def _arc(t: np.ndarray, seconds: float) -> np.ndarray:
     closing = np.clip((t - (seconds - 16.0)) / 9.0, 0, 1)  # swell for the outro
     forward = np.maximum(holding, closing)                 # full at both ends, back between
     return opening * (0.70 + 0.30 * forward)
+
+
+# --------------------------------------------------------------------------- #
+# Layers
+# --------------------------------------------------------------------------- #
+
+
+def _pads(t: np.ndarray) -> np.ndarray:
+    """The sustained chords for one block of time.
+
+    Envelopes are accumulated per *pitch* before any oscillator runs. Two
+    overlapping chords often share a note — Am and F both hold middle C — and
+    generating it twice with different phases makes the two copies fight each
+    other through the whole crossfade. Summed first, the common tone simply
+    sustains through the change, which is what it is supposed to do.
+    """
+    length = CHORD_SECONDS
+    first = max(0, int(t[0] / length) - 1)
+    last = int(t[-1] / length) + 1
+
+    pad_envelope: dict[float, np.ndarray] = {}
+    bass_envelope: dict[float, np.ndarray] = {}
+
+    for slot in range(first, last + 1):
+        chord = PROGRESSION[slot % len(PROGRESSION)]
+        envelope = _chord_envelope(t - slot * length, length)
+        if not envelope.any():
+            continue
+
+        for partial, frequency in enumerate(chord):
+            # Upper voices quieter, as they are in anything acoustic.
+            weight = 0.62 ** partial
+            if frequency in pad_envelope:
+                pad_envelope[frequency] += envelope * weight
+            else:
+                pad_envelope[frequency] = envelope * weight
+
+        root = chord[0] / 2
+        if root in bass_envelope:
+            bass_envelope[root] += envelope
+        else:
+            bass_envelope[root] = envelope
+
+    out = np.zeros_like(t)
+    for frequency, envelope in pad_envelope.items():
+        out += _voice(t, frequency) * envelope
+    for frequency, envelope in bass_envelope.items():
+        out += _bass(t, frequency) * envelope * BASS_LEVEL
+    return out
 
 
 def _add_note(
@@ -119,8 +249,7 @@ def _add_note(
 
     local = np.arange(count) / RATE
     envelope = np.exp(-local * decay) * np.clip(local / 0.012, 0, 1)  # soft edge, no click
-    tone = np.sin(2 * np.pi * frequency * local) + 0.45 * np.sin(2 * np.pi * frequency * 2 * local)
-    out[start:start + count] += tone * envelope * amplitude
+    out[start:start + count] += (_struck(local, frequency) * envelope * amplitude).astype(out.dtype)
 
 
 #: Rising A minor, landing on the octave. Timed against the title card: the
@@ -135,11 +264,11 @@ MOTIF: tuple[tuple[float, float], ...] = (
 
 def _intro_motif(out: np.ndarray) -> None:
     for index, (at, frequency) in enumerate(MOTIF):
-        _add_note(out, at, frequency, 3.4, 0.55 - index * 0.04, 1.0)
+        _add_note(out, at, frequency, 3.4, 0.62 - index * 0.04, 0.95)
     # The tonic underneath, so the four notes resolve into something rather than
     # simply stopping.
     for partial, frequency in enumerate(PROGRESSION[0]):
-        _add_note(out, 2.1, frequency, 7.0, 0.22 * (0.55 ** partial), 0.40)
+        _add_note(out, 2.1, frequency, 7.0, 0.24 * (0.55 ** partial), 0.40)
 
 
 def _plucks(out: np.ndarray, seconds: float) -> None:
@@ -154,58 +283,37 @@ def _plucks(out: np.ndarray, seconds: float) -> None:
     while at < seconds - 6.0:
         chord = PROGRESSION[int(at / CHORD_SECONDS) % len(PROGRESSION)]
         pick = (chord[2], chord[1], chord[2] * 2, chord[1])[step % 4]
-        # Alternating weight, so the figure breathes instead of ticking.
-        _add_note(out, at, pick, 2.4, 0.055 if step % 2 == 0 else 0.034, 1.5)
+        # Alternating weight, so the figure breathes instead of ticking, and
+        # following the arc so it ducks under the busy middle with everything else.
+        weight = 0.075 if step % 2 == 0 else 0.046
+        _add_note(out, at, pick, 2.4, weight * float(_arc(at, seconds)), 1.5)
         at += CHORD_SECONDS / 4
         step += 1
 
 
 def render(seconds: float) -> np.ndarray:
-    t = np.arange(int(seconds * RATE), dtype=np.float64) / RATE
-    out = np.zeros_like(t)
+    total = int(seconds * RATE)
+    out = np.zeros(total, dtype=np.float32)
 
-    length = CHORD_SECONDS
-    # One extra slot so the last chord is still fading in at the final sample
-    # rather than cutting off mid-swell.
-    slots = int(seconds / length) + 2
-
-    for slot in range(slots):
-        chord = PROGRESSION[slot % len(PROGRESSION)]
-        local = t - slot * length
-        envelope = _chord_envelope(local, length)
-        if not envelope.any():
-            continue
-
-        for partial, frequency in enumerate(chord):
-            # A few cents of detune per partial: exact intervals read as
-            # synthetic, slightly imperfect ones read as an instrument.
-            detune = 1.0 + (partial - 1) * 0.0006
-            phase = partial * 1.7 + slot * 0.31
-            # Phase runs off global time, so nothing clicks at a chord boundary.
-            # Upper partials quieter, as they are in anything acoustic.
-            out += np.sin(2 * np.pi * frequency * detune * t + phase) * envelope * (0.5 ** partial)
-
-        # Root an octave down for weight. Without it the bed sits entirely in
-        # the same range as the voice.
-        out += np.sin(2 * np.pi * (chord[0] / 2) * t) * envelope * 0.45
-
-        # A bell on the change — the loudest thing in the pad layer with an
-        # attack, and what makes a chord change register as an event.
-        strike = np.exp(-np.clip(local, 0, None) * 1.3) * ((local >= 0) & (local < length))
-        out += np.sin(2 * np.pi * chord[2] * 2 * t) * strike * 0.055
+    block = int(BLOCK_SECONDS * RATE)
+    for begin in range(0, total, block):
+        end = min(begin + block, total)
+        t = np.arange(begin, end, dtype=np.float64) / RATE
+        chunk = _pads(t)
+        chunk *= 0.85 + 0.15 * np.sin(2 * np.pi * t / 19.0)  # a very slow breath
+        chunk *= _arc(t, seconds)
+        out[begin:end] += chunk.astype(np.float32)
 
     _plucks(out, seconds)
-
-    # A very slow breath across the whole bed, then the arc.
-    out *= 0.85 + 0.15 * np.sin(2 * np.pi * t / 19.0)
-    out *= _arc(t, seconds)
-
     # After the arc: the opening motif plays over the title card, where the arc
     # is still ramping up from silence and would fade it out from underneath.
     _intro_motif(out)
 
     out *= PEAK
     return np.clip(out, -1.0, 1.0)
+
+
+# --------------------------------------------------------------------------- #
 
 
 def _ffmpeg(command: list[str], what: str) -> str:
@@ -216,16 +324,21 @@ def _ffmpeg(command: list[str], what: str) -> str:
     return result.stderr
 
 
-def _peak_dbfs(path: Path) -> float:
+def _levels(path: Path) -> tuple[float, float]:
+    """Return (mean, peak) in dBFS."""
     report = _ffmpeg(
         ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path),
          "-af", "volumedetect", "-f", "null", "-"],
         "measuring the bed",
     )
+    found: dict[str, float] = {}
     for line in report.splitlines():
-        if "max_volume" in line:
-            return float(line.split("max_volume:")[1].split("dB")[0])
-    raise SystemExit("could not read the bed's peak level")
+        for key in ("mean_volume", "max_volume"):
+            if key in line:
+                found[key] = float(line.split(key + ":")[1].split("dB")[0])
+    if "mean_volume" not in found or "max_volume" not in found:
+        raise SystemExit("could not read the bed's level")
+    return found["mean_volume"], found["max_volume"]
 
 
 def main() -> int:
@@ -243,17 +356,17 @@ def main() -> int:
         handle.setframerate(RATE)
         handle.writeframes((render(args.seconds) * 32767).astype("<i2").tobytes())
 
-    # Soften and widen it. A raw sine stack is harsh in the upper mids and dead
-    # centre; the low-pass takes the edge off and the echo gives it some space.
     _ffmpeg(
         ["ffmpeg", "-y", "-i", str(raw),
          "-af", ",".join([
-             "lowpass=f=1800",
-             # Low enough to let the octave-down roots through: Dm's sits at
-             # 73 Hz, and cutting it made that chord noticeably quieter than
-             # the rest of the phrase.
-             "highpass=f=55",
-             "aecho=0.6:0.55:180|340:0.28|0.18",
+             # Gentle: the harmonics were rolled off during synthesis, so this
+             # only takes the last of the edge off rather than doing the work.
+             "lowpass=f=2600",
+             "highpass=f=58",
+             # Short, dense taps read as a small room. The earlier 180 and
+             # 340 ms pair was long enough to hear as separate repeats, and it
+             # comb-filtered the pad into something metallic.
+             "aecho=0.9:0.75:29|41|67|113:0.16|0.12|0.09|0.06",
              "aformat=channel_layouts=stereo",
              "afade=t=in:st=0:d=0.8",  # short: the motif shapes its own entrance
              f"afade=t=out:st={max(args.seconds - 3.0, 0):.2f}:d=3.0",
@@ -263,10 +376,13 @@ def main() -> int:
     )
 
     # The filter chain above loses several dB in places that are awkward to
-    # predict — the echo's input gain most of all. Rather than hand-tuning PEAK
-    # against it, measure what came out and correct to a fixed level, so the
-    # assembler can set the balance against a number that does not move.
-    correction = TARGET_PEAK_DBFS - _peak_dbfs(shaped)
+    # predict. Rather than hand-tuning PEAK against it, measure what came out
+    # and correct to a fixed level, so the assembler can set the balance
+    # against a number that does not move.
+    mean, peak = _levels(shaped)
+    correction = TARGET_RMS_DBFS - mean
+    if peak + correction > CEILING_DBFS:
+        correction = CEILING_DBFS - peak
     _ffmpeg(
         ["ffmpeg", "-y", "-i", str(shaped), "-af", f"volume={correction:.2f}dB",
          "-ar", "48000", str(args.out)],
@@ -275,7 +391,8 @@ def main() -> int:
 
     raw.unlink(missing_ok=True)
     shaped.unlink(missing_ok=True)
-    print(f"  {args.out}  ({args.seconds:.1f}s, peak {TARGET_PEAK_DBFS:g} dBFS)")
+    print(f"  {args.out}  ({args.seconds:.1f}s, {mean + correction:.1f} dBFS mean, "
+          f"{peak + correction:.1f} dBFS peak)")
     return 0
 
 
