@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MessageSquare, Play, X, Send, Loader2, AlertCircle, RefreshCw, PlusCircle, Mic, MicOff } from 'lucide-react';
+import { MessageSquare, Play, X, Send, Loader2, AlertCircle, RefreshCw, PlusCircle, Mic, MicOff, Paperclip } from 'lucide-react';
+import { attachAndCompose } from '../utils/chatAttachments';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
 import ReactMarkdown from 'react-markdown';
@@ -11,6 +12,8 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     voice?: boolean;
+    /** Filenames sent with this message, so the transcript records them. */
+    attachments?: string[];
 }
 
 export const ChatPanel = () => {
@@ -35,6 +38,10 @@ export const ChatPanel = () => {
     );
 
     // Optional JWT for authenticated workflows
+    // Picked but not yet sent. Uploaded on send, so changing your mind leaves
+    // nothing on the server.
+    const [staged, setStaged] = useState<File[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [jwtToken, setJwtToken] = useState('');
     const [showJwtInput, setShowJwtInput] = useState(false);
 
@@ -175,7 +182,8 @@ export const ChatPanel = () => {
     }
 
     const handleSend = async () => {
-        if (!input.trim()) {
+        // A file on its own is a legitimate message — "here, read this".
+        if (!input.trim() && !staged.length) {
             setError('Please enter a message');
             return;
         }
@@ -186,18 +194,35 @@ export const ChatPanel = () => {
         }
 
         const userMessage = input;
-        setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+        const attachments = staged.map(file => file.name);
+        setMessages(prev => [...prev, { role: 'user', content: userMessage, attachments }]);
         setInput('');
         setIsLoading(true);
         setError(null);
 
         let activeSessionId = sessionId;
+        let outbound = userMessage;
 
         try {
             // Ensure we have a session - Create one if missing!
             if (!activeSessionId) {
                 activeSessionId = await createSession();
                 setSessionId(activeSessionId);
+            }
+
+            if (staged.length && activeSessionId) {
+                // Index the files and bring their text back with the question:
+                // a workflow without a retrieval tool would otherwise answer
+                // from the filename alone and invent the contents.
+                const result = await attachAndCompose(
+                    API_BASE_URL, activeSessionId, userMessage, staged,
+                );
+                outbound = result.message;
+                setStaged([]);
+                const failed = result.uploaded.filter(item => !item.indexed);
+                if (failed.length) {
+                    setError(failed.map(item => `${item.file}: ${item.error}`).join('; '));
+                }
             }
 
             // Prepare headers
@@ -215,7 +240,7 @@ export const ChatPanel = () => {
                     method: 'POST',
                     headers,
                     body: JSON.stringify({
-                        message: userMessage,
+                        message: outbound,
                         max_turns: 10,
                         metadata: {},
                     }),
@@ -444,6 +469,19 @@ export const ChatPanel = () => {
                                     {msg.content}
                                 </ReactMarkdown>
                             )}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {msg.attachments.map((name) => (
+                                        <span
+                                            key={name}
+                                            className="inline-flex items-center gap-1 rounded-full bg-black/10 dark:bg-white/10 px-2 py-0.5 text-[11px]"
+                                        >
+                                            <Paperclip size={10} />
+                                            {name}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -460,7 +498,49 @@ export const ChatPanel = () => {
 
             {/* Input */}
             <div className="p-3 border-t border-gray-100 dark:border-slate-800 bg-white dark:bg-[#0b111b] shrink-0 space-y-2">
+                {staged.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                        {staged.map((file, index) => (
+                            <span
+                                key={`${file.name}-${index}`}
+                                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 py-1 pl-2.5 pr-1.5 text-[11px] text-gray-700 dark:text-slate-300"
+                            >
+                                <span className="truncate">{file.name}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setStaged(prev => prev.filter((_, i) => i !== index))}
+                                    aria-label={`Remove ${file.name}`}
+                                    className="text-gray-400 hover:text-gray-700 dark:hover:text-slate-100"
+                                >
+                                    <X size={11} />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                )}
                 <div className="flex items-center gap-2">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        hidden
+                        accept=".txt,.md,.markdown,.rst,.log,.csv,.tsv,.json,.jsonl,.yaml,.yml,.xml,.html,.pdf,.docx,.doc,.xlsx,.xls,.pptx,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.tiff"
+                        onChange={(e) => {
+                            setStaged(prev => [...prev, ...Array.from(e.target.files ?? [])]);
+                            // Cleared, so re-picking a removed file still fires.
+                            e.target.value = '';
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isLoading || !hasLoadedWorkflow || voice.isActive}
+                        title="Attach a file"
+                        aria-label="Attach a file"
+                        className="shrink-0 rounded-full p-2 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Paperclip size={15} />
+                    </button>
                     <div className="relative flex-1">
                         <input
                             type="text"
@@ -479,7 +559,7 @@ export const ChatPanel = () => {
                         />
                         <button
                             onClick={handleSend}
-                            disabled={isLoading || !hasLoadedWorkflow || !input.trim() || voice.isActive}
+                            disabled={isLoading || !hasLoadedWorkflow || (!input.trim() && !staged.length) || voice.isActive}
                             className="absolute right-1.5 top-1.5 p-1.5 bg-[var(--color-primary)] text-white rounded-full hover:bg-[var(--color-primary-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Send size={14} />
