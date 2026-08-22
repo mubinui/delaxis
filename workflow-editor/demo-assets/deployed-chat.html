@@ -11,20 +11,54 @@
   <link rel="icon" type="image/png" sizes="64x64" href="__BASE__delaxis-logo-64.png?v=3" />
   <link rel="apple-touch-icon" sizes="180x180" href="__BASE__delaxis-logo-180.png?v=3" />
   <title>Delaxis — Deployed Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <style>
+    /* The palette is the Studio's own 2.0 token set, so a published page looks
+       like the product that made it. The previous version was pinned to an
+       older blue and to dark only, which read as a different product. */
     :root {
-      color-scheme: dark;
-      --bg: #0a0e16;
-      --surface: #111827;
-      --border: rgba(255, 255, 255, .08);
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #2563eb;
+      color-scheme: light dark;
+
+      --surface-base: #f6f7f9;
+      --surface-1: #ffffff;
+      --surface-2: #ffffff;
+      --sunken: #eef0f4;
+      --border: #dfe3ea;
+      --border-subtle: #eceef2;
+      --text: #0b1220;
+      --text-2: #3d4759;
+      --muted: #5c6577;
+      --faint: #677083;
+      --accent: #3355ff;
+      --accent-hover: #2440e8;
+      --accent-soft: rgba(51, 85, 255, .09);
+      --on-accent: #ffffff;
+      --shadow: 0 1px 3px rgba(11, 18, 32, .07), 0 12px 28px rgba(11, 18, 32, .08);
     }
 
-    * {
-      box-sizing: border-box;
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface-base: #0a0d14;
+        --surface-1: #10141d;
+        --surface-2: #161b26;
+        --sunken: #070a10;
+        --border: #252d3d;
+        --border-subtle: #1b2130;
+        --text: #f2f5fa;
+        --text-2: #c3cad8;
+        --muted: #939db0;
+        --faint: #7d879e;
+        --accent: #4763e6;
+        --accent-hover: #5470ea;
+        --accent-soft: rgba(91, 124, 255, .15);
+        --shadow: 0 1px 3px rgba(0, 0, 0, .5), 0 12px 32px rgba(0, 0, 0, .6);
+      }
     }
+
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -32,117 +66,249 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 16px;
-      background: var(--bg);
-      color: var(--text);
-      font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 20px;
+      background: var(--surface-base);
+      color: var(--text-2);
+      font: 15px/1.65 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* One restrained wash, the same treatment the Studio uses. */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: -20% 0 auto;
+      height: 60vh;
+      background: radial-gradient(ellipse 60% 100% at 50% 0, var(--accent-soft), transparent);
+      pointer-events: none;
     }
 
     main {
+      position: relative;
       display: flex;
       flex-direction: column;
       width: 100%;
-      max-width: 640px;
-      height: min(760px, calc(100vh - 32px));
+      max-width: 680px;
+      height: min(780px, calc(100vh - 40px));
       border: 1px solid var(--border);
-      border-radius: 16px;
-      background: var(--surface);
+      border-radius: 18px;
+      background: var(--surface-1);
+      box-shadow: var(--shadow);
       overflow: hidden;
     }
 
     header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--surface-2);
     }
+
+    .mark { width: 30px; height: 30px; flex: none; }
+
+    .titles { min-width: 0; flex: 1; }
 
     h1 {
       margin: 0;
-      font-size: 15px;
-      font-weight: 700;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     header p {
-      margin: 4px 0 0;
-      font-size: 12px;
-      color: var(--muted);
+      margin: 2px 0 0;
+      font-size: 11px;
+      color: var(--faint);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
+
+    .live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .live i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
     #log {
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
+      padding: 22px 20px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 16px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
 
+    /* A row so the avatar sits beside its bubble rather than inside it. */
+    .row { display: flex; gap: 10px; align-items: flex-start; max-width: 90%; }
+    .row.user { align-self: flex-end; flex-direction: row-reverse; }
+    .row.bot { align-self: flex-start; }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      flex: none;
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .row.bot .avatar { background: var(--accent-soft); border-color: transparent; }
+
     .msg {
-      max-width: 85%;
-      padding: 10px 14px;
+      padding: 11px 15px;
       border-radius: 14px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
+      font-size: 14.5px;
+      animation: enter .22s cubic-bezier(.22, 1, .36, 1);
     }
 
-    .user {
-      align-self: flex-end;
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .row.user .msg {
       background: var(--accent);
-      color: #fff;
+      color: var(--on-accent);
+      border-bottom-right-radius: 5px;
     }
 
-    .bot {
-      align-self: flex-start;
-      background: rgba(255, 255, 255, .05);
+    .row.bot .msg {
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-2);
+      border-bottom-left-radius: 5px;
+    }
+
+    /* Three dots beat a literal ellipsis: it reads as the assistant thinking. */
+    .typing { display: inline-flex; gap: 4px; padding: 4px 0; }
+    .typing i {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--faint);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .typing i:nth-child(2) { animation-delay: .15s; }
+    .typing i:nth-child(3) { animation-delay: .3s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: none; opacity: .45; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    .starters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 20px 14px;
+    }
+
+    .starter {
+      padding: 7px 13px;
+      border-radius: 999px;
       border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-2);
+      font: inherit;
+      font-size: 12.5px;
+      cursor: pointer;
+      transition: border-color .15s, transform .15s, background .15s;
+    }
+
+    .starter:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
     }
 
     form {
       display: flex;
-      gap: 8px;
+      gap: 9px;
       padding: 14px;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-2);
     }
 
     input {
       flex: 1;
-      padding: 11px 14px;
-      border-radius: 10px;
+      padding: 12px 15px;
+      border-radius: 11px;
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, .04);
+      background: var(--surface-1);
       color: var(--text);
       font: inherit;
+      font-size: 14.5px;
     }
+
+    input::placeholder { color: var(--faint); }
 
     input:focus {
-      outline: 2px solid var(--accent);
-      outline-offset: -1px;
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
     }
 
-    button {
-      padding: 11px 18px;
+    button[type=submit] {
+      padding: 12px 20px;
       border: 0;
-      border-radius: 10px;
+      border-radius: 11px;
       background: var(--accent);
-      color: #fff;
+      color: var(--on-accent);
       font: inherit;
       font-weight: 600;
       cursor: pointer;
+      transition: background .15s;
     }
 
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-    }
+    button[type=submit]:hover:not(:disabled) { background: var(--accent-hover); }
+    button[type=submit]:disabled { opacity: .5; cursor: not-allowed; }
 
     footer {
-      padding: 10px 20px 14px;
-      font-size: 11px;
-      color: var(--muted);
+      padding: 11px 20px 14px;
+      font-size: 11.5px;
+      color: var(--faint);
       text-align: center;
+      border-top: 1px solid var(--border-subtle);
     }
 
-    footer a {
-      color: #60a5fa;
+    footer a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 560px) {
+      body { padding: 0; }
+      main { height: 100vh; border: 0; border-radius: 0; max-width: none; }
     }
   </style>
 </head>
@@ -150,14 +316,28 @@
 <body>
   <main>
     <header>
-      <h1 id="title">Deployed Chat</h1>
-      <p id="subtitle"></p>
+      <svg class="mark" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+        <line x1="24" y1="76" x2="76" y2="24" stroke="currentColor" stroke-width="6"
+          stroke-linecap="round" opacity=".3" style="color:var(--muted)" />
+        <circle cx="24" cy="76" r="11" fill="var(--muted)" />
+        <circle cx="50" cy="50" r="11" fill="var(--muted)" />
+        <circle cx="76" cy="24" r="11" fill="var(--accent)" />
+      </svg>
+      <div class="titles">
+        <h1 id="title">Deployed Chat</h1>
+        <p id="subtitle"></p>
+      </div>
+      <span class="live"><i></i>Demo</span>
     </header>
+
     <div id="log" aria-live="polite"></div>
+    <div class="starters" id="starters"></div>
+
     <form id="form">
-      <input id="input" autocomplete="off" placeholder="Send a message…" aria-label="Message" />
+      <input id="input" autocomplete="off" placeholder="Ask something…" aria-label="Message" />
       <button type="submit">Send</button>
     </form>
+
     <footer>
       Scripted demo — no model is called.
       <a href="https://github.com/mubinui/delaxis">Run Delaxis for real →</a>
@@ -182,19 +362,41 @@
     document.title = deployment.title + ' — Delaxis';
     document.getElementById('title').textContent = deployment.title;
     document.getElementById('subtitle').textContent =
-      'workflow ' + deployment.workflow_id + ' · ' + deployment.model_id;
+      deployment.workflow_id + ' · ' + deployment.model_id;
 
     const log = document.getElementById('log');
     const form = document.getElementById('form');
     const input = document.getElementById('input');
+    const starters = document.getElementById('starters');
 
     const say = (text, who) => {
-      const el = document.createElement('div');
-      el.className = 'msg ' + who;
-      el.textContent = text;
-      log.appendChild(el);
+      const row = document.createElement('div');
+      row.className = 'row ' + who;
+
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = who === 'user' ? 'You' : '';
+      if (who === 'bot') {
+        avatar.innerHTML =
+          '<svg viewBox="0 0 100 100" width="15" height="15" fill="none">' +
+          '<circle cx="24" cy="76" r="12" fill="currentColor" opacity=".5"/>' +
+          '<circle cx="50" cy="50" r="12" fill="currentColor" opacity=".75"/>' +
+          '<circle cx="76" cy="24" r="12" fill="currentColor"/></svg>';
+        avatar.style.color = 'var(--accent)';
+      }
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg';
+      if (text === null) {
+        bubble.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+      } else {
+        bubble.textContent = text;
+      }
+
+      row.append(avatar, bubble);
+      log.appendChild(row);
       log.scrollTop = log.scrollHeight;
-      return el;
+      return bubble;
     };
 
     /** Mirrors the calculator specialist in src/demo/runtime.ts — real arithmetic, no eval. */
@@ -252,16 +454,35 @@
         'Try a maths question like (12 + 8) * 3 — that one is computed for real.';
     };
 
+    const send = (message) => {
+      say(message, 'user');
+      starters.style.display = 'none';
+      const pending = say(null, 'bot');
+      setTimeout(() => {
+        pending.textContent = reply(message);
+        log.scrollTop = log.scrollHeight;
+      }, 620);
+    };
+
     say(deployment.greeting, 'bot');
+
+    // An empty chat gives no clue what to try; these are the paths that produce
+    // an interesting answer, including the one that really computes.
+    for (const prompt of ['(12 + 8) * 3', 'What is in our onboarding handbook?', 'Search for CrewAI']) {
+      const button = document.createElement('button');
+      button.className = 'starter';
+      button.type = 'button';
+      button.textContent = prompt;
+      button.addEventListener('click', () => send(prompt));
+      starters.appendChild(button);
+    }
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const message = input.value.trim();
       if (!message) return;
       input.value = '';
-      say(message, 'user');
-      const pending = say('…', 'bot');
-      setTimeout(() => { pending.textContent = reply(message); log.scrollTop = log.scrollHeight; }, 550);
+      send(message);
     });
 
     document.querySelector('footer a').insertAdjacentHTML(

@@ -11,12 +11,13 @@
 
 **An open-source multi-agent development kit — design, test, and deploy AI agent workflows from one place.**
 
+[![Release](https://img.shields.io/github/v/release/mubinui/delaxis?label=release)](../../releases/latest)
 [![Docker](https://img.shields.io/github/actions/workflow/status/mubinui/delaxis/docker-release.yml?label=Docker%20Build)](../../actions/workflows/docker-release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![CrewAI](https://img.shields.io/badge/runtime-CrewAI-orange.svg)](https://crewai.com)
 
-### [▶ Try the live demo](https://mubinui.github.io/delaxis/)
+### [▶ Try the live demo](https://mubinui.github.io/delaxis/) &nbsp;·&nbsp; [Watch the 2-minute tour](../../releases/latest)
 
 No install, no API key — the real Studio running against an in-browser stub of the API.
 
@@ -71,6 +72,13 @@ Everything is configuration-driven. Agents, workflows, tools, prompts, and provi
 | ![Live LLM tester](docs/images/llm-tester.png) | ![Deployments](docs/images/deployments.png) |
 
 Every screenshot above is from the [live demo](https://mubinui.github.io/delaxis/) — click through it yourself before installing anything.
+
+### Video tour
+
+A two-minute narrated walkthrough ships with each release: **[download `delaxis-2.0-tour.mp4`](../../releases/latest)**.
+It is built from this repository by [`scripts/video/`](scripts/video) — the narration script, the
+recorder that drives the real Studio, and the assembler are all committed, so the tour can be
+re-cut whenever the product changes.
 
 ## Installation
 
