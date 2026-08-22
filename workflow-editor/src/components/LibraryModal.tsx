@@ -564,7 +564,12 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                     >
                                         {tab.label}
                                         {typeof tab.count === 'number' && (
-                                            <span className={`ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono ${activeTab === tab.id ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-extrabold' : 'bg-slate-300/60 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400'}`}>
+                                            <span
+                                                className="ml-1 rounded-full px-1.5 py-0.2 text-[9px] font-mono font-bold"
+                                                style={activeTab === tab.id
+                                                    ? { color: 'var(--accent-text)', backgroundColor: 'var(--accent-soft)' }
+                                                    : { color: 'var(--text-secondary)', backgroundColor: 'var(--surface-sunken)' }}
+                                            >
                                                 {tab.count}
                                             </span>
                                         )}

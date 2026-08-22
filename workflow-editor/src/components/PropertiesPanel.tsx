@@ -247,26 +247,26 @@ export const PropertiesPanel = () => {
                 <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900/60 dark:to-slate-950/40 p-4 shadow-xs">
                     <div className="mb-3.5 flex items-start justify-between gap-3">
                         <div>
-                            <div className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase">Agent Diagnostics</div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Strategy layer verification logic</div>
+                            <div className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase">Agent status</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">What still needs setting up</div>
                         </div>
                         <StatusBadge tone={summary.health} label={summary.health === 'ready' ? 'Ready' : 'Needs setup'} />
                     </div>
                     <div className="grid grid-cols-2 gap-2.5 text-xs">
                         <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Strategy</div>
+                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Type</div>
                             <div className="font-extrabold text-slate-700 dark:text-slate-300 mt-0.5 truncate">{summary.strategy}</div>
                         </div>
                         <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Engine</div>
+                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Model</div>
                             <div className="font-extrabold text-slate-700 dark:text-slate-300 mt-0.5 truncate">{summary.model}</div>
                         </div>
                         <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tool Cap</div>
-                            <div className="font-extrabold text-blue-600 dark:text-blue-400 mt-0.5">{summary.toolCount} Hooked</div>
+                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tools</div>
+                            <div className="font-extrabold text-blue-600 dark:text-blue-400 mt-0.5">{summary.toolCount} attached</div>
                         </div>
                         <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Human Loop</div>
+                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Human input</div>
                             <div className="font-extrabold text-slate-700 dark:text-slate-300 mt-0.5 truncate">{summary.humanInput}</div>
                         </div>
                     </div>
@@ -625,10 +625,10 @@ export const PropertiesPanel = () => {
 
         return (
             <>
-                {renderSection('Strategy Role Specs', 'agent_settings', (
+                {renderSection('Role', 'agent_settings', (
                     <>
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Executor Base Strategy</label>
+                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Agent type</label>
                             <select
                                 value={config.type || 'LlmAgent'}
                                 onChange={(e) => updateConfig('type', e.target.value)}
@@ -1274,7 +1274,7 @@ export const PropertiesPanel = () => {
                         <Settings2 size={15} />
                     </div>
                     <div>
-                        <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs tracking-wide uppercase">Node Parameters</h3>
+                        <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs tracking-wide uppercase">Properties</h3>
                         <div className="flex items-center gap-2 mt-0.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider">
@@ -1326,9 +1326,9 @@ export const PropertiesPanel = () => {
                         {renderStudioSummary()}
 
                         <div className="space-y-4 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-4 shadow-2xs">
-                            <div className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase mb-1">Canvas Identifiers</div>
+                            <div className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase mb-1">Naming</div>
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Label Title</label>
+                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Name</label>
                                 <input
                                     type="text"
                                     value={label}
@@ -1339,7 +1339,7 @@ export const PropertiesPanel = () => {
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Semantic Description Note</label>
+                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Description</label>
                                 <textarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
@@ -1422,7 +1422,7 @@ export const PropertiesPanel = () => {
                     className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold hover:bg-red-50/60 dark:hover:bg-red-950/30 transition-all shadow-2xs"
                 >
                     <Trash2 size={13} />
-                    Unlink
+                    Delete
                 </button>
                 <button
                     onClick={handleSave}
@@ -1430,7 +1430,7 @@ export const PropertiesPanel = () => {
                     className="flex-[2] flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 shadow-sm transition-all"
                 >
                     <Save size={13} />
-                    Persist Payload Specs
+                    Save
                 </button>
             </div>
         </div>

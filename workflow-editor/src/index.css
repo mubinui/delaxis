@@ -42,8 +42,8 @@
     /* Text */
     --text-primary: #0b1220;
     --text-secondary: #3d4759;
-    --text-muted: #6b7488;
-    --text-faint: #98a0b0;
+    --text-muted: #5c6577;
+    --text-faint: #677083;
     --text-on-accent: #ffffff;
 
     /* Accent */
@@ -57,15 +57,15 @@
     --accent-text: #2440e8;
 
     /* Status */
-    --status-ready: #0f9d63;
+    --status-ready: #087a4d;
     --status-ready-bg: rgba(15, 157, 99, 0.10);
-    --status-warning: #b5730b;
+    --status-warning: #8a5606;
     --status-warning-bg: rgba(181, 115, 11, 0.11);
-    --status-error: #d33c3c;
+    --status-error: #b32d2d;
     --status-error-bg: rgba(211, 60, 60, 0.10);
     --status-running: #3355ff;
     --status-running-bg: rgba(51, 85, 255, 0.10);
-    --status-muted: #6b7488;
+    --status-muted: #5c6577;
     --status-muted-bg: rgba(107, 116, 136, 0.10);
 
     /* Component tones. Each is one hue expressed at four strengths, so a palette
@@ -77,7 +77,7 @@
     --tone-agent-border: rgba(51, 85, 255, 0.22);
 
     --tone-tool: #e2680c;
-    --tone-tool-fg: #c25405;
+    --tone-tool-fg: #ab4903;
     --tone-tool-bg: rgba(226, 104, 12, 0.11);
     --tone-tool-border: rgba(226, 104, 12, 0.22);
 
@@ -87,7 +87,7 @@
     --tone-workflow-border: rgba(124, 70, 224, 0.22);
 
     --tone-trigger: #0f9d63;
-    --tone-trigger-fg: #0b8353;
+    --tone-trigger-fg: #076b41;
     --tone-trigger-bg: rgba(15, 157, 99, 0.11);
     --tone-trigger-border: rgba(15, 157, 99, 0.22);
 
@@ -122,6 +122,8 @@
     --canvas-bg: #f6f7f9;
     --canvas-dots: #d4d9e2;
     --canvas-edge: #a8b0c0;
+    --minimap-node: #cbd3e0;
+    --minimap-mask: rgba(240, 242, 245, 0.7);
 
     /* Shape and motion */
     --radius-sm: 6px;
@@ -183,13 +185,13 @@
 
     --text-primary: #f2f5fa;
     --text-secondary: #c3cad8;
-    --text-muted: #8892a5;
-    --text-faint: #616b7e;
+    --text-muted: #939db0;
+    --text-faint: #7d879e;
     --text-on-accent: #ffffff;
 
-    --accent: #5b7cff;
-    --accent-hover: #7590ff;
-    --accent-active: #90a6ff;
+    --accent: #4763e6;
+    --accent-hover: #5470ea;
+    --accent-active: #6b86f5;
     --accent-soft: rgba(91, 124, 255, 0.15);
     --accent-soft-hover: rgba(91, 124, 255, 0.22);
     --accent-border: rgba(91, 124, 255, 0.35);
@@ -204,7 +206,7 @@
     --status-error-bg: rgba(248, 113, 113, 0.14);
     --status-running: #5b7cff;
     --status-running-bg: rgba(91, 124, 255, 0.16);
-    --status-muted: #8892a5;
+    --status-muted: #939db0;
     --status-muted-bg: rgba(136, 146, 165, 0.14);
 
     --tone-agent: #5b7cff;
@@ -256,6 +258,8 @@
     --canvas-bg: #0a0d14;
     --canvas-dots: #232a3a;
     --canvas-edge: #3c4661;
+    --minimap-node: #38425a;
+    --minimap-mask: rgba(6, 9, 15, 0.72);
 
     --color-node-shadow: rgba(0, 0, 0, 0.5);
     --color-node-shadow-hover: rgba(91, 124, 255, 0.25);
@@ -616,6 +620,48 @@ body {
 .dark .text-slate-800,
 .dark .text-slate-900 {
     color: var(--text-primary) !important;
+}
+
+/* Components that still reach for Tailwind's grey ramp get the token values
+   instead. Those ramp steps were tuned against a white page and fail contrast
+   on both of our surfaces — the 400 and 500 steps were the single largest
+   source of unreadable text in the audit. Mapping them here fixes every
+   unmigrated component at once, in both themes, rather than editing ~1,300
+   class instances. */
+.text-slate-400,
+.text-gray-400,
+.text-zinc-400,
+.dark .text-slate-400,
+.dark .text-gray-400,
+.dark .text-zinc-400 {
+    color: var(--text-faint) !important;
+}
+
+.text-slate-500,
+.text-gray-500,
+.text-zinc-500,
+.dark .text-slate-500,
+.dark .text-gray-500,
+.dark .text-zinc-500 {
+    color: var(--text-muted) !important;
+}
+
+.text-slate-600,
+.text-gray-600,
+.dark .text-slate-600,
+.dark .text-gray-600 {
+    color: var(--text-secondary) !important;
+}
+
+/* blue-600 is tuned for a white page; on a dark surface it drops under 3.5:1.
+   The accent token already resolves per theme, so point the blue text ramp at
+   it rather than leaving each component to remember a dark: variant. */
+.text-blue-600,
+.text-blue-700,
+.dark .text-blue-600,
+.dark .text-blue-700,
+.dark .text-blue-400 {
+    color: var(--accent-text) !important;
 }
 
 .dark .border-gray-200,

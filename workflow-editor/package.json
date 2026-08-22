@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "logo:png": "node scripts/render-logo-png.mjs",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "audit:theme": "node scripts/theme-audit.mjs"
   },
   "dependencies": {
     "@types/dagre": "^0.7.53",

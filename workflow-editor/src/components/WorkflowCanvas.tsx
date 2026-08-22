@@ -26,7 +26,6 @@ import { TriggerNode } from './nodes/TriggerNode';
 import { RouterNode } from './nodes/RouterNode';
 import { OutputNode } from './nodes/OutputNode';
 import { WorkflowNode } from './nodes/WorkflowNode';
-import { useTheme } from '../hooks/useTheme';
 
 const nodeTypes = {
     agent: AgentNode,
@@ -43,7 +42,6 @@ const WorkflowCanvasContent = () => {
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, addNodes, addEdges, setCurrentWorkflow, setNodeDragging } = useWorkflowStore();
     const { savedAgents, savedTools } = useLibraryStore();
     const { screenToFlowPosition, fitView } = useReactFlow();
-    const { isDark } = useTheme();
 
     // --- SMART MERGE: Preserves non-empty values from base when override has empty/null/undefined ---
     const smartMerge = (base: any, override: any): any => {
@@ -465,11 +463,17 @@ const WorkflowCanvasContent = () => {
                 fitViewOptions={{ padding: 0.2 }}
                 // animated:false — permanently marching dashes on every edge repaint the
                 // canvas nonstop; edges animate only during live execution (set by the store).
+                // The stroke is deliberately NOT set here. defaultEdgeOptions are
+                // copied into each edge's data at creation, so a literal colour
+                // would be frozen at whatever the theme was when the edge was
+                // drawn — an edge made in light mode stayed light forever after
+                // switching to dark. The stylesheet owns the stroke instead
+                // (.react-flow__edge-path), which repaints with the theme.
                 defaultEdgeOptions={{
                     type: 'smoothstep',
                     animated: false,
-                    style: { strokeWidth: 2, stroke: isDark ? '#64748b' : '#b1b1b7' },
-                    markerEnd: { type: MarkerType.ArrowClosed, color: isDark ? '#64748b' : '#b1b1b7' },
+                    style: { strokeWidth: 2 },
+                    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--canvas-edge)' },
                 }}
                 // Strict: the drag preview only snaps to valid target handles, so the
                 // edge always lands exactly where the preview showed it.
@@ -483,7 +487,7 @@ const WorkflowCanvasContent = () => {
                 proOptions={{ hideAttribution: true }}
             >
                 <Background
-                    color={isDark ? '#334155' : '#e5e5e5'}
+                    color="var(--canvas-dots)"
                     gap={20}
                     size={2}
                     variant={BackgroundVariant.Dots}
@@ -495,9 +499,9 @@ const WorkflowCanvasContent = () => {
                 {nodes.length > 0 && (
                     <MiniMap
                         position="top-right"
-                        nodeColor={() => isDark ? '#334155' : '#e2e8f0'}
-                        maskColor={isDark ? 'rgba(15, 23, 42, 0.72)' : 'rgba(240, 242, 245, 0.7)'}
-                        className="!bg-[var(--color-ui-bg)] !border-[var(--color-ui-border)] !shadow-lg"
+                        nodeColor={() => 'var(--minimap-node)'}
+                        maskColor="var(--minimap-mask)"
+                        className="!bg-[var(--surface-1)] !border-[var(--border-default)] !shadow-lg"
                     />
                 )}
             </ReactFlow>
