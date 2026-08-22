@@ -6,9 +6,12 @@ screen for exactly that long. Keeping the text and the on-screen action in the
 same record is what keeps them in sync — there is no separate timing file to
 drift.
 
-Each scene's ``action`` names a step implemented in ``record.mjs``. Adding a
-scene here without adding the matching action there fails loudly rather than
-silently recording a still frame.
+Lines are deliberately short. An earlier cut ran four and a half minutes and
+dragged; the same material at half the word count moves. Say one thing per
+shot and let the screen carry the rest.
+
+``action`` names a step implemented in ``record.mjs``; ``card`` scenes are
+animated title frames rendered from ``titles/`` instead of the live app.
 """
 
 from dataclasses import dataclass
@@ -20,163 +23,141 @@ class Scene:
     action: str
     say: str
     #: Held after the narration ends, so a click has time to land visually.
-    tail_seconds: float = 0.8
+    tail_seconds: float = 0.5
+    #: Title card to render instead of driving the app.
+    card: str = ""
 
 
 SCENES: list[Scene] = [
     Scene(
+        id="intro",
+        action="title_card",
+        card="intro",
+        say="Introducing Delaxis two point oh.",
+        tail_seconds=1.4,
+    ),
+    Scene(
         id="open",
         action="landing",
         say=(
-            "This is Delaxis. It's an open source studio for building AI systems "
-            "where several agents work together. It runs entirely on your own "
-            "machine, and everything you're about to see is the real product."
+            "An open source studio for building AI systems where several agents "
+            "work together. It runs entirely on your own machine."
         ),
     ),
     Scene(
         id="who",
         action="landing_features",
         say=(
-            "It's built for two kinds of people at once. If you've never written "
-            "code, you can describe what you want in plain language and get a "
-            "working chatbot. If you're an engineer, every setting underneath is "
-            "yours to change. Let's start with the plain language route."
+            "It's built for two people at once. Describe what you want in plain "
+            "words, or open the hood and configure every detail."
         ),
     ),
     Scene(
         id="builder_open",
         action="open_builder",
-        say=(
-            "This is the Builder. You tell it what you need in ordinary words. "
-            "No diagram, no configuration files, no decisions about model "
-            "parameters. Just describe the assistant you want."
-        ),
+        say="Start with plain words. This is the Builder.",
     ),
     Scene(
         id="builder_type",
         action="type_brief",
         say=(
-            "Here I'm asking for a customer support assistant that can search our "
-            "documentation and hand difficult cases to a human. That's the whole "
-            "input. In a moment the Builder turns that sentence into agents, "
-            "tools, and a working workflow."
+            "One sentence: a support assistant that answers from our docs and "
+            "escalates what it can't handle."
         ),
     ),
     Scene(
         id="builder_knows",
         action="hold_builder",
         say=(
-            "The important part is that the Builder knows what this platform "
-            "actually contains. It can see all twenty seven installed tools, what "
-            "each one is for, and which agents already exist. So it picks real "
-            "components that work, instead of inventing names that fail later."
+            "It can see all twenty seven installed tools and every existing agent, "
+            "so it picks real components instead of inventing names that fail."
         ),
     ),
     Scene(
         id="canvas",
         action="show_canvas",
         say=(
-            "What it produces lands here, on the canvas. Every box is an agent or "
-            "a tool, and the lines are the path a conversation takes through them. "
-            "You can read the whole system at a glance."
+            "What it builds lands on the canvas. Every box is an agent or a tool. "
+            "The lines are the path a conversation takes."
         ),
+    ),
+    Scene(
+        id="run",
+        action="run_workflow",
+        say=(
+            "And you can run it right here. The execution timeline lists every "
+            "agent handover and tool call in order, so you see exactly what ran."
+        ),
+        tail_seconds=2.4,
     ),
     Scene(
         id="palette",
         action="palette_drag",
-        say=(
-            "You're never locked into what was generated. The palette on the left "
-            "holds every building block, grouped by what it does. Drag one onto "
-            "the canvas and it becomes part of the system. That's the entire "
-            "gesture."
-        ),
+        say="Drag anything from the palette to change it. That's the whole gesture.",
     ),
     Scene(
         id="library",
         action="open_store",
         say=(
-            "The library works like a store. Forty eight components, sorted into "
-            "categories: agents, data, files, privacy, security, audit. Search it, "
-            "browse a shelf, and drag anything straight onto your canvas."
+            "The library is a store. Forty eight components, shelved by what they "
+            "do, all draggable."
         ),
     ),
     Scene(
         id="library_category",
         action="filter_store",
         say=(
-            "Say you need to handle personal data carefully. Open the privacy "
-            "shelf and there are tools that find and remove personal information "
-            "before it ever reaches a model. Attaching one is a single click."
+            "Handling personal data? The privacy shelf finds and removes it before "
+            "it ever reaches a model."
         ),
     ),
     Scene(
         id="technical",
         action="open_inspector",
-        say=(
-            "Now for the other audience. If you know what you're doing, nothing is "
-            "hidden from you. Select any agent and the inspector opens every "
-            "setting behind it."
-        ),
+        say="Now the other audience. Nothing is hidden from you.",
     ),
     Scene(
         id="technical_depth",
         action="inspector_tabs",
         say=(
-            "Which model it runs on and at what temperature. Which tools it can "
-            "reach. How many turns it may take, and whether a human is asked "
-            "before it acts. The plain language route sets sensible defaults for "
-            "all of this. You can override every one of them."
+            "Model and temperature. Which tools it can reach. Turn limits, and "
+            "whether a human approves before it acts. Override any of it."
         ),
     ),
     Scene(
         id="tools",
         action="show_tool_families",
         say=(
-            "The tools go well beyond web search. Agents can query SQL and MongoDB "
-            "databases with read only access enforced, read uploaded PDFs and "
-            "spreadsheets, walk a folder of documents, detect leaked credentials "
-            "and prompt injection attempts, and write to an audit trail that can't "
-            "be quietly edited afterwards."
+            "Query SQL and Mongo with read only enforced. Read uploaded PDFs. "
+            "Catch leaked credentials and prompt injection. Write to an audit "
+            "trail that can't be quietly edited."
         ),
     ),
     Scene(
         id="help_open",
         action="open_help",
         say=(
-            "If something's wrong, Help is where you learn. It reads your workflow "
-            "and lists what's actually broken, in plain terms, pointing at the "
-            "exact component causing each problem."
+            "Something wrong? Help reads your workflow and says exactly what's "
+            "broken, and where."
         ),
     ),
     Scene(
         id="help_fix",
         action="help_fix",
         say=(
-            "And it doesn't stop at describing the problem. Where the fix is "
-            "unambiguous, Help applies it for you. A missing trigger gets added "
-            "and connected. A broken tool reference gets removed. Anything that "
-            "needs your judgement, it leaves alone and explains instead."
+            "Then it fixes it. A missing trigger, added and wired. A broken "
+            "reference, removed. Anything needing your judgement, it explains "
+            "instead."
         ),
     ),
     Scene(
-        id="help_learn",
-        action="help_components",
+        id="outro",
+        action="title_card",
+        card="outro",
         say=(
-            "It also works as documentation. Every component has an explanation of "
-            "what it does and when you'd reach for it, right next to the thing "
-            "itself. It's the fastest way to learn the system while you build in "
-            "it."
+            "Delaxis two point oh. Free, open source, and yours to self host. "
+            "Pull the container, or try the live demo in your browser right now."
         ),
-    ),
-    Scene(
-        id="close",
-        action="closing",
-        say=(
-            "When it's ready, one click publishes it as a chat page you can share "
-            "or embed anywhere. Delaxis is open source and free to self host. "
-            "Describe what you want, or build it yourself piece by piece. It works "
-            "the same either way."
-        ),
-        tail_seconds=1.6,
+        tail_seconds=2.2,
     ),
 ]

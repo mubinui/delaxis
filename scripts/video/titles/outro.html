@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Get Delaxis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+    --ink: #0a0d14;
+    --surface: #161b26;
+    --border: #252d3d;
+    --paper: #f2f5fa;
+    --muted: #8892a5;
+    --accent: #5b7cff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: var(--ink);
+    background-image:
+        radial-gradient(ellipse 70% 60% at 50% 30%, rgba(91, 124, 255, 0.14), transparent),
+        radial-gradient(ellipse 50% 50% at 15% 95%, rgba(164, 118, 255, 0.09), transparent);
+    font-family: Inter, system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stage { text-align: center; }
+
+.lockup {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    opacity: 0;
+    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+
+.mark { width: 88px; height: 88px; }
+.mark .node.c circle { animation: glow 2.2s ease-in-out 1s infinite; }
+
+@keyframes glow {
+    0%, 100% { filter: drop-shadow(0 0 0 rgba(91,124,255,0)); }
+    50%      { filter: drop-shadow(0 0 16px rgba(91,124,255,0.8)); }
+}
+
+.wordmark {
+    font-size: 66px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: var(--paper);
+}
+.wordmark span { color: var(--accent); font-size: 30px; vertical-align: super; margin-left: 10px; }
+
+/* Each way in gets its own card, arriving in sequence so the eye has somewhere
+   to land rather than meeting three blocks of text at once. */
+.ways {
+    display: flex;
+    gap: 22px;
+    justify-content: center;
+    margin-top: 58px;
+}
+
+.way {
+    width: 430px;
+    padding: 30px 28px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--surface);
+    text-align: left;
+    opacity: 0;
+    animation: rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.way:nth-child(1) { animation-delay: 0.75s; }
+.way:nth-child(2) { animation-delay: 0.95s; }
+.way:nth-child(3) { animation-delay: 1.15s; }
+
+.label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+.value {
+    margin-top: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--paper);
+    word-break: break-all;
+}
+
+.note { margin-top: 10px; font-size: 16px; color: var(--muted); }
+
+.footer {
+    margin-top: 56px;
+    font-size: 22px;
+    color: var(--muted);
+    opacity: 0;
+    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.5s forwards;
+}
+.footer strong { color: var(--paper); font-weight: 600; }
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+    <div class="lockup">
+        <svg class="mark" viewBox="0 0 100 100" fill="none" aria-label="Delaxis">
+            <line x1="24" y1="76" x2="76" y2="24" stroke="#f2f5fa" stroke-width="6"
+                  stroke-linecap="round" opacity="0.35" />
+            <circle cx="24" cy="76" r="11" fill="#f2f5fa" />
+            <circle cx="50" cy="50" r="11" fill="#f2f5fa" />
+            <g class="node c"><circle cx="76" cy="24" r="11" fill="#5b7cff" /></g>
+        </svg>
+        <div class="wordmark">Delaxis<span>2.0</span></div>
+    </div>
+
+    <div class="ways">
+        <div class="way">
+            <div class="label">Run it</div>
+            <div class="value">docker run -p 8000:8000<br>ghcr.io/mubinui/delaxis</div>
+            <div class="note">One container — API, Studio and storage</div>
+        </div>
+        <div class="way">
+            <div class="label">Source</div>
+            <div class="value">github.com/mubinui/delaxis</div>
+            <div class="note">MIT licensed, self-hosted</div>
+        </div>
+        <div class="way">
+            <div class="label">Try it now</div>
+            <div class="value">mubinui.github.io/delaxis</div>
+            <div class="note">The real Studio, no install</div>
+        </div>
+    </div>
+
+    <div class="footer">Free and open source · <strong>Build it by talking, or build it by hand</strong></div>
+</div>
+</body>
+</html>

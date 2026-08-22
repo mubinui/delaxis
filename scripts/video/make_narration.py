@@ -35,15 +35,19 @@ from scripts.video.scenes import SCENES  # noqa: E402
 
 OUT_DIR = PROJECT_ROOT / "docs" / "video" / "build"
 MODEL = os.environ.get("DELAXIS_TTS_MODEL", "gemini-3.1-flash-tts-preview")
-# Charon reads as measured and low, which suits explanation. The alternative
-# voices lean bright and start to sound like an advert over four minutes.
-VOICE = os.environ.get("DELAXIS_TTS_VOICE", "Charon")
+# Sulafat is documented as warm; Achernar (soft), Vindemiatrix (gentle) and
+# Leda (youthful) are the other female voices worth trying. Override with
+# DELAXIS_TTS_VOICE to swap without touching the script.
+VOICE = os.environ.get("DELAXIS_TTS_VOICE", "Sulafat")
 SAMPLE_RATE = 24_000
 
-# Read as narration for a product walkthrough, not as an announcement.
+# The first cut was measured to the point of dragging. This asks for the same
+# warmth at a brisker clip — the pace of someone genuinely pleased to show you
+# something, not of a training module.
 STYLE = (
-    "Read this calmly and clearly, like a knowledgeable colleague explaining "
-    "software to someone over their shoulder. Unhurried, warm, never salesy: "
+    "Read this warmly and brightly, with a friendly, natural, human delivery. "
+    "Keep a lively pace — engaged and upbeat, never rushed and never robotic. "
+    "Sound like someone happily showing a friend something they built: "
 )
 
 
@@ -61,10 +65,18 @@ def api_key() -> str:
     return key
 
 
-def synthesise(text: str, key: str, attempts: int = 4) -> bytes:
-    """Return raw PCM for one line, retrying the transient failures."""
+def synthesise(text: str, key: str, attempts: int = 4, styled: bool = True) -> bytes:
+    """Return raw PCM for one line, retrying the transient failures.
+
+    ``styled`` prepends the delivery direction. It is dropped automatically when
+    a generation comes back blocked: the safety filter occasionally objects to
+    the *combination* of the direction and a short line, while the line on its
+    own is fine. Losing the styling on one line is a far better outcome than
+    failing the whole render.
+    """
+    prompt = (STYLE + text) if styled else text
     payload = json.dumps({
-        "contents": [{"parts": [{"text": STYLE + text}]}],
+        "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": VOICE}}},
@@ -81,7 +93,22 @@ def synthesise(text: str, key: str, attempts: int = 4) -> bytes:
             )
             with urllib.request.urlopen(request, timeout=180) as response:
                 body = json.load(response)
-            inline = body["candidates"][0]["content"]["parts"][0]["inlineData"]
+            try:
+                inline = body["candidates"][0]["content"]["parts"][0]["inlineData"]
+            except (KeyError, IndexError):
+                # A blocked or empty generation returns 200 with no audio. Report
+                # what actually came back instead of a bare KeyError.
+                reason = (
+                    body.get("promptFeedback", {}).get("blockReason")
+                    or (body.get("candidates") or [{}])[0].get("finishReason")
+                    or json.dumps(body)[:220]
+                )
+                if styled and "PROHIBITED" in str(reason).upper():
+                    print(f"       (styling dropped for this line: {reason})")
+                    return synthesise(text, key, attempts=attempts, styled=False)
+                last = RuntimeError(f"no audio returned ({reason})")
+                time.sleep(2 ** attempt)
+                continue
             return base64.b64decode(inline["data"])
         except urllib.error.HTTPError as exc:
             last = exc
@@ -142,6 +169,8 @@ def main() -> int:
         timeline.append({
             "id": scene.id,
             "action": scene.action,
+            # Title-card scenes render from titles/<card>.html instead of the app.
+            "card": scene.card,
             "digest": digest,
             "audio": wav.name,
             "speech_seconds": seconds,

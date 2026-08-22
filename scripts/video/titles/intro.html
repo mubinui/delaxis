@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Delaxis 2.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap">
+<style>
+/* The card is built from the Studio's own tokens and mark rather than a
+   separate title design, so the video opens on the product's actual identity. */
+:root {
+    --ink: #0a0d14;
+    --paper: #f2f5fa;
+    --muted: #8892a5;
+    --accent: #5b7cff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: var(--ink);
+    font-family: Inter, system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Two very low-opacity washes, the same treatment the dark Studio uses. */
+    background-image:
+        radial-gradient(ellipse 70% 60% at 50% 35%, rgba(91, 124, 255, 0.16), transparent),
+        radial-gradient(ellipse 50% 50% at 80% 90%, rgba(164, 118, 255, 0.10), transparent);
+}
+
+.stage { text-align: center; }
+
+/* The mark draws itself: the axis wipes in, then each node lands along it. */
+.mark { width: 190px; height: 190px; margin: 0 auto 46px; display: block; }
+
+.axis {
+    stroke: var(--paper);
+    stroke-width: 6;
+    stroke-linecap: round;
+    opacity: 0.35;
+    stroke-dasharray: 74;
+    stroke-dashoffset: 74;
+    animation: draw 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+}
+
+.node {
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: pop 0.5s cubic-bezier(0.34, 1.5, 0.64, 1) forwards;
+}
+.node.a { animation-delay: 0.70s; }
+.node.b { animation-delay: 0.88s; }
+.node.c { animation-delay: 1.06s; }
+
+/* The leading node keeps pulsing — the graph is live, not a static logo. */
+.node.c circle { animation: glow 2.1s ease-in-out 1.7s infinite; }
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes pop {
+    0%   { opacity: 0; transform: scale(0.2); }
+    100% { opacity: 1; transform: scale(1); }
+}
+@keyframes glow {
+    0%, 100% { filter: drop-shadow(0 0 0 rgba(91,124,255,0)); }
+    50%      { filter: drop-shadow(0 0 18px rgba(91,124,255,0.85)); }
+}
+
+h1 {
+    font-size: 104px;
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    color: var(--paper);
+    opacity: 0;
+    animation: rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) 1.15s forwards;
+}
+
+.version {
+    display: inline-block;
+    margin-left: 18px;
+    font-size: 44px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+    vertical-align: super;
+}
+
+p {
+    margin-top: 22px;
+    font-size: 30px;
+    font-weight: 400;
+    color: var(--muted);
+    letter-spacing: 0.005em;
+    opacity: 0;
+    animation: rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) 1.45s forwards;
+}
+
+.rule {
+    width: 0;
+    height: 2px;
+    margin: 40px auto 0;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: widen 1.1s cubic-bezier(0.22, 1, 0.36, 1) 1.7s forwards;
+}
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(26px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes widen { to { width: 620px; } }
+</style>
+</head>
+<body>
+<div class="stage">
+    <svg class="mark" viewBox="0 0 100 100" fill="none" aria-label="Delaxis">
+        <line class="axis" x1="24" y1="76" x2="76" y2="24" />
+        <g class="node a"><circle cx="24" cy="76" r="11" fill="#f2f5fa" /></g>
+        <g class="node b"><circle cx="50" cy="50" r="11" fill="#f2f5fa" /></g>
+        <g class="node c"><circle cx="76" cy="24" r="11" fill="#5b7cff" /></g>
+    </svg>
+
+    <h1>Delaxis<span class="version">2.0</span></h1>
+    <p>Build multi-agent systems by describing what you want</p>
+    <div class="rule"></div>
+</div>
+</body>
+</html>
