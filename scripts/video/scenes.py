@@ -33,7 +33,7 @@ SCENES: list[Scene] = [
         id="intro",
         action="title_card",
         card="intro",
-        say="Introducing Delaxis two point oh.",
+        say="Introducing Delaxis, version two point one.",
         tail_seconds=1.4,
     ),
     Scene(
@@ -155,7 +155,7 @@ SCENES: list[Scene] = [
         action="title_card",
         card="outro",
         say=(
-            "Delaxis two point oh. Free, open source, and yours to self host. "
+            "Delaxis two point one. Free, open source, and yours to self host. "
             "Pull the container, or try the live demo in your browser right now."
         ),
         tail_seconds=2.2,

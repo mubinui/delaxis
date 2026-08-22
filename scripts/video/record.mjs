@@ -6,6 +6,7 @@
  * needs no manual alignment — both halves follow the same list of scenes.
  *
  *     node scripts/video/record.mjs
+ *     node scripts/video/record.mjs --only=card    # just the title cards
  *     DELAXIS_URL=http://localhost:8000 node scripts/video/record.mjs
  *
  * A synthetic cursor is drawn into the page, because a capture made this way has
@@ -17,7 +18,7 @@
  * stops the run rather than silently recording a still frame.
  */
 
-import { mkdirSync, readFileSync, readdirSync, renameSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -390,48 +391,87 @@ const run = async () => {
         throw new Error(`no action implemented for: ${names}`);
     }
 
-    const browser = await chromium.launch({ args: ['--force-device-scale-factor=1'] });
-    const context = await browser.newContext({
-        viewport: { width: WIDTH, height: HEIGHT },
-        deviceScaleFactor: 1,
-        recordVideo: { dir: BUILD, size: { width: WIDTH, height: HEIGHT } },
-        colorScheme: 'light',
-    });
-
-    await context.addInitScript(() => { try { localStorage.setItem('delaxis-theme', 'light'); } catch {} });
-    await context.addInitScript(CURSOR_SCRIPT);
-
-    const page = await context.newPage();
-    // Well under the shortest scene, so a missed selector costs a beat rather
-    // than pushing the shot past its narration.
-    page.setDefaultTimeout(3000);
-
-    const started = Date.now();
+    // Title cards and the app body are recorded separately so the assembler can
+    // dissolve between them; a single continuous capture cannot be crossfaded
+    // into itself.
+    const segments = [];
     for (const scene of timeline.scenes) {
-        const sceneStart = Date.now();
-        process.stdout.write(`  ${scene.id.padEnd(18)} ${scene.hold_seconds.toFixed(1)}s `);
-
-        try {
-            await ACTIONS[scene.action](page, scene);
-        } catch (error) {
-            process.stdout.write(`(action failed: ${error.message.split('\n')[0]}) `);
-        }
-
-        const remaining = scene.hold_seconds * 1000 - (Date.now() - sceneStart);
-        if (remaining > 0) await sleep(remaining);
-        process.stdout.write(`✓ ${((Date.now() - sceneStart) / 1000).toFixed(1)}s\n`);
+        const kind = scene.card ? `card-${scene.card}` : 'body';
+        const last = segments[segments.length - 1];
+        if (last && last.kind === kind) last.scenes.push(scene);
+        else segments.push({ kind, scenes: [scene] });
     }
 
-    await context.close();
+    // Re-recording a subset keeps the segments it skipped, so iterating on a
+    // title card does not mean driving the whole app tour again.
+    const only = (process.argv.find((a) => a.startsWith('--only=')) ?? '').split('=')[1] ?? '';
+    let previous = [];
+    if (only) {
+        try {
+            previous = JSON.parse(readFileSync(join(BUILD, 'segments.json'), 'utf8')).segments;
+        } catch {
+            throw new Error('--only needs an earlier full recording to keep the other segments from');
+        }
+    }
+
+    const browser = await chromium.launch({ args: ['--force-device-scale-factor=1'] });
+    const started = Date.now();
+    const written = [];
+
+    for (const [index, segment] of segments.entries()) {
+        if (only && !segment.kind.includes(only)) {
+            const kept = previous[index];
+            if (!kept) throw new Error(`nothing recorded earlier for segment ${index} (${segment.kind})`);
+            written.push(kept);
+            console.log(`  ${segment.kind.padEnd(18)} kept`);
+            continue;
+        }
+
+        const context = await browser.newContext({
+            viewport: { width: WIDTH, height: HEIGHT },
+            deviceScaleFactor: 1,
+            recordVideo: { dir: BUILD, size: { width: WIDTH, height: HEIGHT } },
+            colorScheme: 'light',
+        });
+        await context.addInitScript(() => { try { localStorage.setItem('delaxis-theme', 'light'); } catch {} });
+        await context.addInitScript(CURSOR_SCRIPT);
+
+        const page = await context.newPage();
+        // Well under the shortest scene, so a missed selector costs a beat
+        // rather than pushing the shot past its narration.
+        page.setDefaultTimeout(3000);
+
+        for (const scene of segment.scenes) {
+            const sceneStart = Date.now();
+            process.stdout.write(`  ${scene.id.padEnd(18)} ${scene.hold_seconds.toFixed(1)}s `);
+            try {
+                await ACTIONS[scene.action](page, scene);
+            } catch (error) {
+                process.stdout.write(`(action failed: ${error.message.split('\n')[0]}) `);
+            }
+            const remaining = scene.hold_seconds * 1000 - (Date.now() - sceneStart);
+            if (remaining > 0) await sleep(remaining);
+            process.stdout.write(`✓ ${((Date.now() - sceneStart) / 1000).toFixed(1)}s\n`);
+        }
+
+        await context.close();
+
+        const newest = readdirSync(BUILD)
+            .filter((f) => f.endsWith('.webm') && !f.startsWith('segment-'))
+            .map((f) => ({ f, t: statSync(join(BUILD, f)).mtimeMs }))
+            .sort((a, b) => b.t - a.t)[0];
+        const name = `segment-${String(index).padStart(2, '0')}-${segment.kind}.webm`;
+        if (newest) {
+            renameSync(join(BUILD, newest.f), join(BUILD, name));
+            written.push({ file: name, kind: segment.kind, scenes: segment.scenes.map((s) => s.id) });
+        }
+    }
+
     await browser.close();
+    writeFileSync(join(BUILD, 'segments.json'), JSON.stringify({ segments: written }, null, 2) + '\n');
 
-    const newest = readdirSync(BUILD)
-        .filter((f) => f.endsWith('.webm'))
-        .map((f) => ({ f, t: statSync(join(BUILD, f)).mtimeMs }))
-        .sort((a, b) => b.t - a.t)[0];
-    if (newest) renameSync(join(BUILD, newest.f), join(BUILD, 'screen.webm'));
-
-    console.log(`\n  recorded ${((Date.now() - started) / 1000).toFixed(1)}s -> ${join(BUILD, 'screen.webm')}`);
+    console.log(`\n  recorded ${((Date.now() - started) / 1000).toFixed(1)}s across ${written.length} segment(s)`);
+    for (const item of written) console.log(`    ${item.file}  [${item.scenes.join(', ')}]`);
 };
 
 run().catch((error) => {

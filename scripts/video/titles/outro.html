@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
+/* The closing card holds for twelve seconds while the narration reads out the
+   three ways in, so it is built to keep moving for all of them: the background
+   drifts, the whole stage pushes slowly, and each card catches a pass of light
+   as it lands. A still frame would feel like the video had ended early. */
 :root {
     --ink: #0a0d14;
     --surface: #161b26;
@@ -14,6 +18,7 @@
     --paper: #f2f5fa;
     --muted: #8892a5;
     --accent: #5b7cff;
+    --violet: #a476ff;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -23,16 +28,45 @@ body {
     height: 1080px;
     overflow: hidden;
     background: var(--ink);
-    background-image:
-        radial-gradient(ellipse 70% 60% at 50% 30%, rgba(91, 124, 255, 0.14), transparent),
-        radial-gradient(ellipse 50% 50% at 15% 95%, rgba(164, 118, 255, 0.09), transparent);
     font-family: Inter, system-ui, sans-serif;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.stage { text-align: center; }
+.wash {
+    position: fixed;
+    inset: -15%;
+    background-image:
+        radial-gradient(ellipse 60% 55% at 52% 28%, rgba(91, 124, 255, 0.18), transparent 70%),
+        radial-gradient(ellipse 45% 45% at 14% 92%, rgba(164, 118, 255, 0.12), transparent 70%);
+    animation: drift 26s ease-in-out infinite alternate;
+}
+
+.vignette {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 78% 72% at 50% 50%, transparent 48%, rgba(0, 0, 0, 0.5));
+    pointer-events: none;
+}
+
+@keyframes drift {
+    from { transform: translate3d(1.5%, 1%, 0) scale(1.05); }
+    to   { transform: translate3d(-1.5%, -1.5%, 0) scale(1.12); }
+}
+
+.stage {
+    position: relative;
+    text-align: center;
+    animation: push 14s cubic-bezier(0.33, 0, 0.3, 1) forwards;
+}
+
+@keyframes push {
+    from { transform: scale(1.03); }
+    to   { transform: scale(1); }
+}
+
+/* ---- lockup --------------------------------------------------------------- */
 
 .lockup {
     display: flex;
@@ -40,47 +74,97 @@ body {
     justify-content: center;
     gap: 22px;
     opacity: 0;
-    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+    animation: rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
 }
 
-.mark { width: 88px; height: 88px; }
-.mark .node.c circle { animation: glow 2.2s ease-in-out 1s infinite; }
+.mark { width: 92px; height: 92px; overflow: visible; }
 
-@keyframes glow {
-    0%, 100% { filter: drop-shadow(0 0 0 rgba(91,124,255,0)); }
-    50%      { filter: drop-shadow(0 0 16px rgba(91,124,255,0.8)); }
+.ping {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 3;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ping 3.4s cubic-bezier(0.16, 1, 0.3, 1) 1.2s infinite;
+}
+
+@keyframes ping {
+    0%       { opacity: 0.7; transform: scale(0.6); }
+    35%      { opacity: 0; transform: scale(2.3); }
+    100%     { opacity: 0; transform: scale(2.3); }
 }
 
 .wordmark {
-    font-size: 66px;
+    font-size: 68px;
     font-weight: 800;
     letter-spacing: -0.04em;
     color: var(--paper);
 }
-.wordmark span { color: var(--accent); font-size: 30px; vertical-align: super; margin-left: 10px; }
+.wordmark span {
+    margin-left: 14px;
+    padding: 5px 14px;
+    border: 1px solid rgba(91, 124, 255, 0.45);
+    border-radius: 999px;
+    background: rgba(91, 124, 255, 0.12);
+    color: var(--accent);
+    font-size: 26px;
+    font-weight: 600;
+    vertical-align: middle;
+}
 
-/* Each way in gets its own card, arriving in sequence so the eye has somewhere
-   to land rather than meeting three blocks of text at once. */
+/* ---- the three ways in ---------------------------------------------------- */
+
+/* Each way gets its own card, arriving in sequence so the eye has somewhere to
+   land rather than meeting three blocks of text at once. */
 .ways {
     display: flex;
-    gap: 22px;
+    gap: 24px;
     justify-content: center;
-    margin-top: 58px;
+    margin-top: 60px;
+    perspective: 1400px;
 }
 
 .way {
-    width: 430px;
-    padding: 30px 28px;
+    position: relative;
+    overflow: hidden;
+    width: 436px;
+    padding: 32px 30px;
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 18px;
     background: var(--surface);
     text-align: left;
     opacity: 0;
-    animation: rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    box-shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.9);
+    animation: settle 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-.way:nth-child(1) { animation-delay: 0.75s; }
-.way:nth-child(2) { animation-delay: 0.95s; }
-.way:nth-child(3) { animation-delay: 1.15s; }
+
+/* A pass of light across the card, timed to arrive just after it does. */
+.way::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.07) 50%, transparent 65%);
+    background-size: 260% 100%;
+    background-position: 130% 0;
+    animation: pass 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.way:nth-child(1)          { animation-delay: 0.80s; }
+.way:nth-child(1)::after   { animation-delay: 1.20s; }
+.way:nth-child(2)          { animation-delay: 1.02s; }
+.way:nth-child(2)::after   { animation-delay: 1.42s; }
+.way:nth-child(3)          { animation-delay: 1.24s; }
+.way:nth-child(3)::after   { animation-delay: 1.64s; }
+
+@keyframes settle {
+    from { opacity: 0; transform: translateY(34px) rotateX(9deg) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+}
+
+@keyframes pass {
+    to { background-position: -130% 0; }
+}
 
 .label {
     font-size: 13px;
@@ -91,7 +175,7 @@ body {
 }
 
 .value {
-    margin-top: 12px;
+    margin-top: 13px;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 20px;
     line-height: 1.5;
@@ -99,24 +183,37 @@ body {
     word-break: break-all;
 }
 
-.note { margin-top: 10px; font-size: 16px; color: var(--muted); }
+.note { margin-top: 11px; font-size: 16px; color: var(--muted); }
 
 .footer {
-    margin-top: 56px;
+    margin-top: 58px;
     font-size: 22px;
     color: var(--muted);
     opacity: 0;
-    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) 1.5s forwards;
+    animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 1.9s forwards;
 }
 .footer strong { color: var(--paper); font-weight: 600; }
 
+/* The rule keeps widening under the footer for several seconds, so the last
+   thing still resolving on screen is the thing the viewer should act on. */
+.rule {
+    width: 0;
+    height: 2px;
+    margin: 34px auto 0;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--violet), transparent);
+    animation: widen 4.5s cubic-bezier(0.22, 1, 0.36, 1) 2.2s forwards;
+}
+
 @keyframes rise {
-    from { opacity: 0; transform: translateY(24px); }
+    from { opacity: 0; transform: translateY(26px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes widen { to { width: 760px; } }
 </style>
 </head>
 <body>
+<div class="wash"></div>
+
 <div class="stage">
     <div class="lockup">
         <svg class="mark" viewBox="0 0 100 100" fill="none" aria-label="Delaxis">
@@ -124,9 +221,10 @@ body {
                   stroke-linecap="round" opacity="0.35" />
             <circle cx="24" cy="76" r="11" fill="#f2f5fa" />
             <circle cx="50" cy="50" r="11" fill="#f2f5fa" />
-            <g class="node c"><circle cx="76" cy="24" r="11" fill="#5b7cff" /></g>
+            <circle cx="76" cy="24" r="11" fill="#5b7cff" />
+            <circle class="ping" cx="76" cy="24" r="11" />
         </svg>
-        <div class="wordmark">Delaxis<span>2.0</span></div>
+        <div class="wordmark">Delaxis<span>2.1</span></div>
     </div>
 
     <div class="ways">
@@ -148,6 +246,9 @@ body {
     </div>
 
     <div class="footer">Free and open source · <strong>Build it by talking, or build it by hand</strong></div>
+    <div class="rule"></div>
 </div>
+
+<div class="vignette"></div>
 </body>
 </html>
