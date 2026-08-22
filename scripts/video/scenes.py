@@ -51,7 +51,7 @@ SCENES: list[Scene] = [
         chapter="intro",
         card="intro",
         say="Introducing Delaxis, version two point one.",
-        tail_seconds=1.4,
+        tail_seconds=4.0,
     ),
 
     # -- what it is ---------------------------------------------------------
@@ -271,6 +271,6 @@ SCENES: list[Scene] = [
             "Delaxis two point one. Free, open source, and yours to self host. "
             "Pull the container, or try the live demo in your browser right now."
         ),
-        tail_seconds=2.2,
+        tail_seconds=4.0,
     ),
 ]

@@ -209,6 +209,8 @@ def main() -> int:
             print(f"  [{index:02d}] {scene.id:18} cached  {seconds:6.2f}s")
         else:
             pcm = synthesise(scene.say, key)
+            if scene.id == "intro":
+                pcm = (b"\x00" * SAMPLE_RATE * 2) + pcm
             seconds = write_wav(wav, pcm)
             print(f"  [{index:02d}] {scene.id:18} render  {seconds:6.2f}s")
 

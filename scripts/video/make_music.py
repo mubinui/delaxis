@@ -78,61 +78,37 @@ CEILING_DBFS = -1.5
 # --------------------------------------------------------------------------- #
 
 
-def pluck(frequency: float, seconds: float, half_life: float = 1.8,
-          softness: float = 0.5) -> np.ndarray:
-    """One plucked note, by Karplus-Strong.
-
-    A delay line one period long is filled with noise and then fed back through
-    a two-sample average. The averaging is a gentle low-pass, so each trip round
-    the loop loses a little more of the top: the note starts bright, settles
-    into its fundamental and fades, which is what a real string does.
-
-    ``half_life`` is how long the note takes to fall by half, in seconds. It is
-    given in time rather than as a feedback coefficient because the loop runs
-    once per period: the same coefficient rings for two seconds at the bottom of
-    the range and under half a second at the top, which makes an arpeggio sound
-    like it is speeding up as it rises.
-
-    ``softness`` blurs the initial noise burst. A raw burst sounds like a
-    plectrum; a blurred one sounds closer to a harp, which is the tone this
-    wants.
+def synth_note(frequency: float, seconds: float, half_life: float = 1.8,
+               softness: float = 0.5) -> np.ndarray:
+    """A smooth, professional FM electric piano / bell note.
+    
+    Provides a cleaner, more modern corporate tech sound compared to the
+    experimental Karplus-Strong plucked strings.
     """
-    length = max(2, int(round(RATE / frequency)))
     count = int(seconds * RATE)
-    # Per-trip loss that lands on the requested half-life at this pitch.
-    damping = 0.5 ** (length / (RATE * half_life))
-
-    # Seeded from the pitch, so a given note is identical between renders.
-    rng = np.random.default_rng(int(frequency * 1000) % (2 ** 31))
-    excitation = rng.uniform(-1.0, 1.0, length)
-
-    width = max(3, int(length * softness) | 1)  # odd, so the blur stays centred
-    window = np.hanning(width)
-    excitation = np.convolve(excitation, window / window.sum(), mode="same")
-
-    # One sample of history in front, because the feedback reads two samples back.
-    buffer = np.zeros(count + length + 1)
-    buffer[1:length + 1] = excitation
-
-    # Advanced a whole period at a time: everything a block needs was written by
-    # the block before it, so the loop runs a few hundred times rather than a
-    # few hundred thousand.
-    for start in range(length + 1, count + length + 1, length):
-        end = min(start + length, count + length + 1)
-        buffer[start:end] = damping * 0.5 * (
-            buffer[start - length:end - length] + buffer[start - length - 1:end - length - 1]
-        )
-
-    note = buffer[1:count + 1]
-    # Ease the tail to nothing so a note that is still ringing when the piece
-    # ends does not cut off square.
+    t = np.arange(count) / RATE
+    
+    # Envelope: quick attack, exponential decay
+    attack_time = 0.05 * softness
+    decay = np.exp(-t * (0.693 / half_life))
+    attack = np.clip(t / attack_time, 0, 1)
+    env = attack * decay
+    
+    # FM Synthesis
+    # Modulator creates the bright attack that fades into a pure sine wave
+    mod_index = 2.5 * env  # modulation index decreases as note decays
+    mod_ratio = 2.01       # slightly inharmonic for a warm electric piano/bell tone
+    modulator = np.sin(2 * np.pi * (frequency * mod_ratio) * t)
+    
+    carrier = np.sin(2 * np.pi * frequency * t + mod_index * modulator)
+    
+    note = carrier * env
+    
+    # Ease the tail
     tail = int(0.25 * RATE)
     if count > tail:
         note[-tail:] *= np.linspace(1.0, 0.0, tail) ** 2
-
-    # Normalise: a shorter delay line concentrates the same excitation into
-    # fewer samples, so without this the top of the arpeggio stabs out several
-    # times louder than the bottom.
+        
     loudest = np.abs(note).max()
     return note / loudest if loudest > 0 else note
 
@@ -170,12 +146,12 @@ OPENING: tuple[tuple[float, float], ...] = (
 
 def _opening(out: np.ndarray) -> None:
     for index, (at, frequency) in enumerate(OPENING):
-        _place(out, at, pluck(frequency, 6.0, half_life=2.4, softness=0.45),
+        _place(out, at, synth_note(frequency, 6.0, half_life=2.4, softness=0.45),
                0.62 - index * 0.03)
     # The chord underneath, so the four notes arrive somewhere rather than
     # simply stopping. Rolled very slightly, the way a hand would play it.
     for index, frequency in enumerate((110.00, 220.00, 261.63, 329.63, 440.00)):
-        _place(out, 3.05 + index * 0.055, pluck(frequency, 8.0, half_life=3.0, softness=0.6),
+        _place(out, 3.05 + index * 0.055, synth_note(frequency, 8.0, half_life=3.0, softness=0.6),
                0.30 - index * 0.02)
 
 
@@ -194,11 +170,11 @@ def _arpeggio(out: np.ndarray, seconds: float) -> None:
         # The first note of each chord is the one that says the harmony changed,
         # so it is a little stronger than the ones filling in behind it.
         weight = 0.34 if index % ARPEGGIO == 0 else 0.21
-        _place(out, at, pluck(note, 5.0, half_life=1.9, softness=0.5), weight * level)
+        _place(out, at, synth_note(note, 5.0, half_life=1.9, softness=0.5), weight * level)
 
         # The root an octave down on the chord change, quiet, for the floor.
         if index % ARPEGGIO == 0:
-            _place(out, at, pluck(low / 2, 7.0, half_life=2.8, softness=0.75), 0.24 * level)
+            _place(out, at, synth_note(low / 2, 7.0, half_life=2.8, softness=0.75), 0.24 * level)
 
         at += step
         index += 1
