@@ -324,3 +324,91 @@ class TestErrorText:
 
     def test_empty_body_falls_back_to_the_status(self):
         assert self._run("", 502) == "Request failed with 502"
+
+
+class TestAttachments:
+    """File upload in the deployed chat page.
+
+    The page is generated as one HTML string, so these assert the machinery is
+    present and wired rather than driving a browser; the end-to-end behaviour is
+    covered by exercising the RAG upload endpoint it posts to.
+    """
+
+    @staticmethod
+    def _page() -> str:
+        return default_chatbot_html(
+            title="Bot", greeting="Hi", workflow_id="wf_1",
+            provider_id="openrouter", model_id="", theme="midnight",
+            config={"workflow_id": "wf_1"},
+        )
+
+    def test_the_composer_has_an_attach_control(self):
+        page = self._page()
+        assert 'id="attach"' in page and 'id="files"' in page and 'id="chips"' in page
+
+    def test_uploads_go_to_a_per_conversation_collection(self):
+        # One visitor's uploads must not be retrievable from another's chat.
+        page = self._page()
+        assert "'chat-' + sessionId" in page
+        assert "/api/v1/rag/collections/" in page
+
+    def test_multipart_upload_does_not_set_its_own_content_type(self):
+        # Setting it by hand omits the boundary the browser generates, and the
+        # server rejects the body as malformed.
+        page = self._page()
+        upload = page[page.index("async function uploadStaged"):]
+        upload = upload[:upload.index("\n    }")]
+        assert "FormData" in upload
+        assert "Content-Type" not in upload
+
+    def test_the_passages_travel_with_the_question(self):
+        # Naming the file and telling the agent to retrieve it only works if that
+        # workflow happens to have a retrieval tool. Asked about a file it could
+        # not read, a model answers from the filename and invents the contents.
+        page = self._page()
+        assert "withAttachmentContext" in page
+        helper = page[page.index("async function withAttachmentContext"):]
+        helper = helper[:helper.index("\n    async function send")]
+        assert "top_k" in helper
+        assert "The relevant extracts follow" in helper
+        assert "could not be read" in helper      # the honest path when retrieval fails
+
+    def test_attachments_are_shown_in_the_sent_message(self):
+        assert "message.attachments" in self._page()
+
+    def test_drag_and_drop_is_accepted(self):
+        assert "dragover" in self._page() and "drop" in self._page()
+
+
+class TestPageGeneration:
+    """Deployed pages are written to disk, so they need a way to be refreshed."""
+
+    @staticmethod
+    def _page() -> str:
+        return default_chatbot_html(
+            title="Bot", greeting="Hi", workflow_id="wf_1", provider_id="openrouter",
+            model_id="", theme="midnight", config={"workflow_id": "wf_1"},
+        )
+
+    def test_generated_pages_are_stamped(self):
+        from src.api.chatbot_page import PAGE_VERSION, page_generation
+
+        assert page_generation(self._page()) == PAGE_VERSION
+
+    def test_a_custom_page_is_not_claimed(self):
+        from src.api.chatbot_page import page_generation
+
+        # Returning a number here would mean overwriting somebody else's HTML.
+        assert page_generation("<html><body>my own page</body></html>") is None
+
+    def test_pages_predating_the_stamp_are_still_recognised(self):
+        from src.api.chatbot_page import page_generation
+
+        legacy = '<html><body><div id="chats"></div><div class="composer"></div></body></html>'
+        assert page_generation(legacy) == 1
+
+    def test_an_untemplated_page_is_not_mistaken_for_generated(self):
+        from src.api.chatbot_page import page_generation
+
+        # A raw template still holding its placeholder has not been rendered.
+        assert page_generation('<div id="chats"></div><div class="composer">__CHATBOT_CONFIG__</div>') is None

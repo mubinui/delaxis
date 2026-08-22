@@ -17,8 +17,11 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field, field_validator
 
+from src.audit_logging import get_logger
 from src.api.chatbot_page import (
+    PAGE_VERSION,
     default_chatbot_html,
+    page_generation,
     embed_script,
     ensure_config_contract,
     ensure_markdown_support,
@@ -34,6 +37,8 @@ router = APIRouter(prefix="/api/v1/deployments", tags=["deployments"])
 
 # Public router (no /api prefix) that serves the deployed chatbot pages
 pages_router = APIRouter(tags=["deployments"])
+
+logger = get_logger(__name__)
 
 # Anchored to the repo root so deployments resolve regardless of the CWD the
 # app was started from; DELAXIS_DATA_DIR overrides for containers/tests.
@@ -406,6 +411,48 @@ async def redirect_deployment_page(deployment_id: str) -> RedirectResponse:
     return RedirectResponse(url=f"/d/{deployment_id}/", status_code=307)
 
 
+def _refresh_page_if_stale(deployment_id: str, index: Path) -> None:
+    """Re-render a page that this server generated before the template moved on.
+
+    Pages are written to disk when a deployment is created, so a fix to the
+    template would otherwise only ever reach deployments made afterwards — an
+    existing chatbot would keep showing the old bug forever. Rendering is
+    deterministic from the stored configuration, so regenerating is safe.
+
+    Only pages this server generated are touched: a custom frontend is somebody
+    else's HTML and is left exactly as it was deployed.
+    """
+    try:
+        html = index.read_text(encoding="utf-8")
+    except OSError:
+        return
+
+    generation = page_generation(html)
+    if generation is None or generation >= PAGE_VERSION:
+        return
+
+    config_path = index.parent / "deployment.json"
+    if not config_path.exists():
+        return
+
+    try:
+        stored = json.loads(config_path.read_text(encoding="utf-8"))
+        refreshed, _warnings = _render_deployment_html(DeploymentCreateRequest(**stored))
+        index.write_text(refreshed, encoding="utf-8")
+    except Exception as exc:
+        # Serving the old page is better than serving none, so this never
+        # raises into the request.
+        logger.warning(
+            "deployment_page_refresh_failed", deployment_id=deployment_id, error=str(exc)
+        )
+        return
+
+    logger.info(
+        "deployment_page_refreshed",
+        deployment_id=deployment_id, previous=generation, current=PAGE_VERSION,
+    )
+
+
 @pages_router.get("/d/{deployment_id}/", include_in_schema=False)
 async def serve_deployment_page(deployment_id: str) -> FileResponse:
     """Serve a deployed chatbot page same-origin."""
@@ -416,4 +463,5 @@ async def serve_deployment_page(deployment_id: str) -> FileResponse:
         raise HTTPException(status_code=404, detail="Deployment not found")
     if not index.exists():
         raise HTTPException(status_code=404, detail=f"Deployment not found: {deployment_id}")
+    _refresh_page_if_stale(deployment_id, index)
     return FileResponse(index, media_type="text/html")

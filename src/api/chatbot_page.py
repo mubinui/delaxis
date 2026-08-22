@@ -14,6 +14,13 @@ from html import escape
 from typing import Any
 from urllib.parse import urlparse
 
+#: Bumped whenever the generated page changes in a way existing deployments
+#: should receive. Pages are written to disk at deploy time, so without this a
+#: fix to the page — an error message that read "[object Object]", say — would
+#: only ever reach deployments created afterwards.
+PAGE_VERSION = 3
+GENERATOR = "delaxis-chatbot-page"
+
 DEFAULT_THEME = "midnight"
 
 # Each theme is a map of CSS variable name -> value, emitted as a :root block.
@@ -1251,6 +1258,9 @@ PAGE_TEMPLATE = r"""<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Identifies this page as one this server generated, and which revision of
+       it, so a deployment written before a fix can be refreshed in place. -->
+  <meta name="generator" content="__GENERATOR__" />
   <title>__TITLE__</title>
   <script>window.CHATBOT_CONFIG = __CHATBOT_CONFIG__;</script>
   <style>
@@ -1370,6 +1380,41 @@ PAGE_TEMPLATE = r"""<!doctype html>
       border-radius: 10px; font: inherit; font-size: 14px; line-height: 1.45;
     }
     .composer textarea:focus { outline: none; border-color: var(--accent); }
+
+    /* Attachments. The button matches the mic so the two controls flanking the
+       box read as a pair rather than as two unrelated widgets. */
+    .attach {
+      flex: 0 0 auto; width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--muted); display: grid; place-items: center;
+    }
+    .attach:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+    .attach:disabled { opacity: .5; cursor: not-allowed; }
+    .attach svg { width: 18px; height: 18px; display: block; }
+
+    .chips { max-width: 780px; margin: 0 auto 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .chips[hidden] { display: none; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+      padding: 5px 8px 5px 11px; border-radius: 999px; font-size: 12.5px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    }
+    .chip.pending { opacity: .6; }
+    .chip.failed { border-color: #d9534f; color: #d9534f; }
+    .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip button {
+      border: 0; background: none; cursor: pointer; color: var(--muted);
+      font-size: 15px; line-height: 1; padding: 0 2px;
+    }
+    .chip button:hover { color: var(--text); }
+
+    /* Attachments shown inside a sent message, so the transcript records what
+       was actually sent rather than only the words. */
+    .bubble .files { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .bubble .files em {
+      font-style: normal; font-size: 12px; padding: 3px 9px; border-radius: 999px;
+      background: rgba(127, 127, 127, .18);
+    }
     .send {
       border: 0; background: var(--accent); color: var(--accent-text);
       border-radius: var(--brand-radius, 10px); padding: 0 18px; height: 44px; font-weight: 700;
@@ -1450,7 +1495,16 @@ PAGE_TEMPLATE = r"""<!doctype html>
       <div class="messages" id="messages"><div class="thread" id="thread"></div></div>
 
       <div class="composer">
+        <div class="chips" id="chips" hidden></div>
         <form id="form">
+          <input type="file" id="files" multiple hidden
+                 accept=".txt,.md,.markdown,.rst,.log,.csv,.tsv,.json,.jsonl,.yaml,.yml,.xml,.html,.pdf,.docx,.doc,.xlsx,.xls,.pptx,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.tiff">
+          <button class="attach" id="attach" type="button" aria-label="Attach a file" title="Attach a file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
           <textarea id="input" rows="1" placeholder="Ask anything…" autocomplete="off"></textarea>
           <!-- Unhidden by the voice client only when the deployment enables it,
                so a text-only deployment shows no dead control. -->
@@ -1544,7 +1598,75 @@ PAGE_TEMPLATE = r"""<!doctype html>
       statusText: document.getElementById('status-text'),
       drawer: document.getElementById('drawer'),
       scrim: document.getElementById('scrim'),
+      attach: document.getElementById('attach'),
+      filePicker: document.getElementById('files'),
+      chips: document.getElementById('chips'),
     };
+
+    // Files chosen but not yet sent. They are uploaded when the message is
+    // sent, not when they are picked: a visitor who changes their mind should
+    // not have left a file on the server.
+    let staged = [];
+
+    function renderChips() {
+      el.chips.replaceChildren();
+      el.chips.hidden = staged.length === 0;
+      staged.forEach((item, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'chip' + (item.state ? ' ' + item.state : '');
+
+        const label = document.createElement('span');
+        label.textContent = item.error ? item.file.name + ' — ' + item.error : item.file.name;
+        label.title = label.textContent;
+        chip.appendChild(label);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = '\u00d7';
+        remove.setAttribute('aria-label', 'Remove ' + item.file.name);
+        remove.addEventListener('click', () => {
+          staged.splice(index, 1);
+          renderChips();
+        });
+        chip.appendChild(remove);
+        el.chips.appendChild(chip);
+      });
+    }
+
+    /**
+     * Send the staged files up and index them.
+     *
+     * Multipart, so Content-Type is left alone deliberately — setting it by
+     * hand omits the boundary the browser generates and the server rejects the
+     * body as malformed.
+     */
+    async function uploadStaged(collection) {
+      if (!staged.length) return [];
+      const body = new FormData();
+      staged.forEach((item) => body.append('files', item.file, item.file.name));
+
+      const response = await fetch(
+        apiBase + '/api/v1/rag/collections/' + encodeURIComponent(collection) + '/files',
+        { method: 'POST', body },
+      );
+      if (!response.ok) throw new Error(errorText(await response.text(), response.status));
+
+      const result = await response.json();
+      const failed = (result.files || []).filter((file) => !file.indexed);
+      if (failed.length) {
+        // Keep the ones that failed on screen with their reason; drop the rest.
+        staged = staged.filter((item) =>
+          failed.some((file) => file.file === item.file.name));
+        staged.forEach((item) => {
+          const match = failed.find((file) => file.file === item.file.name);
+          item.state = 'failed';
+          item.error = (match && match.error) || 'could not be read';
+        });
+        renderChips();
+        throw new Error(failed.map((file) => file.file + ': ' + file.error).join('; '));
+      }
+      return (result.files || []).map((file) => file.file);
+    }
 
     function persist() {
       if (!settings.keepHistory) return;
@@ -1574,6 +1696,16 @@ PAGE_TEMPLATE = r"""<!doctype html>
       bubble.className = 'bubble';
       if (message.role === 'user') {
         bubble.textContent = message.content;
+        if (message.attachments && message.attachments.length) {
+          const files = document.createElement('div');
+          files.className = 'files';
+          message.attachments.forEach((name) => {
+            const tag = document.createElement('em');
+            tag.textContent = name;
+            files.appendChild(tag);
+          });
+          bubble.appendChild(files);
+        }
       } else {
         bubble.classList.add('md-content');
         bubble.innerHTML = renderMarkdown(message.content);
@@ -1781,22 +1913,87 @@ PAGE_TEMPLATE = r"""<!doctype html>
       renderChats();
     }
 
+    /**
+     * Put what the files actually say into the message.
+     *
+     * Naming the file and telling the agent to go and retrieve it only works if
+     * that particular workflow happens to have a retrieval tool attached. Asked
+     * about a file it could not read, a model does not say so — it answers from
+     * the filename and invents the contents, which is worse than refusing. So
+     * the passages are fetched here and travel with the question, and every
+     * workflow can answer from an attachment whether or not it has any tools.
+     */
+    async function withAttachmentContext(content, collection, names) {
+      const listed = names.join(', ');
+      let passages = [];
+      try {
+        const response = await fetch(
+          apiBase + '/api/v1/rag/collections/' + encodeURIComponent(collection) + '/query',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // A message with no words is still a request to look at the file.
+            body: JSON.stringify({ query: content || 'summarise this document', top_k: 6 }),
+          },
+        );
+        if (response.ok) passages = (await response.json()).results || [];
+      } catch (_) { /* fall through to the filenames alone */ }
+
+      if (!passages.length) {
+        return (content || 'I have attached a file.')
+          + '\n\n[Attached: ' + listed + '. The text could not be read, so answer only '
+          + 'from what is already known and say the attachment could not be read.]';
+      }
+
+      // Budgeted: a long document would otherwise crowd out the conversation.
+      let budget = 6000;
+      const quoted = [];
+      for (const passage of passages) {
+        const text = String(passage.text || '');
+        if (text.length > budget) break;
+        budget -= text.length;
+        quoted.push('--- ' + (passage.source || 'attachment') + ' ---\n' + text);
+      }
+
+      return (content || 'Please read the attached file and summarise it.')
+        + '\n\n[Attached: ' + listed + '. The relevant extracts follow. Answer from these, '
+        + 'and say so if they do not contain the answer.]\n\n'
+        + quoted.join('\n\n');
+    }
+
     async function send(text) {
       const content = String(text || '').trim();
-      if (!content || busy) return;
+      // A file on its own is a legitimate message — "here, read this".
+      if ((!content && !staged.length) || busy) return;
 
+      const attachments = staged.map((item) => item.file.name);
       busy = true;
       el.send.disabled = true;
-      messages.push({ role: 'user', content, timestamp: Date.now() });
+      el.attach.disabled = true;
+      messages.push({ role: 'user', content, attachments, timestamp: Date.now() });
       render();
-      setStatus('Thinking…');
+      setStatus(staged.length ? 'Uploading…' : 'Thinking…');
 
       try {
         const sessionId = await ensureSession();
+
+        // Indexed per conversation, so one visitor's uploads cannot be
+        // retrieved from another's chat.
+        let outbound = content;
+        if (staged.length) {
+          const collection = 'chat-' + sessionId;
+          const stored = await uploadStaged(collection);
+          staged = [];
+          renderChips();
+          setStatus('Reading…');
+          outbound = await withAttachmentContext(content, collection, stored);
+          setStatus('Thinking…');
+        }
+
         const data = await api('/api/v1/sessions/' + sessionId + '/messages', {
           method: 'POST',
           body: JSON.stringify({
-            message: content,
+            message: outbound,
             max_turns: cfg.max_turns || 10,
             metadata: { provider_id: cfg.provider_id, model_id: cfg.model_id },
           }),
@@ -1826,6 +2023,7 @@ PAGE_TEMPLATE = r"""<!doctype html>
       } finally {
         busy = false;
         el.send.disabled = false;
+        el.attach.disabled = false;
         render();
         el.input.focus();
       }
@@ -1933,6 +2131,30 @@ PAGE_TEMPLATE = r"""<!doctype html>
       send(text);
     });
 
+    el.attach.addEventListener('click', () => el.filePicker.click());
+    el.filePicker.addEventListener('change', () => {
+      for (const file of el.filePicker.files) {
+        staged.push({ file: file, state: 'pending', error: '' });
+      }
+      // Cleared, so picking the same file again after removing it still fires.
+      el.filePicker.value = '';
+      renderChips();
+      el.input.focus();
+    });
+
+    // Dropping a file on the page is what people try first.
+    ['dragover', 'drop'].forEach((name) => {
+      document.addEventListener(name, (event) => {
+        if (!event.dataTransfer || !Array.from(event.dataTransfer.types || []).includes('Files')) return;
+        event.preventDefault();
+        if (name !== 'drop') return;
+        for (const file of event.dataTransfer.files) {
+          staged.push({ file: file, state: 'pending', error: '' });
+        }
+        renderChips();
+      });
+    });
+
     // --- Boot --------------------------------------------------------------
     applySettings();
     renderChats();
@@ -1942,6 +2164,25 @@ PAGE_TEMPLATE = r"""<!doctype html>
 </body>
 </html>
 """
+
+
+def page_generation(html: str) -> int | None:
+    """Which revision of the built-in template produced ``html``, if it did.
+
+    ``None`` means the page did not come from here — a custom generated
+    frontend — and must be left alone. Pages written before the stamp existed
+    are recognised by markup only the built-in template has ever contained, so
+    they can be refreshed too rather than being stranded on the version they
+    happened to be deployed with.
+    """
+    match = re.search(
+        rf'<meta name="generator" content="{re.escape(GENERATOR)}/(\d+)"', html
+    )
+    if match:
+        return int(match.group(1))
+    if 'id="chats"' in html and 'class="composer"' in html and "__CHATBOT_CONFIG__" not in html:
+        return 1
+    return None
 
 
 def default_chatbot_html(
@@ -1970,6 +2211,7 @@ def default_chatbot_html(
     """
     return (
         PAGE_TEMPLATE
+        .replace("__GENERATOR__", f"{GENERATOR}/{PAGE_VERSION}")
         .replace("__VOICE_STYLE__", VOICE_STYLE if voice_enabled else "")
         .replace("__BRAND_CSS__", brand_css(brand))
         .replace("__TITLE__", escape(title))
