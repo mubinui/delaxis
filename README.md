@@ -35,6 +35,7 @@ No install, no API key — the real Studio running against an in-browser stub of
 - [Choosing an LLM provider](#choosing-an-llm-provider) — OpenAI, Gemini, Grok, Claude, local models
 - [Live voice](#live-voice) — talking to a chatbot over Gemini Live
 - [The Builder](#the-builder) — per-step model routing and spoken progress
+- [Retrieval](#retrieval)
 - [Tools](#tools) — data access, privacy, security, and audit
 - [Core concepts](#core-concepts)
 - [How it works](#how-it-works)
@@ -305,6 +306,60 @@ Pick a specific model from the dropdown and that choice is always honoured — a
 
 **And it narrates while it works.** The speaker button in the Builder header reads progress out loud — which model it escalated to, how many agents came back, whether the generated page passed validation — so a 30-second build is not a silent spinner. Narration uses the browser's built-in speech synthesis rather than a cloud voice: it starts instantly, costs nothing, needs no key, and cannot fail a build. Off until you turn it on; the preference is remembered.
 
+## Retrieval
+
+Ask questions of your own documents. Upload a file — in the Studio chat, in a
+deployed chatbot, over the API, or from the command line — and it is split into
+overlapping passages, embedded, and stored so agents can retrieve from it.
+
+Nothing needs configuring to start. Vectors go to a SQLite file under `data/`
+and text is embedded locally, so retrieval works on a fresh checkout with no
+keys and no extra service.
+
+```bash
+# index a directory
+python scripts/ingest_rag_documents.py --dir ./docs --collection handbook
+python scripts/ingest_rag_documents.py --list --collection handbook
+
+# or over HTTP, uploading and indexing in one request
+curl -F files=@handbook.pdf localhost:8000/api/v1/rag/collections/handbook/files
+curl -X POST localhost:8000/api/v1/rag/collections/handbook/query \
+     -H 'Content-Type: application/json' -d '{"query": "what is the refund window?"}'
+```
+
+Both halves are swappable, and everything above them is unchanged either way:
+
+| | Options |
+|---|---|
+| **Vector store** (`RAG_BACKEND`) | `sqlite` (default) · `qdrant` · `pgvector` · `pinecone` · `faiss` · `chromadb` |
+| **Embeddings** (`RAG_EMBEDDING_PROVIDER`) | `local` (default, no key) · `openai` · `gemini` |
+
+The `openai` provider is any service speaking that API, so `RAG_EMBEDDING_BASE_URL`
+points it at Ollama, LM Studio, vLLM, OpenRouter or Together just as easily. The
+`local` provider matches on words and word fragments rather than meaning — a good
+keyword search rather than a poor semantic one — which is the honest trade for
+needing no key.
+
+Backends other than `sqlite` and `pgvector` need their client installed:
+
+```bash
+uv pip install -e ".[qdrant]"        # or faiss, pinecone, chroma
+uv pip install -e ".[vectorstores]"  # all of them
+```
+
+### Attaching files to a chat
+
+The paperclip in either chat composer uploads a file, indexes it against that
+conversation alone, and sends the relevant passages with your question — so the
+agent answers from the document whether or not that workflow has a retrieval
+tool wired up.
+
+### Documents agents can hand back
+
+`generate_document` turns Markdown into a file with a download link: PDF, Word,
+Excel, HTML, Markdown, CSV, JSON or text. Headings, lists, tables and code
+blocks survive into all of them.
+
 ## Tools
 
 Every capability below is a tool your agents call, registered in
@@ -377,7 +432,7 @@ adapt it rather than starting from an empty canvas.
 | `web_research_chat` | single | Web search with citations before answering | a provider key |
 | `research_brief` | sequential | Gather → write, with a guardrail on the final answer | a provider key |
 | `content_pipeline` | sequential | Outline → draft → edit, three agents handing off | a provider key |
-| `docs_qa` | single | RAG pinned to a named collection | a RAG service |
+| `docs_qa` | single | Retrieval pinned to a named collection | nothing — retrieval is built in |
 | `support_triage` | selector | A triage agent delegating to three specialists | a provider key |
 
 Each carries `metadata.setup` listing exactly what it needs beyond an API key.
@@ -446,7 +501,11 @@ Authentication is **off by default** in development mode: every endpoint works u
 |---|---|---|
 | `REDIS_URL` | — | Redis cache |
 | `QDRANT_URL` / `QDRANT_API_KEY` / `QDRANT_COLLECTION` | — | Qdrant vector store |
-| `RAG_PIPELINE_ENABLED` / `RAG_PIPELINE_BASE_URL` / `RAG_PIPELINE_API_KEY` | `false` | External RAG service powering the `rag_*` tools |
+| `RAG_BACKEND` | `sqlite` | Where vectors live: `sqlite`, `qdrant`, `pgvector`, `pinecone`, `faiss`, `chromadb` |
+| `RAG_EMBEDDING_PROVIDER` | `local` | How text becomes vectors: `local` (no key), `openai`, `gemini` |
+| `RAG_EMBEDDING_MODEL` / `RAG_EMBEDDING_BASE_URL` | — | Embedding model, and the endpoint for OpenAI-compatible servers |
+| `PGVECTOR_URL` / `PINECONE_API_KEY` / `FAISS_PATH` / `CHROMA_PATH` | — | Settings for the backend you chose |
+| `RAG_PIPELINE_ENABLED` | `true` | Master switch for the `rag_*` tools |
 | `ENABLE_METRICS` / `PROMETHEUS_PORT` / `OTEL_EXPORTER_OTLP_ENDPOINT` | `true` / `9090` | Observability |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `ENCRYPTION_KEY` | — | Gmail integration via Google OAuth 2.0 |
 | `DELAXIS_VOICE_ENABLED` | `true` | [Live voice](#live-voice) kill switch (needs `GEMINI_API_KEY`) |
