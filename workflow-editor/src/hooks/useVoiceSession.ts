@@ -54,6 +54,13 @@ interface UseVoiceSessionOptions {
     token?: string;
     onTranscript?: (entry: VoiceTranscript) => void;
     /**
+     * Applies a canvas operation the model asked for, and returns one sentence
+     * describing what happened. That sentence is all the model learns about the
+     * outcome, so it has to be true — the hook does not invent a result when
+     * this is absent, it says the canvas is unavailable.
+     */
+    onToolCall?: (name: string, args: Record<string, any>) => Promise<string> | string;
+    /**
      * Called on every animation frame with the measured audio level. Kept out of
      * React state deliberately — 60 setState calls a second would re-render the
      * whole panel; the consumer writes CSS custom properties instead.
@@ -72,9 +79,16 @@ export const useVoiceSession = ({
     token,
     onTranscript,
     onLevels,
+    onToolCall,
 }: UseVoiceSessionOptions) => {
     const [state, setState] = useState<VoiceState>('idle');
     const [error, setError] = useState<string | null>(null);
+
+    // Held in a ref for the same reason as the transcript callback: the socket
+    // handler is created once, and a prop captured directly would go stale on
+    // the first re-render — which here would mean silently dropping edits.
+    const toolCallRef = useRef(onToolCall);
+    toolCallRef.current = onToolCall;
 
     const ws = useRef<WebSocket | null>(null);
     const inCtx = useRef<AudioContext | null>(null);
@@ -346,6 +360,33 @@ export const useVoiceSession = ({
                     case 'agent_text':
                         transcriptRef.current?.({ role: 'assistant', text: String(frame.d ?? '') });
                         break;
+                    case 'tool_call': {
+                        const name = String(frame.name ?? '');
+                        const args = (frame.args ?? {}) as Record<string, any>;
+                        const callId = String(frame.id ?? name);
+
+                        // Answer every call, including the ones that fail. The
+                        // upstream turn does not resume until it gets a
+                        // response, so a silent drop wedges the conversation.
+                        void (async () => {
+                            let output: string;
+                            try {
+                                output = toolCallRef.current
+                                    ? await toolCallRef.current(name, args)
+                                    : 'The canvas is not available in this session.';
+                            } catch (err) {
+                                output = `That failed: ${err instanceof Error ? err.message : 'unknown error'}.`;
+                            }
+                            transcriptRef.current?.({ role: 'assistant', text: output });
+                            if (ws.current?.readyState === WebSocket.OPEN) {
+                                ws.current.send(JSON.stringify({
+                                    t: 'tool_result',
+                                    responses: [{ id: callId, name, response: { result: output } }],
+                                }));
+                            }
+                        })();
+                        break;
+                    }
                     case 'error':
                         setError(String(frame.message ?? 'Voice error'));
                         setState('error');

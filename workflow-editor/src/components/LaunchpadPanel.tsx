@@ -9,6 +9,7 @@ import { isBuildCommand, narration, useBuildNarration } from '../hooks/useBuildN
 import { useVoiceSession, type VoiceLevels, type VoiceTranscript } from '../hooks/useVoiceSession';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
+import { applyVoiceOperation } from '../utils/voiceCanvasOps';
 import { workflowToCanvas } from '../utils/workflowToCanvas';
 
 type Tab = 'build' | 'api' | 'triggers' | 'frontend' | 'deploy';
@@ -109,12 +110,38 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         });
     }, []);
 
+    /**
+     * Applies what the spoken build partner asks for, against the live canvas.
+     *
+     * Store state is read through getState() rather than a subscription: the
+     * handler is held in a ref inside the hook, so a captured value would be
+     * whatever the canvas looked like when the session opened — several edits
+     * ago by the third or fourth thing the model says.
+     */
+    const handleVoiceToolCall = useCallback((name: string, args: Record<string, any>) => {
+        const workflow = useWorkflowStore.getState();
+        const library = useLibraryStore.getState();
+
+        const result = applyVoiceOperation(name, args, {
+            nodes: workflow.nodes,
+            edges: workflow.edges,
+            tools: library.savedTools,
+            agents: library.savedAgents,
+            providers: library.providers,
+        });
+
+        if (result.nodes) workflow.setNodes(result.nodes);
+        if (result.edges) workflow.setEdges(result.edges);
+        return result.say;
+    }, []);
+
     const voice = useVoiceSession({
         sessionId: null,
         purpose: 'builder',
         draft: buildInput,
         onTranscript: handleVoiceTranscript,
         onLevels: handleVoiceLevels,
+        onToolCall: handleVoiceToolCall,
     });
 
     // Selector-scoped so this panel doesn't re-render on every node/edge change on the canvas.
