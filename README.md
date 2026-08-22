@@ -75,7 +75,7 @@ Every screenshot above is from the [live demo](https://mubinui.github.io/delaxis
 
 ### Video tour
 
-A two-minute narrated walkthrough ships with each release: **[download `delaxis-2.0-tour.mp4`](../../releases/latest)**.
+A two-minute narrated walkthrough ships with each release: **[download `delaxis-2.1-tour.mp4`](../../releases/latest)**.
 It is built from this repository by [`scripts/video/`](scripts/video) — the narration script, the
 recorder that drives the real Studio, and the assembler are all committed, so the tour can be
 re-cut whenever the product changes.
