@@ -1680,12 +1680,32 @@ PAGE_TEMPLATE = r"""<!doctype html>
     }
 
     // --- API ---------------------------------------------------------------
+    // The API reports failures as a structured object, not a string. Handing
+    // that object to Error() renders "[object Object]" to the visitor, which
+    // tells them nothing and hides the one line that would — so pull the
+    // readable field out of whichever shape came back.
+    function errorText(raw, status) {
+      const fallback = 'Request failed with ' + status;
+      let body;
+      try { body = JSON.parse(raw); } catch (_) { return raw || fallback; }
+
+      const detail = body && body.detail !== undefined ? body.detail : body;
+      if (typeof detail === 'string' && detail) return detail;
+      // Validation failures arrive as a list of {loc, msg}.
+      if (Array.isArray(detail)) {
+        const parts = detail.map((item) => item && item.msg).filter(Boolean);
+        if (parts.length) return parts.join('; ');
+      } else if (detail && typeof detail === 'object') {
+        if (detail.error_message) return detail.error_message;
+        if (detail.message) return detail.message;
+      }
+      return raw || fallback;
+    }
+
     async function api(path, options) {
       const response = await fetch(apiBase + path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, options));
       if (!response.ok) {
-        let detail = await response.text();
-        try { detail = JSON.parse(detail).detail || detail; } catch (_) { /* plain text */ }
-        const error = new Error(detail || ('Request failed with ' + response.status));
+        const error = new Error(errorText(await response.text(), response.status));
         error.status = response.status;
         throw error;
       }

@@ -76,6 +76,28 @@ body {
 
 .mark { width: 200px; height: 200px; margin: 0 auto 44px; display: block; overflow: visible; }
 
+/* A bloom behind the mark, timed to the last node landing — the graph coming
+   alive, rather than three circles that finished appearing. */
+.bloom {
+    position: absolute;
+    left: 50%;
+    top: 92px;
+    width: 340px;
+    height: 340px;
+    margin: -170px 0 0 -170px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(91, 124, 255, 0.30), transparent 62%);
+    opacity: 0;
+    animation: bloom 2.6s cubic-bezier(0.16, 1, 0.3, 1) 0.95s forwards;
+    pointer-events: none;
+}
+
+@keyframes bloom {
+    0%   { opacity: 0; transform: scale(0.45); }
+    28%  { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0.45; transform: scale(1); }
+}
+
 .axis {
     stroke: var(--paper);
     stroke-width: 6;
@@ -152,8 +174,10 @@ h1 {
     gap: 22px;
 }
 
-/* A light sweeps across the wordmark once it has settled. Cheap to render and
-   it is the moment the card stops looking like a web page. */
+/* The wordmark wipes in from the left rather than fading: a fade is what every
+   slide deck does, and a wipe reads as something being drawn. A light sweeps
+   across once it has settled — cheap to render, and the moment the card stops
+   looking like a web page. */
 .word {
     background: linear-gradient(100deg,
         var(--paper) 42%, #ffffff 48%, #ffffff 52%, var(--paper) 58%);
@@ -162,10 +186,16 @@ h1 {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    clip-path: inset(0 100% -20% 0);
     opacity: 0;
     animation:
-        rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 1.05s forwards,
-        sheen 4.5s cubic-bezier(0.4, 0, 0.2, 1) 2.1s infinite;
+        wipe 0.95s cubic-bezier(0.16, 1, 0.3, 1) 1.0s forwards,
+        sheen 4.5s cubic-bezier(0.4, 0, 0.2, 1) 2.3s infinite;
+}
+
+@keyframes wipe {
+    from { opacity: 1; clip-path: inset(0 100% -20% 0); transform: translateY(12px); }
+    to   { opacity: 1; clip-path: inset(0 -6% -20% 0); transform: translateY(0); }
 }
 
 .version {
@@ -180,17 +210,25 @@ h1 {
     letter-spacing: -0.01em;
     color: var(--accent);
     opacity: 0;
-    animation: badge 0.6s cubic-bezier(0.34, 1.5, 0.55, 1) 1.45s forwards;
+    animation: badge 0.65s cubic-bezier(0.34, 1.55, 0.55, 1) 1.62s forwards;
 }
 
+/* The tagline settles rather than simply appearing: the tracking opens wide and
+   closes to its real value, which the eye reads as the line coming into focus. */
 p {
     margin-top: 26px;
     font-size: 31px;
     font-weight: 400;
     color: var(--muted);
-    letter-spacing: 0.005em;
     opacity: 0;
-    animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 1.62s forwards;
+    letter-spacing: 0.34em;
+    animation: settle 1.15s cubic-bezier(0.16, 1, 0.3, 1) 1.75s forwards;
+}
+
+@keyframes settle {
+    from { opacity: 0; letter-spacing: 0.34em; }
+    60%  { opacity: 1; }
+    to   { opacity: 1; letter-spacing: 0.005em; }
 }
 
 .rule {
@@ -198,7 +236,7 @@ p {
     height: 2px;
     margin: 42px auto 0;
     background: linear-gradient(90deg, transparent, var(--accent), var(--violet), transparent);
-    animation: widen 1.6s cubic-bezier(0.22, 1, 0.36, 1) 1.9s forwards;
+    animation: widen 2.2s cubic-bezier(0.22, 1, 0.36, 1) 2.15s forwards;
 }
 
 @keyframes rise {
@@ -220,6 +258,7 @@ p {
 <div class="wash"></div>
 
 <div class="stage">
+    <div class="bloom"></div>
     <svg class="mark" viewBox="0 0 100 100" fill="none" aria-label="Delaxis">
         <line class="axis" x1="24" y1="76" x2="76" y2="24" />
         <circle class="signal" cx="24" cy="76" r="5" />

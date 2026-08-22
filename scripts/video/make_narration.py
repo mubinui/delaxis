@@ -10,6 +10,10 @@ whereas a shot can be held for any length.
     python scripts/video/make_narration.py            # render anything missing
     python scripts/video/make_narration.py --force    # re-render everything
 
+Also renders ``voice-input.wav``: the sentence Chromium is handed as a fake
+microphone during the voice chapter. The session recorded there is a real one,
+so the words it hears have to come from somewhere.
+
 Needs GEMINI_API_KEY. Each scene is cached by a hash of its text, so editing one
 line re-renders that line alone.
 """
@@ -21,6 +25,7 @@ import base64
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 import urllib.error
@@ -31,7 +36,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.video.scenes import SCENES  # noqa: E402
+from scripts.video.scenes import SCENES, VOICE_INSTRUCTION  # noqa: E402
 
 OUT_DIR = PROJECT_ROOT / "docs" / "video" / "build"
 MODEL = os.environ.get("DELAXIS_TTS_MODEL", "gemini-3.1-flash-tts-preview")
@@ -132,6 +137,49 @@ def write_wav(path: Path, pcm: bytes) -> float:
     return round(len(pcm) / 2 / SAMPLE_RATE, 3)
 
 
+def write_voice_input(key: str) -> Path:
+    """Render what the browser will 'hear' during the voice chapter.
+
+    Chromium takes a WAV as a fake capture device and loops it, so the file is
+    padded with a long silence: without it the model hears the same instruction
+    over and over and starts adding the agent twice. The lead-in gives the
+    session a moment to connect before anyone speaks.
+    """
+    path = OUT_DIR / "voice-input.wav"
+    digest = hashlib.sha256(VOICE_INSTRUCTION.encode()).hexdigest()[:12]
+    stamp = OUT_DIR / "voice-input.sha"
+
+    if path.exists() and stamp.exists() and stamp.read_text().strip() == digest:
+        print(f"  [--] {'voice input':18} cached")
+        return path
+
+    # Unstyled: this is someone talking to their computer, not a voice-over.
+    pcm = synthesise(VOICE_INSTRUCTION, key, styled=False)
+    raw = OUT_DIR / "voice-input-raw.wav"
+    with wave.open(str(raw), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(SAMPLE_RATE)
+        handle.writeframes(b"\x00" * SAMPLE_RATE * 2)  # a second before speaking
+        handle.writeframes(pcm)
+        handle.writeframes(b"\x00" * SAMPLE_RATE * 2 * 50)  # loop never comes round
+
+    # Chromium wants a rate it can open as a capture device.
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-i", str(raw),
+         "-ar", "48000", "-ac", "1", "-sample_fmt", "s16", str(path)],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr[-800:])
+        raise SystemExit("ffmpeg failed while preparing the microphone input")
+
+    raw.unlink(missing_ok=True)
+    stamp.write_text(digest + "\n")
+    print(f"  [--] {'voice input':18} render  {len(pcm) / 2 / SAMPLE_RATE:6.2f}s")
+    return path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="re-render every scene")
@@ -169,6 +217,8 @@ def main() -> int:
         timeline.append({
             "id": scene.id,
             "action": scene.action,
+            # Scenes sharing a chapter are recorded as one continuous take.
+            "chapter": scene.chapter,
             # Title-card scenes render from titles/<card>.html instead of the app.
             "card": scene.card,
             "digest": digest,
@@ -182,6 +232,8 @@ def main() -> int:
          "total_seconds": round(total, 2), "scenes": timeline},
         indent=2,
     ) + "\n")
+
+    write_voice_input(key)
 
     minutes, seconds = divmod(total, 60)
     print(f"\n  {len(timeline)} scenes · {int(minutes)}m {seconds:04.1f}s")

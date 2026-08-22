@@ -6,8 +6,13 @@
  * needs no manual alignment — both halves follow the same list of scenes.
  *
  *     node scripts/video/record.mjs
- *     node scripts/video/record.mjs --only=card    # just the title cards
+ *     node scripts/video/record.mjs --only=voice   # just that chapter
  *     DELAXIS_URL=http://localhost:8000 node scripts/video/record.mjs
+ *
+ * Each chapter is captured separately so the assembler has seams to dissolve,
+ * which means each one starts from a blank browser and has to be walked back
+ * into position first. That walk is on camera; the lead time is reported per
+ * segment and trimmed off during assembly.
  *
  * A synthetic cursor is drawn into the page, because a capture made this way has
  * no pointer of its own and the viewer cannot otherwise tell what is being
@@ -33,6 +38,9 @@ const { chromium } = require('playwright');
 
 const BUILD = join(ROOT, 'docs', 'video', 'build');
 const BASE = process.env.DELAXIS_URL ?? 'http://127.0.0.1:8011';
+// The chat page the deploy chapter publishes to and the frontend chapter then
+// visits. Served by the same app, so there is no second thing to start.
+const DEPLOYMENT = process.env.DELAXIS_DEPLOYMENT ?? '/d/assistant-chat/';
 const WIDTH = 1920;
 const HEIGHT = 1080;
 
@@ -190,6 +198,115 @@ const enterStudio = async (page) => {
 // Scene actions
 // --------------------------------------------------------------------------- //
 
+// --------------------------------------------------------------------------- //
+// Getting into position
+// --------------------------------------------------------------------------- //
+
+/** Time left in this scene's slot, so an action never overruns its narration. */
+const budget = (scene) => scene.__start + scene.hold_seconds * 1000 - Date.now();
+
+/**
+ * Poll until something is true, giving up before the scene runs out.
+ *
+ * Overrunning is worse than missing the moment: every later line would play
+ * against the wrong picture, and the drift never recovers.
+ */
+const waitWithin = async (scene, check, { reserve = 300, poll = 350 } = {}) => {
+    while (budget(scene) > reserve) {
+        if (await check().catch(() => false)) return true;
+        await sleep(poll);
+    }
+    return false;
+};
+
+const openStudio = async (page) => {
+    await page.goto(BASE, { waitUntil: 'networkidle' });
+    await sleep(400);
+    await closeAnyModal(page);
+    await enterStudio(page);
+    await sleep(700);
+};
+
+const loadWorkflow = async (page, prefer = /research brief|pipeline|triage/i) => {
+    const picker = page.locator('select').first();
+    if (!(await picker.count())) return;
+    const options = await picker.locator('option').allTextContents();
+    const wanted = options.find((v) => prefer.test(v));
+    if (wanted) {
+        await picker.selectOption({ label: wanted }).catch(() => {});
+        await sleep(1600);
+    }
+};
+
+/** Set by the deploy chapter so the frontend chapter can visit what it published. */
+let publishedPath = '';
+
+const builderPanel = (page) => page.locator('aside').last();
+
+const openBuilderPanel = async (page) => {
+    if (await builderPanel(page).getByRole('button', { name: 'Deploy', exact: true }).count()) return;
+    const button = page.getByRole('button', { name: 'Builder' }).first();
+    if (await button.count()) await button.click({ timeout: 2500 }).catch(() => {});
+    await sleep(800);
+};
+
+/**
+ * Each chapter is its own capture, so each starts from a blank browser and has
+ * to be walked back into position. That walk is recorded too — the assembler
+ * trims it off using the lead this reports, which is why nothing here needs to
+ * look presentable.
+ */
+const PRIME = {
+    landing: async (page) => {
+        await page.goto(BASE, { waitUntil: 'networkidle' });
+        await closeAnyModal(page);
+        await page.mouse.move(WIDTH * 0.5, HEIGHT * 0.55, { steps: 8 });
+    },
+    builder: openStudio,
+    voice: async (page) => {
+        await openStudio(page);
+        await openBuilderPanel(page);
+        // The Studio remembers the last brief someone typed. Leaving it there
+        // puts an unrelated half-written prompt on screen while the narration
+        // is talking about starting from nothing.
+        const boxes = builderPanel(page).locator('textarea');
+        for (let index = 0; index < (await boxes.count()); index += 1) {
+            await boxes.nth(index).fill('').catch(() => {});
+        }
+    },
+    canvas: async (page) => {
+        await openStudio(page);
+        await loadWorkflow(page);
+    },
+    compose: async (page) => {
+        await openStudio(page);
+        await loadWorkflow(page);
+    },
+    inspect: async (page) => {
+        await openStudio(page);
+        await loadWorkflow(page);
+    },
+    help: async (page) => {
+        await openStudio(page);
+        await loadWorkflow(page);
+    },
+    deploy: async (page) => {
+        await openStudio(page);
+        // Whatever is published here is what the next chapter opens and talks
+        // to, so it has to be a workflow that genuinely answers.
+        await loadWorkflow(page, /assistant chatbot|docs q&a/i);
+        await openBuilderPanel(page);
+    },
+    frontend: async (page) => {
+        await page.goto(`${BASE}${publishedPath || DEPLOYMENT}`, { waitUntil: 'networkidle' });
+        await sleep(1400);
+    },
+};
+
+// --------------------------------------------------------------------------- //
+// Scene actions
+// --------------------------------------------------------------------------- //
+
 const ACTIONS = {
     async title_card(page, scene) {
         const file = pathToFileURL(join(HERE, 'titles', `${scene.card}.html`)).href;
@@ -201,11 +318,12 @@ const ACTIONS = {
         await page.mouse.move(-50, -50);
     },
 
+    // -- what it is ---------------------------------------------------------
+
     async landing(page) {
-        await page.goto(BASE, { waitUntil: 'networkidle' });
-        await sleep(500);
-        await closeAnyModal(page);
-        await page.mouse.move(WIDTH * 0.5, HEIGHT * 0.55, { steps: 10 });
+        await page.mouse.move(WIDTH * 0.42, HEIGHT * 0.5, { steps: 20 });
+        const heading = page.locator('h1').first();
+        if (await heading.count()) await showcase(page, heading, 700);
     },
 
     async landing_features(page) {
@@ -223,12 +341,11 @@ const ACTIONS = {
         if (await card.count()) await showcase(page, card, 600);
     },
 
+    // -- describing it ------------------------------------------------------
+
     async open_builder(page) {
-        await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
-        await sleep(450);
-        await enterStudio(page);
-        await clickSlowly(page, page.getByRole('button', { name: 'Builder' }).first());
-        await sleep(500);
+        await clickSlowly(page, page.getByRole('button', { name: 'Builder' }).first(), { dwell: 420 });
+        await sleep(600);
     },
 
     async type_brief(page) {
@@ -245,28 +362,50 @@ const ACTIONS = {
     },
 
     async hold_builder(page) {
-        const panel = page.locator('aside').last();
-        if (await panel.count()) await showcase(page, panel, 900);
+        await showcase(page, builderPanel(page), 900);
     },
+
+    // -- talking to it ------------------------------------------------------
+
+    async voice_open(page) {
+        const mic = page.locator('button[title*="out loud" i]').first();
+        if (await mic.count()) await point(page, mic, { dwell: 900 });
+    },
+
+    async voice_build(page, scene) {
+        const mic = page.locator('button[title*="out loud" i]').first();
+        if (await mic.count()) await clickSlowly(page, mic, { dwell: 260 });
+
+        // Chromium is playing the instruction into a fake microphone and a real
+        // session is listening, so from here it is a matter of waiting for the
+        // model to act — never past the end of the line being spoken over it.
+        await page.mouse.move(WIDTH * 0.45, HEIGHT * 0.5, { steps: 20 });
+        const built = await waitWithin(scene, async () =>
+            (await page.locator('.react-flow__node').count()) > 0);
+        if (built) await sleep(400);
+    },
+
+    async voice_result(page, scene) {
+        // The agent may still be arriving; it took about twelve seconds in
+        // testing and the previous scene only covers part of that.
+        await waitWithin(scene, async () =>
+            (await page.locator('.react-flow__node').count()) > 0, { reserve: 2600 });
+
+        const stop = page.locator('button[title*="Stop talking" i]').first();
+        if (await stop.count()) await clickSlowly(page, stop, { dwell: 240 });
+
+        const node = page.locator('.react-flow__node').first();
+        if (await node.count()) await showcase(page, node, 900);
+    },
+
+    // -- the canvas ---------------------------------------------------------
 
     async show_canvas(page) {
         await closeAnyModal(page);
-        const builder = page.getByRole('button', { name: 'Builder' }).first();
-        if (await builder.count()) await builder.click({ timeout: 2500 }).catch(() => {});
-        await sleep(350);
-
-        const picker = page.locator('select').first();
-        if (await picker.count()) {
-            await point(page, picker, { dwell: 260 });
-            const options = await picker.locator('option').allTextContents();
-            const wanted = options.find((v) => /triage|support|pipeline/i.test(v));
-            if (wanted) {
-                await picker.selectOption({ label: wanted }).catch(() => {});
-                await sleep(1500);
-            }
-        }
         const node = page.locator('.react-flow__node').first();
-        if (await node.count()) await showcase(page, node, 650);
+        if (await node.count()) await showcase(page, node, 700);
+        const edge = page.locator('.react-flow__edge').first();
+        if (await edge.count()) await point(page, edge, { dwell: 500 });
     },
 
     async run_workflow(page) {
@@ -277,18 +416,19 @@ const ACTIONS = {
             : page.locator('.react-flow').locator('..').locator('button').last();
 
         await clickSlowly(page, target, { dwell: 520 });
-        await sleep(1400);
+        await sleep(1300);
 
         // Follow the execution rather than the button: the timeline opens and
         // the nodes change state as work moves through the graph.
         const timeline = page.locator('button').filter({ hasText: 'Timeline' }).first();
         if (await timeline.count()) {
             await clickSlowly(page, timeline, { dwell: 320 });
-            await sleep(800);
+            await sleep(700);
         }
-        const canvas = page.locator('.react-flow__pane');
-        if (await canvas.count()) await showcase(page, canvas, 900);
+        await showcase(page, page.locator('.react-flow__pane'), 800);
     },
+
+    // -- composing by hand --------------------------------------------------
 
     async palette_drag(page) {
         await closeAnyModal(page);
@@ -321,6 +461,8 @@ const ACTIONS = {
         }
     },
 
+    // -- for the technical audience ----------------------------------------
+
     async open_inspector(page) {
         await closeAnyModal(page);
         await sleep(250);
@@ -332,12 +474,15 @@ const ACTIONS = {
         await sleep(600);
     },
 
-    async inspector_tabs(page) {
+    async inspector_tabs(page, scene) {
         for (const name of ['Model', 'Tools', 'Runtime']) {
+            // Stop early rather than push the last tab past the narration; the
+            // drift would carry through every later scene in this chapter.
+            if (budget(scene) < 1900) break;
             const tab = page.getByRole('button', { name, exact: true }).first();
             if (await tab.count()) {
-                await clickSlowly(page, tab, { dwell: 300 });
-                await sleep(800);
+                await clickSlowly(page, tab, { dwell: 260 });
+                await sleep(520);
             }
         }
     },
@@ -360,6 +505,8 @@ const ACTIONS = {
         }
     },
 
+    // -- fixing it ----------------------------------------------------------
+
     async open_help(page) {
         await closeAnyModal(page);
         await sleep(250);
@@ -378,6 +525,97 @@ const ACTIONS = {
             await sleep(1300);
         }
     },
+
+    // -- shipping it --------------------------------------------------------
+
+    async deploy_open(page) {
+        const panel = builderPanel(page);
+        await clickSlowly(page, panel.getByRole('button', { name: 'Deploy', exact: true }).first(), { dwell: 420 });
+        await sleep(700);
+
+        const title = panel.locator('input:not([type="checkbox"])').first();
+        if (await title.count()) {
+            await clickSlowly(page, title, { dwell: 200 });
+            await title.fill('');
+            await title.type('Docs Support Assistant', { delay: 30, timeout: 8000 });
+        }
+
+        // Daylight, to match the theme everything else is being recorded in.
+        const swatch = panel.locator('button').filter({ hasText: /^Daylight$/i }).first();
+        if (await swatch.count()) await clickSlowly(page, swatch, { dwell: 300 });
+
+        // The narration promises the published page has voice in it, so turn
+        // it on rather than describing something that is switched off.
+        const voice = panel.locator('input[type="checkbox"]').first();
+        if (await voice.count() && !(await voice.isChecked().catch(() => true))) {
+            await clickSlowly(page, voice, { dwell: 260 });
+        }
+    },
+
+    async deploy_publish(page, scene) {
+        const panel = builderPanel(page);
+        const publish = panel.getByRole('button', { name: /Flash Deploy/i }).first();
+        if (await publish.count()) {
+            await clickSlowly(page, publish, { dwell: 480 });
+            await waitWithin(scene, async () =>
+                (await page.locator('a[href*="/d/"], code, .font-mono').count()) > 0, { reserve: 4200 });
+        }
+
+        // Then the manager, which is where the URL, the embed snippet and the
+        // API call actually live.
+        const manager = page.locator('header').getByRole('button', { name: /Deploy/i }).first();
+        if (await manager.count()) {
+            await clickSlowly(page, manager, { dwell: 340 });
+            await sleep(600);
+        }
+        for (const tab of [/Integrate/i, /REST API/i]) {
+            if (budget(scene) < 1500) break;
+            const button = page.getByRole('button', { name: tab }).last();
+            if (await button.count()) {
+                await clickSlowly(page, button, { dwell: 260 });
+                await sleep(700);
+            }
+        }
+
+        // Remember what was published; the frontend chapter opens exactly this.
+        publishedPath = await fetch(`${BASE}/api/v1/deployments`)
+            .then((r) => r.json())
+            .then((list) => {
+                const match = list.find((d) => /Docs Support Assistant/i.test(d.title || ''));
+                return (match || list[list.length - 1] || {}).url || '';
+            })
+            .catch(() => '');
+        if (publishedPath) console.log(`\n      published ${publishedPath}`);
+    },
+
+    // -- the thing you shipped ---------------------------------------------
+
+    async frontend_open(page) {
+        await page.mouse.move(WIDTH * 0.5, HEIGHT * 0.55, { steps: 16 });
+        const header = page.locator('header, h1').first();
+        if (await header.count()) await showcase(page, header, 700);
+        const suggestion = page.locator('button').filter({ hasText: /\?$/ }).first();
+        if (await suggestion.count()) await point(page, suggestion, { dwell: 600 });
+    },
+
+    async frontend_chat(page, scene) {
+        const box = page.locator('textarea, input[type="text"]').last();
+        if (!(await box.count())) return;
+        await clickSlowly(page, box, { dwell: 200 });
+        // Something the assistant genuinely knows. Asking it about Delaxis was
+        // honest and useless: the model has never heard of it, and the shot
+        // ended on a paragraph explaining that.
+        await box.type('Explain multi-agent orchestration in two sentences.', { delay: 24, timeout: 8000 });
+        await page.keyboard.press('Enter');
+
+        // A real workflow is answering, so the wait is genuine — bounded by the
+        // line being spoken over it.
+        await waitWithin(scene, async () => {
+            const text = await page.locator('body').innerText();
+            return text.length > 700;
+        }, { reserve: 900 });
+        await page.mouse.move(WIDTH * 0.45, HEIGHT * 0.4, { steps: 16 });
+    },
 };
 
 // --------------------------------------------------------------------------- //
@@ -391,22 +629,22 @@ const run = async () => {
         throw new Error(`no action implemented for: ${names}`);
     }
 
-    // Title cards and the app body are recorded separately so the assembler can
-    // dissolve between them; a single continuous capture cannot be crossfaded
-    // into itself.
+    // One capture per chapter, so the assembler has seams to dissolve: a single
+    // continuous recording cannot be crossfaded into itself.
     const segments = [];
     for (const scene of timeline.scenes) {
-        const kind = scene.card ? `card-${scene.card}` : 'body';
         const last = segments[segments.length - 1];
-        if (last && last.kind === kind) last.scenes.push(scene);
-        else segments.push({ kind, scenes: [scene] });
+        if (last && last.chapter === scene.chapter) last.scenes.push(scene);
+        else segments.push({ chapter: scene.chapter, scenes: [scene] });
     }
 
-    // Re-recording a subset keeps the segments it skipped, so iterating on a
-    // title card does not mean driving the whole app tour again.
-    const only = (process.argv.find((a) => a.startsWith('--only=')) ?? '').split('=')[1] ?? '';
+    // Re-recording a subset keeps the segments it skipped, so iterating on one
+    // chapter does not mean driving the whole tour again.
+    // --only=voice,frontend re-records just those chapters.
+    const only = ((process.argv.find((a) => a.startsWith('--only=')) ?? '').split('=')[1] ?? '')
+        .split(',').map((name) => name.trim()).filter(Boolean);
     let previous = [];
-    if (only) {
+    if (only.length) {
         try {
             previous = JSON.parse(readFileSync(join(BUILD, 'segments.json'), 'utf8')).segments;
         } catch {
@@ -414,16 +652,27 @@ const run = async () => {
         }
     }
 
-    const browser = await chromium.launch({ args: ['--force-device-scale-factor=1'] });
+    const browser = await chromium.launch({
+        args: [
+            '--force-device-scale-factor=1',
+            // The voice chapter records a real session. Chromium plays this file
+            // as if it were a microphone, so the model hears an actual sentence
+            // and the build that follows is not staged.
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+            `--use-file-for-fake-audio-capture=${join(BUILD, 'voice-input.wav')}`,
+            '--autoplay-policy=no-user-gesture-required',
+        ],
+    });
     const started = Date.now();
     const written = [];
 
     for (const [index, segment] of segments.entries()) {
-        if (only && !segment.kind.includes(only)) {
+        if (only.length && !only.some((name) => segment.chapter.includes(name))) {
             const kept = previous[index];
-            if (!kept) throw new Error(`nothing recorded earlier for segment ${index} (${segment.kind})`);
+            if (!kept) throw new Error(`nothing recorded earlier for segment ${index} (${segment.chapter})`);
             written.push(kept);
-            console.log(`  ${segment.kind.padEnd(18)} kept`);
+            console.log(`  ${segment.chapter.padEnd(18)} kept`);
             continue;
         }
 
@@ -432,6 +681,7 @@ const run = async () => {
             deviceScaleFactor: 1,
             recordVideo: { dir: BUILD, size: { width: WIDTH, height: HEIGHT } },
             colorScheme: 'light',
+            permissions: ['microphone'],
         });
         await context.addInitScript(() => { try { localStorage.setItem('delaxis-theme', 'light'); } catch {} });
         await context.addInitScript(CURSOR_SCRIPT);
@@ -441,17 +691,30 @@ const run = async () => {
         // rather than pushing the shot past its narration.
         page.setDefaultTimeout(3000);
 
+        // Recording starts with the context, so walking into position is on
+        // camera. Time it, and the assembler cuts exactly that much off the front.
+        const openedAt = Date.now();
+        const prime = PRIME[segment.chapter];
+        if (prime) {
+            process.stdout.write(`  ${segment.chapter.padEnd(18)} priming… `);
+            await prime(page).catch((error) => process.stdout.write(`(${error.message.split('\n')[0]}) `));
+            console.log(`${((Date.now() - openedAt) / 1000).toFixed(1)}s`);
+        }
+        const lead = (Date.now() - openedAt) / 1000;
+
         for (const scene of segment.scenes) {
-            const sceneStart = Date.now();
-            process.stdout.write(`  ${scene.id.padEnd(18)} ${scene.hold_seconds.toFixed(1)}s `);
+            scene.__start = Date.now();
+            process.stdout.write(`    ${scene.id.padEnd(18)} ${scene.hold_seconds.toFixed(1)}s `);
             try {
                 await ACTIONS[scene.action](page, scene);
             } catch (error) {
                 process.stdout.write(`(action failed: ${error.message.split('\n')[0]}) `);
             }
-            const remaining = scene.hold_seconds * 1000 - (Date.now() - sceneStart);
+            const remaining = scene.hold_seconds * 1000 - (Date.now() - scene.__start);
             if (remaining > 0) await sleep(remaining);
-            process.stdout.write(`✓ ${((Date.now() - sceneStart) / 1000).toFixed(1)}s\n`);
+            const took = (Date.now() - scene.__start) / 1000;
+            const over = took > scene.hold_seconds + 0.25 ? '  ← OVER' : '';
+            process.stdout.write(`✓ ${took.toFixed(1)}s${over}\n`);
         }
 
         await context.close();
@@ -460,10 +723,15 @@ const run = async () => {
             .filter((f) => f.endsWith('.webm') && !f.startsWith('segment-'))
             .map((f) => ({ f, t: statSync(join(BUILD, f)).mtimeMs }))
             .sort((a, b) => b.t - a.t)[0];
-        const name = `segment-${String(index).padStart(2, '0')}-${segment.kind}.webm`;
+        const name = `segment-${String(index).padStart(2, '0')}-${segment.chapter}.webm`;
         if (newest) {
             renameSync(join(BUILD, newest.f), join(BUILD, name));
-            written.push({ file: name, kind: segment.kind, scenes: segment.scenes.map((s) => s.id) });
+            written.push({
+                file: name,
+                chapter: segment.chapter,
+                lead_seconds: Number(lead.toFixed(3)),
+                scenes: segment.scenes.map((s) => s.id),
+            });
         }
     }
 
@@ -471,10 +739,12 @@ const run = async () => {
     writeFileSync(join(BUILD, 'segments.json'), JSON.stringify({ segments: written }, null, 2) + '\n');
 
     console.log(`\n  recorded ${((Date.now() - started) / 1000).toFixed(1)}s across ${written.length} segment(s)`);
-    for (const item of written) console.log(`    ${item.file}  [${item.scenes.join(', ')}]`);
+    for (const item of written) {
+        console.log(`    ${item.file.padEnd(34)} lead ${String(item.lead_seconds).padStart(6)}s  [${item.scenes.join(', ')}]`);
+    }
 };
 
 run().catch((error) => {
-    console.error('FATAL:', error.message);
+    console.error(error);
     process.exit(1);
 });

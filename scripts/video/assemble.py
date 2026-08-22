@@ -35,16 +35,21 @@ BUILD = PROJECT_ROOT / "docs" / "video" / "build"
 OUTPUT = PROJECT_ROOT / "docs" / "video" / "delaxis-2.1-tour.mp4"
 
 SPEECH_RATE = 24_000
-#: Dissolve length between segments. Long enough to read as deliberate, short
-#: enough that a title card does not linger as a ghost over the app.
-TRANSITION = 0.9
+#: Dissolve into and out of a title card. Long enough to read as deliberate,
+#: short enough that the card does not linger as a ghost over the app.
+CARD_TRANSITION = 0.9
+#: Between chapters of the tour. Shorter: this is a section break, not a change
+#: of scene, and a long dissolve here reads as hesitation.
+CHAPTER_TRANSITION = 0.45
+#: Chapters that are title cards rather than the app.
+CARDS = frozenset({"intro", "outro"})
 
 # The balance, in one place. ``make_music.py`` normalises the bed to a fixed
 # peak, so these are the only numbers that decide how the mix sounds — the two
 # gains are relative to each other and moving one without the other is what
 # makes a bed either inaudible or distracting.
 VOICE_GAIN_DB = 5.0   # after compression, to land the film near broadcast level
-BED_GAIN_DB = -9.0    # roughly 12 dB under the voice when nothing is being said
+BED_GAIN_DB = -7.0    # lands the bed around -25 dBFS in the narration gaps
 DUCK_THRESHOLD = 0.1  # the bed starts giving way once the voice passes -20 dBFS
 DUCK_RATIO = 3.0      # about 10 dB of duck at speaking level
 
@@ -80,34 +85,58 @@ def run(command: list[str], what: str) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def stitch_video(segments: list[Path]) -> tuple[Path, list[float]]:
-    """Dissolve the segments together; return the file and each one's start time."""
-    lengths = [duration(path) for path in segments]
-    output = BUILD / "stitched.mp4"
+def transition_for(left: str, right: str) -> float:
+    """How long to dissolve at the seam between two chapters."""
+    return CARD_TRANSITION if (left in CARDS or right in CARDS) else CHAPTER_TRANSITION
 
-    if len(segments) == 1:
-        shutil.copy(segments[0], output)
-        return output, [0.0]
+
+def stitch_video(segments: list[dict]) -> tuple[Path, list[float]]:
+    """Dissolve the segments together; return the file and each one's start time.
+
+    Each capture opens on the recorder walking the app back into position, since
+    every chapter starts from a blank browser. That lead is trimmed here rather
+    than in the recorder, because Playwright starts recording with the context
+    and there is no way to tell it to wait.
+    """
+    output = BUILD / "stitched.mp4"
+    leads = [float(segment.get("lead_seconds", 0.0)) for segment in segments]
+    paths = [BUILD / segment["file"] for segment in segments]
+    chapters = [segment.get("chapter", "body") for segment in segments]
+    lengths = [duration(path) - lead for path, lead in zip(paths, leads)]
+
+    transitions = [
+        transition_for(chapters[index - 1], chapters[index])
+        for index in range(1, len(segments))
+    ]
 
     # Where each segment begins once the overlaps are removed.
     starts = [0.0]
     for index in range(1, len(segments)):
-        starts.append(starts[-1] + lengths[index - 1] - TRANSITION)
+        starts.append(starts[-1] + lengths[index - 1] - transitions[index - 1])
 
     inputs: list[str] = []
-    for path in segments:
+    for path in paths:
         inputs += ["-i", str(path)]
+
+    # Trimming in the filter graph rather than with -ss, which seeks to a
+    # keyframe and would slip the picture against the narration by up to a
+    # second on VP8.
+    steps = [
+        f"[{index}:v]trim=start={lead:.3f},setpts=PTS-STARTPTS[s{index}]"
+        for index, lead in enumerate(leads)
+    ]
 
     # xfade takes two streams at a time, so they are folded left to right. The
     # offset is measured against the accumulated result, not the original clip.
-    steps: list[str] = []
-    label = "0:v"
+    label = "s0"
     accumulated = lengths[0]
     for index in range(1, len(segments)):
-        offset = accumulated - TRANSITION
+        overlap = transitions[index - 1]
+        offset = accumulated - overlap
         nxt = f"v{index}"
         steps.append(
-            f"[{label}][{index}:v]xfade=transition=fade:duration={TRANSITION}:offset={offset:.3f}[{nxt}]"
+            f"[{label}][s{index}]xfade=transition=fade:duration={overlap}"
+            f":offset={offset:.3f}[{nxt}]"
         )
         label = nxt
         accumulated = offset + lengths[index]
@@ -191,10 +220,9 @@ def main() -> int:
 
     segments = json.loads(manifest.read_text())["segments"]
     timeline = json.loads(timeline_path.read_text())
-    paths = [BUILD / segment["file"] for segment in segments]
 
-    print(f"  {len(paths)} segment(s), {TRANSITION}s dissolves")
-    video, starts = stitch_video(paths)
+    print(f"  {len(segments)} chapter(s): {', '.join(s.get('chapter', '?') for s in segments)}")
+    video, starts = stitch_video(segments)
     total = duration(video)
     print(f"  video      {total:6.1f}s")
 

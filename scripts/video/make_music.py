@@ -12,9 +12,15 @@ times and starts to nag, where this comes round twice and reads as one long
 idea. Each chord is three sine partials with a little detune plus a root an
 octave down, and a soft bell marks the change.
 
+Over the top of the pads sit two things with an attack, because pads alone read
+as a held drone: a sparse pluck every couple of seconds through the body, and an
+opening motif — four rising notes timed to the logo assembling itself, resolving
+into the tonic as the wordmark lands.
+
 Level follows the film rather than sitting flat — it opens, steps back under the
 dense middle where the narration is working hardest, and swells again for the
-closing card.
+closing card. The opening motif sits outside that envelope, since fading it up
+over five seconds would swallow the very notes it exists to play.
 
     python scripts/video/make_music.py --seconds 150
 
@@ -94,6 +100,66 @@ def _arc(t: np.ndarray, seconds: float) -> np.ndarray:
     return opening * (0.70 + 0.30 * forward)
 
 
+def _add_note(
+    out: np.ndarray, at: float, frequency: float,
+    seconds: float, amplitude: float, decay: float,
+) -> None:
+    """Strike one note into the mix, decaying from its own start.
+
+    Phase runs from the note's own beginning rather than global time, which is
+    what gives it an attack — the pads do the opposite, and that is the whole
+    difference between something struck and something held.
+    """
+    start = int(at * RATE)
+    if start >= len(out) or start < 0:
+        return
+    count = min(int(seconds * RATE), len(out) - start)
+    if count <= 0:
+        return
+
+    local = np.arange(count) / RATE
+    envelope = np.exp(-local * decay) * np.clip(local / 0.012, 0, 1)  # soft edge, no click
+    tone = np.sin(2 * np.pi * frequency * local) + 0.45 * np.sin(2 * np.pi * frequency * 2 * local)
+    out[start:start + count] += tone * envelope * amplitude
+
+
+#: Rising A minor, landing on the octave. Timed against the title card: the
+#: notes fall where the axis draws, the nodes pop, and the wordmark arrives.
+MOTIF: tuple[tuple[float, float], ...] = (
+    (0.45, 220.00),   # A3, as the axis draws
+    (0.95, 261.63),   # C4
+    (1.45, 329.63),   # E4
+    (1.95, 440.00),   # A4, as the wordmark lands
+)
+
+
+def _intro_motif(out: np.ndarray) -> None:
+    for index, (at, frequency) in enumerate(MOTIF):
+        _add_note(out, at, frequency, 3.4, 0.55 - index * 0.04, 1.0)
+    # The tonic underneath, so the four notes resolve into something rather than
+    # simply stopping.
+    for partial, frequency in enumerate(PROGRESSION[0]):
+        _add_note(out, 2.1, frequency, 7.0, 0.22 * (0.55 ** partial), 0.40)
+
+
+def _plucks(out: np.ndarray, seconds: float) -> None:
+    """A note every couple of seconds, drawn from whichever chord is sounding.
+
+    Deliberately not a melody: a figure that rocks between two notes of the
+    chord gives the bed forward motion without ever becoming something the
+    viewer follows instead of the narration.
+    """
+    step = 0
+    at = CHORD_SECONDS + 1.5  # let the opening motif finish first
+    while at < seconds - 6.0:
+        chord = PROGRESSION[int(at / CHORD_SECONDS) % len(PROGRESSION)]
+        pick = (chord[2], chord[1], chord[2] * 2, chord[1])[step % 4]
+        # Alternating weight, so the figure breathes instead of ticking.
+        _add_note(out, at, pick, 2.4, 0.055 if step % 2 == 0 else 0.034, 1.5)
+        at += CHORD_SECONDS / 4
+        step += 1
+
+
 def render(seconds: float) -> np.ndarray:
     t = np.arange(int(seconds * RATE), dtype=np.float64) / RATE
     out = np.zeros_like(t)
@@ -123,16 +189,22 @@ def render(seconds: float) -> np.ndarray:
         # the same range as the voice.
         out += np.sin(2 * np.pi * (chord[0] / 2) * t) * envelope * 0.45
 
-        # A bell on the change — the only thing in the bed with an attack, and
-        # the reason the loop reads as moving rather than holding.
+        # A bell on the change — the loudest thing in the pad layer with an
+        # attack, and what makes a chord change register as an event.
         strike = np.exp(-np.clip(local, 0, None) * 1.3) * ((local >= 0) & (local < length))
         out += np.sin(2 * np.pi * chord[2] * 2 * t) * strike * 0.055
+
+    _plucks(out, seconds)
 
     # A very slow breath across the whole bed, then the arc.
     out *= 0.85 + 0.15 * np.sin(2 * np.pi * t / 19.0)
     out *= _arc(t, seconds)
-    out *= PEAK
 
+    # After the arc: the opening motif plays over the title card, where the arc
+    # is still ramping up from silence and would fade it out from underneath.
+    _intro_motif(out)
+
+    out *= PEAK
     return np.clip(out, -1.0, 1.0)
 
 
@@ -183,7 +255,7 @@ def main() -> int:
              "highpass=f=55",
              "aecho=0.6:0.55:180|340:0.28|0.18",
              "aformat=channel_layouts=stereo",
-             "afade=t=in:st=0:d=2.5",
+             "afade=t=in:st=0:d=0.8",  # short: the motif shapes its own entrance
              f"afade=t=out:st={max(args.seconds - 3.0, 0):.2f}:d=3.0",
          ]),
          "-ar", "48000", str(shaped)],

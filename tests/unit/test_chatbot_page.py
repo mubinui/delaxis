@@ -254,3 +254,73 @@ class TestContrastGuard:
         merged = {**THEMES["sunset"], **brand}
         for foreground, background, minimum in CONTRAST_PAIRS:
             assert contrast_ratio(merged[foreground], merged[background]) >= minimum, f"{foreground} on {background}"
+
+
+class TestErrorText:
+    """The failure message a visitor actually reads.
+
+    The API reports errors as a structured object. Handing that object to
+    ``Error()`` renders "[object Object]" — which is what the page did, for
+    every backend failure, hiding the one line that would have explained it.
+    These run the real function out of the real page against the shapes the
+    backend actually returns.
+    """
+
+    @staticmethod
+    def _run(raw: str, status: int) -> str:
+        import json as _json
+        import shutil
+        import subprocess
+
+        import pytest
+
+        node = shutil.which("node")
+        if node is None:
+            pytest.skip("node is not available to execute the page's JavaScript")
+
+        page = default_chatbot_html(
+            title="Bot", greeting="Hi", workflow_id="wf_1",
+            provider_id="openrouter", model_id="", theme="midnight",
+            config={"workflow_id": "wf_1"},
+        )
+        start = page.index("function errorText(raw, status) {")
+        end = page.index("async function api(path, options) {", start)
+        script = page[start:end] + (
+            f"\nprocess.stdout.write(errorText({_json.dumps(raw)}, {status}));"
+        )
+        result = subprocess.run(
+            [node, "--input-type=module", "-e", script],
+            capture_output=True, text=True, check=True,
+        )
+        return result.stdout
+
+    def test_structured_detail_yields_the_readable_line(self):
+        body = json.dumps({"detail": {
+            "error_code": "MESSAGE_PROCESSING_FAILED",
+            "error_message": "Failed to send message: Connection refused.",
+            "error_type": "ConnectionError",
+        }})
+        assert self._run(body, 500) == "Failed to send message: Connection refused."
+
+    def test_never_renders_object_object(self):
+        body = json.dumps({"detail": {"error_code": "X", "error_message": "boom"}})
+        assert "[object Object]" not in self._run(body, 500)
+
+    def test_string_detail_passes_through(self):
+        assert self._run(json.dumps({"detail": "Not Found"}), 404) == "Not Found"
+
+    def test_validation_list_is_joined(self):
+        body = json.dumps({"detail": [
+            {"loc": ["body", "query"], "msg": "Field required"},
+            {"loc": ["body", "sessionId"], "msg": "Field required"},
+        ]})
+        assert self._run(body, 422) == "Field required; Field required"
+
+    def test_top_level_error_message_without_detail(self):
+        assert self._run(json.dumps({"error_message": "Rate limited"}), 429) == "Rate limited"
+
+    def test_plain_text_body_survives(self):
+        assert self._run("upstream timeout", 504) == "upstream timeout"
+
+    def test_empty_body_falls_back_to_the_status(self):
+        assert self._run("", 502) == "Request failed with 502"
