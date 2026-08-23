@@ -526,9 +526,13 @@ export const ChatPanel = () => {
                         hidden
                         accept=".txt,.md,.markdown,.rst,.log,.csv,.tsv,.json,.jsonl,.yaml,.yml,.xml,.html,.pdf,.docx,.doc,.xlsx,.xls,.pptx,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.tiff"
                         onChange={(e) => {
-                            setStaged(prev => [...prev, ...Array.from(e.target.files ?? [])]);
+                            // Read the files out before anything else: the state
+                            // updater below runs during the next render, and by
+                            // then clearing value has already emptied the list.
+                            const picked = Array.from(e.target.files ?? []);
                             // Cleared, so re-picking a removed file still fires.
                             e.target.value = '';
+                            setStaged(prev => [...prev, ...picked]);
                         }}
                     />
                     <button
