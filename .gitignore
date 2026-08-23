@@ -71,3 +71,9 @@ tmp/
 
 # Provider API keys pasted in the studio (never commit)
 data/provider_secrets.json
+
+# The video pipeline and everything it renders. Kept in the working tree so it
+# can be re-cut without recovering it from history, and out of the repository
+# because a hundred megabytes of recordings and a synthesiser are not part of
+# the product.
+video/
