@@ -51,10 +51,12 @@ const flowEdge = (source: string, target: string, index: number): VisualEdge => 
     id: `xy-edge__${source}-${target}-${index}`,
     source,
     target,
-    type: 'smoothstep',
-    animated: true,
-    style: { stroke: '#64748b', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed', color: '#64748b' } as any,
+    type: 'default',
+    // Wires are neutral grey; they turn ink only while a run passes through them
+    // (the store sets that), so a loaded workflow sits still.
+    animated: false,
+    style: { stroke: 'var(--wire)', strokeWidth: 1.5 },
+    markerEnd: { type: 'arrowclosed', color: 'var(--wire)', width: 14, height: 14 } as any,
 });
 
 const auxEdge = (source: string, target: string, handle: string): VisualEdge => ({
@@ -64,7 +66,7 @@ const auxEdge = (source: string, target: string, handle: string): VisualEdge => 
     target,
     targetHandle: handle,
     type: 'straight',
-    style: { stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '6 4' },
+    style: { stroke: 'var(--wire)', strokeWidth: 1.5, strokeDasharray: '4 5' },
 } as VisualEdge);
 
 /**
@@ -139,13 +141,31 @@ export interface CanvasGraph {
     generated: boolean;
 }
 
+/**
+ * A saved canvas keeps its edges' paint from whenever it was drawn — a fixed
+ * stroke colour, a permanent animation. Wires take the current style instead:
+ * grey, still, and dashed only when they attach a tool to an agent.
+ */
+const restyleEdge = (edge: VisualEdge): VisualEdge => {
+    const style = { ...(edge.style ?? {}) } as Record<string, unknown>;
+    delete style.stroke;
+    const attachment = edge.sourceHandle === 'attach';
+    return {
+        ...edge,
+        type: attachment ? (edge.type ?? 'straight') : 'default',
+        animated: false,
+        style: { ...style, strokeWidth: 1.5, ...(attachment ? { strokeDasharray: '4 5' } : { strokeDasharray: undefined }) },
+        markerEnd: attachment ? undefined : ({ type: 'arrowclosed', color: 'var(--wire)', width: 14, height: 14 } as any),
+    } as VisualEdge;
+};
+
 export function workflowToCanvas(input: CanvasBuildInput): CanvasGraph {
     const { config, agents = [], tools = [] } = input;
     const topology = config?.topology ?? {};
     const canvas = config?.metadata?.visual_canvas ?? config;
 
     if (hasVisualCanvas(canvas)) {
-        const restoredEdges: VisualEdge[] = Array.isArray(canvas.edges) ? canvas.edges : [];
+        const restoredEdges: VisualEdge[] = Array.isArray(canvas.edges) ? canvas.edges.map(restyleEdge) : [];
         return { nodes: canvas.nodes as VisualNode[], edges: restoredEdges, generated: false };
     }
 

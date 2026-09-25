@@ -184,7 +184,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             edges: get().edges.map((edge) => ({
                 ...edge,
                 animated: false,
-                style: { ...(edge.style ?? {}), stroke: '#b1b1b7' },
+                style: { ...(edge.style ?? {}), stroke: 'var(--wire)' },
             })),
         });
     },
@@ -327,7 +327,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                     animated: status === 'running',
                     style: {
                         ...(edge.style ?? {}),
-                        stroke: status === 'error' ? '#ef4444' : status === 'success' ? '#22c55e' : '#2563eb',
+                        stroke: status === 'error' ? 'var(--clay)' : 'var(--text)',
                     },
                 };
             }),

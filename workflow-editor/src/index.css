@@ -1,428 +1,1030 @@
 @import "tailwindcss";
 
-/* Tailwind v4 defaults `dark:` to the OS `prefers-color-scheme` media query, and it
-   ignores the legacy tailwind.config.js `darkMode` option. Without this line every
-   dark: utility in the app tracks the OS theme instead of the in-app toggle (which
-   sets a .dark class on <html>) — the exact "colors stay bright after switching to
-   dark theme" bug. This re-binds dark: to the class. */
+/* Tailwind v4 defaults `dark:` to prefers-color-scheme. The Studio has its own
+   Light / Dark / Match system menu, which sets a .dark class on <html>, so dark:
+   is bound to that class instead. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================================
-   Design tokens
+   Delaxis — macOS 27 "Liquid Glass"
 
-   One scale, two themes. Every token below is defined in BOTH :root and .dark,
-   so a component that reaches for a token can never be theme-broken — which is
-   the failure mode that made panels look right in light mode and washed out in
-   dark. Components should reach for these, not for raw Tailwind palette steps.
+   The window is the frame. A glass sidebar runs flush to the leading edge with a
+   soft wallpaper showing only through it; a frosted toolbar band lies over the
+   content, which scrolls beneath it. Content is opaque. The accent is Graphite,
+   so the primary action is the darkest thing on a light window and the lightest
+   on a dark one. Colour is kept for status (always paired with a shape) and for
+   the kind of a canvas component. No blue, no orange, no brown.
 
-   Layers are named by elevation, not by colour:
-     surface-base  the canvas everything sits on
-     surface-1     panels docked to the canvas (rails, sidebars, headers)
-     surface-2     cards raised off a panel
-     surface-3     things floating above everything (modals, popovers, menus)
+   DESIGN.md at the repository root records the full system.
    ========================================================================== */
 
 :root {
     color-scheme: light;
 
-    /* Surfaces */
-    --surface-base: #f6f7f9;
-    --surface-1: #ffffff;
-    --surface-2: #ffffff;
-    --surface-3: #ffffff;
-    --surface-sunken: #eef0f4;
-    --surface-hover: #f1f3f7;
-    --surface-active: #e7eaf0;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+    --font-display-stack: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+    --font-mono-stack: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 
-    /* Borders — three weights is enough; more and the hierarchy stops reading */
-    --border-subtle: #eceef2;
-    --border-default: #dfe3ea;
-    --border-strong: #c4cad6;
+    /* --- Materials --- */
+    --window: #ffffff;
+    --glass: #f5f5f7;
+    --glass-sunken: rgba(0, 0, 0, .045);
+    --glass-raised: #ffffff;
+    --pane: #f9f9fb;
+    --sidebar: rgba(246, 246, 249, .58);
+    --sidebar-sel: rgba(0, 0, 0, .08);
+    --popover: rgba(250, 250, 252, .86);
+    --solid: #ffffff;
 
-    /* Text */
-    --text-primary: #0b1220;
-    --text-secondary: #3d4759;
-    --text-muted: #5c6577;
-    --text-faint: #677083;
-    --text-on-accent: #ffffff;
+    --fill: rgba(0, 0, 0, .055);
+    --fill-hover: rgba(0, 0, 0, .085);
+    --fill-active: rgba(0, 0, 0, .12);
 
-    /* Accent */
-    --accent: #3355ff;
-    --accent-hover: #2440e8;
-    --accent-active: #1c33bf;
-    --accent-soft: rgba(51, 85, 255, 0.09);
-    --accent-soft-hover: rgba(51, 85, 255, 0.14);
-    --accent-border: rgba(51, 85, 255, 0.28);
-    --accent-ring: rgba(51, 85, 255, 0.28);
-    --accent-text: #2440e8;
+    --line: rgba(0, 0, 0, .085);
+    --line-strong: rgba(0, 0, 0, .16);
+    --field-border: rgba(0, 0, 0, .14);
 
-    /* Status */
-    --status-ready: #087a4d;
-    --status-ready-bg: rgba(15, 157, 99, 0.10);
-    --status-warning: #8a5606;
-    --status-warning-bg: rgba(181, 115, 11, 0.11);
-    --status-error: #b32d2d;
-    --status-error-bg: rgba(211, 60, 60, 0.10);
-    --status-running: #3355ff;
-    --status-running-bg: rgba(51, 85, 255, 0.10);
-    --status-muted: #5c6577;
-    --status-muted-bg: rgba(107, 116, 136, 0.10);
+    --text: #1d1d1f;
+    --muted: #515154;
+    --dim: #6e6e73;
 
-    /* Component tones. Each is one hue expressed at four strengths, so a palette
-       tile, a canvas node and a library card can all be built from the same
-       family and still read as the same component type. */
-    --tone-agent: #3355ff;
-    --tone-agent-fg: #2440e8;
-    --tone-agent-bg: rgba(51, 85, 255, 0.10);
-    --tone-agent-border: rgba(51, 85, 255, 0.22);
+    /* Graphite. The accent reads as text, so links are told apart by an underline. */
+    --accent-fill: #1d1d1f;
+    --accent-hi: #000000;
+    --accent-lo: #3a3a3c;
+    --accent-wash: rgba(0, 0, 0, .065);
+    --on-accent: #ffffff;
+    --focus: rgba(0, 0, 0, .38);
 
-    --tone-tool: #e2680c;
-    --tone-tool-fg: #ab4903;
-    --tone-tool-bg: rgba(226, 104, 12, 0.11);
-    --tone-tool-border: rgba(226, 104, 12, 0.22);
+    --sage: #248a3d;
+    --sage-wash: rgba(52, 199, 89, .14);
+    --clay: #d70015;
+    --clay-text: #d70015;
+    --clay-wash: rgba(255, 59, 48, .10);
+    --amber: #f2c200;
+    --amber-text: #1d1d1f;       /* yellow is never text on a light window */
+    --amber-wash: rgba(255, 204, 0, .22);
 
-    --tone-workflow: #7c46e0;
-    --tone-workflow-fg: #6a35cc;
-    --tone-workflow-bg: rgba(124, 70, 224, 0.10);
-    --tone-workflow-border: rgba(124, 70, 224, 0.22);
+    --shadow-float: 0 0 0 .5px rgba(0, 0, 0, .10), 0 2px 6px rgba(0, 0, 0, .04), 0 12px 32px -12px rgba(0, 0, 0, .16);
+    --shadow-window: 0 0 0 .5px rgba(0, 0, 0, .12), 0 8px 24px rgba(0, 0, 0, .06), 0 30px 70px -24px rgba(20, 10, 40, .22);
+    --glow: 0 1px 1px rgba(0, 0, 0, .10);
+    --grid-dot: rgba(0, 0, 0, .12);
+    --wire: #a1a1a6;
+    --scroll: rgba(0, 0, 0, .22);
+    --stripe: rgba(0, 0, 0, .022);
+    --selection: #6e6e73;
+    --selection-blur: rgba(0, 0, 0, .085);
+    --chevrons: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12' fill='none' stroke='%23515154' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 4.5L4 1.5L7 4.5M1 7.5L4 10.5L7 7.5'/%3E%3C/svg%3E");
 
-    --tone-trigger: #0f9d63;
-    --tone-trigger-fg: #076b41;
-    --tone-trigger-bg: rgba(15, 157, 99, 0.11);
-    --tone-trigger-border: rgba(15, 157, 99, 0.22);
+    /* Liquid Glass: a lens with a darkened edge, a bright specular rim and a sheen. */
+    --lg-fill: rgba(255, 255, 255, .64);
+    --lg-edge: rgba(0, 0, 0, .12);
+    --lg-spec: rgba(255, 255, 255, .7);
+    --lg-sheen: rgba(255, 255, 255, .22);
+    --lg-lift: 0 1px 3px rgba(0, 0, 0, .06);
+    --toolbar-band: rgba(255, 255, 255, .72);
+    --toolbar-h: 60px;
+    --sidebar-w: 232px;
 
-    --tone-logic: #9333c7;
-    --tone-logic-fg: #7f27b0;
-    --tone-logic-bg: rgba(147, 51, 199, 0.10);
-    --tone-logic-border: rgba(147, 51, 199, 0.22);
+    /* The desktop behind the window, seen only through the sidebar glass. */
+    --wall-a: rgba(12, 143, 126, .20);
+    --wall-b: rgba(110, 86, 207, .18);
+    --wall-c: rgba(224, 69, 123, .12);
 
-    --tone-output: #d33c3c;
-    --tone-output-fg: #b92f2f;
-    --tone-output-bg: rgba(211, 60, 60, 0.10);
-    --tone-output-border: rgba(211, 60, 60, 0.22);
+    /* One hue per sidebar place. */
+    --hue-1: #0c8f7e;
+    --hue-2: #248a3d;
+    --hue-3: #6e56cf;
+    --hue-4: #b8327a;
+    --hue-5: #0e7c86;
+    --hue-6: #9b51e0;
+    --hue-7: #e0457b;
+    --hue-8: #6e6e73;
+    --hue-9: #48484a;
 
-    --tone-security: #0e7f9e;
-    --tone-security-fg: #0a6a85;
-    --tone-security-bg: rgba(14, 127, 158, 0.11);
-    --tone-security-border: rgba(14, 127, 158, 0.22);
+    /* Component kinds on the canvas. Data coding only: never state, never action. */
+    --k-trigger: #0c8f7e;
+    --k-agent: #6e56cf;
+    --k-logic: #b8327a;
+    --k-tool: #0e7c86;
+    --k-data: #248a3d;
+    --k-trust: #9b51e0;
+    --k-connect: #e0457b;
+    --k-output: #48484a;
 
-    --tone-data: #c2255c;
-    --tone-data-fg: #a81c4e;
-    --tone-data-bg: rgba(194, 37, 92, 0.10);
-    --tone-data-border: rgba(194, 37, 92, 0.22);
+    /* Canvas node surfaces */
+    --node-bg: #ffffff;
+    --node-line: rgba(0, 0, 0, .12);
+    --node-line-hover: rgba(0, 0, 0, .24);
 
-    /* Elevation — light mode leans on shadow, dark mode on borders and glow */
-    --shadow-xs: 0 1px 2px rgba(11, 18, 32, 0.05);
-    --shadow-sm: 0 1px 3px rgba(11, 18, 32, 0.07), 0 1px 2px rgba(11, 18, 32, 0.04);
-    --shadow-md: 0 4px 12px rgba(11, 18, 32, 0.08), 0 1px 3px rgba(11, 18, 32, 0.04);
-    --shadow-lg: 0 12px 28px rgba(11, 18, 32, 0.11), 0 2px 6px rgba(11, 18, 32, 0.05);
-    --shadow-xl: 0 24px 56px rgba(11, 18, 32, 0.15), 0 4px 12px rgba(11, 18, 32, 0.06);
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 18px;
+    --r-xl: 24px;
+    --ease-out: cubic-bezier(.16, 1, .3, 1);
 
-    /* Canvas */
-    --canvas-bg: #f6f7f9;
-    --canvas-dots: #d4d9e2;
-    --canvas-edge: #a8b0c0;
-    --minimap-node: #cbd3e0;
-    --minimap-mask: rgba(240, 242, 245, 0.7);
+    /* --- Legacy token names, pointed at the system above ---
+       Older components reach for these; mapping them here moves the whole app
+       together. New code uses the names above. */
+    --surface-base: var(--window);
+    --surface-1: var(--window);
+    --surface-2: var(--glass-raised);
+    --surface-3: var(--solid);
+    --surface-sunken: var(--glass);
+    --surface-hover: var(--fill);
+    --surface-active: var(--fill-active);
 
-    /* Shape and motion */
-    --radius-sm: 6px;
-    --radius-md: 9px;
-    --radius-lg: 13px;
-    --radius-xl: 18px;
+    --border-subtle: var(--line);
+    --border-default: rgba(0, 0, 0, .10);
+    --border-strong: var(--line-strong);
+
+    --text-primary: var(--text);
+    --text-secondary: var(--muted);
+    --text-muted: var(--dim);
+    --text-faint: var(--dim);
+    --text-on-accent: var(--on-accent);
+
+    --accent: var(--accent-fill);
+    --accent-hover: var(--accent-hi);
+    --accent-active: var(--accent-lo);
+    --accent-soft: var(--accent-wash);
+    --accent-soft-hover: var(--fill-hover);
+    --accent-border: var(--line-strong);
+    --accent-ring: var(--focus);
+    --accent-text: var(--text);
+
+    --status-ready: var(--sage);
+    --status-ready-bg: var(--sage-wash);
+    --status-warning: var(--amber-text);
+    --status-warning-bg: var(--amber-wash);
+    --status-error: var(--clay);
+    --status-error-bg: var(--clay-wash);
+    --status-running: var(--text);
+    --status-running-bg: var(--fill);
+    --status-muted: var(--dim);
+    --status-muted-bg: var(--fill);
+
+    --tone-agent: var(--k-agent);
+    --tone-tool: var(--k-tool);
+    --tone-workflow: var(--k-connect);
+    --tone-trigger: var(--k-trigger);
+    --tone-logic: var(--k-logic);
+    --tone-output: var(--k-output);
+    --tone-security: var(--k-trust);
+    --tone-data: var(--k-data);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, .06);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .06);
+    --shadow-md: 0 1px 3px rgba(0, 0, 0, .06), 0 10px 26px -10px rgba(0, 0, 0, .16);
+    --shadow-lg: var(--shadow-float);
+    --shadow-xl: var(--shadow-float);
+
+    --canvas-bg: var(--window);
+    --canvas-dots: var(--grid-dot);
+    --canvas-edge: var(--wire);
+    --minimap-node: var(--fill-active);
+    --minimap-mask: rgba(255, 255, 255, .7);
+
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 22px;
     --radius-pill: 9999px;
-
     --duration-fast: 120ms;
     --duration-base: 180ms;
-    --duration-slow: 280ms;
-    /* A slight overshoot is what makes a dropped node feel placed rather than
-       teleported. Used for lift/scale, never for colour. */
-    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+    --duration-slow: 260ms;
+    --ease-spring: var(--ease-out);
 
-    /* Legacy aliases — older components still reference these names. Pointing
-       them at the new tokens means the whole app moves together even before
-       every component is migrated. */
     --color-canvas-bg: var(--canvas-bg);
     --color-canvas-dots: var(--canvas-dots);
-    --color-node-bg: var(--surface-2);
-    --color-node-border: var(--border-default);
-    --color-node-shadow: rgba(11, 18, 32, 0.05);
-    --color-node-shadow-hover: rgba(11, 18, 32, 0.12);
-    --color-primary: var(--accent);
-    --color-primary-hover: var(--accent-hover);
-    --color-primary-soft: var(--accent-soft);
-    --color-primary-ring: var(--accent-ring);
-    --color-ui-border: var(--border-default);
-    --color-ui-bg: var(--surface-1);
-    --color-ui-bg-subtle: var(--surface-sunken);
-    --color-surface-raised: var(--surface-2);
-    --color-text-primary: var(--text-primary);
-    --color-text-secondary: var(--text-secondary);
-    --color-text-muted: var(--text-muted);
-    --color-text-faint: var(--text-faint);
+    --color-node-bg: var(--glass-raised);
+    --color-node-border: var(--line);
+    --color-node-shadow: rgba(0, 0, 0, .05);
+    --color-node-shadow-hover: rgba(0, 0, 0, .12);
+    --color-primary: var(--accent-fill);
+    --color-primary-hover: var(--accent-hi);
+    --color-primary-soft: var(--accent-wash);
+    --color-primary-ring: var(--focus);
+    --color-ui-border: var(--line);
+    --color-ui-bg: var(--window);
+    --color-ui-bg-subtle: var(--glass);
+    --color-surface-raised: var(--glass-raised);
+    --color-text-primary: var(--text);
+    --color-text-secondary: var(--muted);
+    --color-text-muted: var(--dim);
+    --color-text-faint: var(--dim);
 
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    /* --- Tailwind's ramps, re-pointed so leftover palette classes obey the rules ---
+       Greys lose their blue cast; blue, sky and indigo become Graphite; orange,
+       amber and yellow become a yellow that turns to ink where it would be text. */
+    --color-gray-50: #f9f9fb; --color-gray-100: #f2f2f5; --color-gray-200: #e5e5ea; --color-gray-300: #d1d1d6;
+    --color-gray-400: #aeaeb2; --color-gray-500: #8e8e93; --color-gray-600: #6e6e73; --color-gray-700: #48484a;
+    --color-gray-800: #2c2c2e; --color-gray-900: #1f1f21; --color-gray-950: #161617;
+    --color-slate-50: #f9f9fb; --color-slate-100: #f2f2f5; --color-slate-200: #e5e5ea; --color-slate-300: #d1d1d6;
+    --color-slate-400: #aeaeb2; --color-slate-500: #8e8e93; --color-slate-600: #6e6e73; --color-slate-700: #48484a;
+    --color-slate-800: #2c2c2e; --color-slate-900: #1f1f21; --color-slate-950: #161617;
+    --color-zinc-50: #f9f9fb; --color-zinc-100: #f2f2f5; --color-zinc-200: #e5e5ea; --color-zinc-300: #d1d1d6;
+    --color-zinc-400: #aeaeb2; --color-zinc-500: #8e8e93; --color-zinc-600: #6e6e73; --color-zinc-700: #48484a;
+    --color-zinc-800: #2c2c2e; --color-zinc-900: #1f1f21; --color-zinc-950: #161617;
+
+    --color-blue-50: #f5f5f7; --color-blue-100: #ebebef; --color-blue-200: #d9d9de; --color-blue-300: #c1c1c6;
+    --color-blue-400: #8e8e93; --color-blue-500: #6e6e73; --color-blue-600: #1d1d1f; --color-blue-700: #000000;
+    --color-blue-800: #1d1d1f; --color-blue-900: #1d1d1f; --color-blue-950: #111113;
+    --color-sky-50: #f5f5f7; --color-sky-100: #ebebef; --color-sky-200: #d9d9de; --color-sky-300: #c1c1c6;
+    --color-sky-400: #8e8e93; --color-sky-500: #6e6e73; --color-sky-600: #1d1d1f; --color-sky-700: #000000;
+    --color-sky-800: #1d1d1f; --color-sky-900: #1d1d1f; --color-sky-950: #111113;
+    --color-indigo-50: #f5f5f7; --color-indigo-100: #ebebef; --color-indigo-200: #d9d9de; --color-indigo-300: #c1c1c6;
+    --color-indigo-400: #8e8e93; --color-indigo-500: #6e6e73; --color-indigo-600: #1d1d1f; --color-indigo-700: #000000;
+    --color-indigo-800: #1d1d1f; --color-indigo-900: #1d1d1f; --color-indigo-950: #111113;
+
+    --color-amber-50: #fffbea; --color-amber-100: #fff3c4; --color-amber-200: #ffe58a; --color-amber-300: #ffd84d;
+    --color-amber-400: #ffcc00; --color-amber-500: #f2c200; --color-amber-600: #48484a; --color-amber-700: #3a3a3c;
+    --color-amber-800: #2c2c2e; --color-amber-900: #1d1d1f; --color-amber-950: #161617;
+    --color-orange-50: #fffbea; --color-orange-100: #fff3c4; --color-orange-200: #ffe58a; --color-orange-300: #ffd84d;
+    --color-orange-400: #ffcc00; --color-orange-500: #f2c200; --color-orange-600: #48484a; --color-orange-700: #3a3a3c;
+    --color-orange-800: #2c2c2e; --color-orange-900: #1d1d1f; --color-orange-950: #161617;
+    --color-yellow-50: #fffbea; --color-yellow-100: #fff3c4; --color-yellow-200: #ffe58a; --color-yellow-300: #ffd84d;
+    --color-yellow-400: #ffcc00; --color-yellow-500: #f2c200; --color-yellow-600: #48484a; --color-yellow-700: #3a3a3c;
+    --color-yellow-800: #2c2c2e; --color-yellow-900: #1d1d1f; --color-yellow-950: #161617;
+
+    /* The macOS weight ramp: headlines are semibold, not bold. */
+    --font-weight-bold: 600;
+    --font-weight-extrabold: 650;
+    --font-weight-black: 700;
+    --font-sans: var(--font);
+    --font-mono: var(--font-mono-stack);
 }
 
 .dark {
     color-scheme: dark;
 
-    /* Surfaces step up in lightness with elevation, the way physical layers do
-       under a single light source. Pure black is avoided — it flattens depth. */
-    --surface-base: #0a0d14;
-    --surface-1: #10141d;
-    --surface-2: #161b26;
-    --surface-3: #1c2230;
-    --surface-sunken: #070a10;
-    --surface-hover: #1a2030;
-    --surface-active: #222937;
+    --window: #1e1e1e;
+    --glass: #2a2a2c;
+    --glass-sunken: rgba(0, 0, 0, .22);
+    --glass-raised: #323235;
+    --pane: #232325;
+    --sidebar: rgba(40, 40, 44, .56);
+    --sidebar-sel: rgba(255, 255, 255, .11);
+    --popover: rgba(42, 42, 46, .86);
+    --solid: #2a2a2c;
+    --fill: rgba(255, 255, 255, .10);
+    --fill-hover: rgba(255, 255, 255, .14);
+    --fill-active: rgba(255, 255, 255, .19);
+    --line: rgba(255, 255, 255, .085);
+    --line-strong: rgba(255, 255, 255, .17);
+    --field-border: rgba(255, 255, 255, .13);
+    --text: #f5f5f7;
+    --muted: #c7c7cc;
+    --dim: #a1a1a6;          /* a step above Apple's #98989d so it holds 4.5:1 on raised grey */
+    --accent-fill: #f5f5f7;
+    --accent-hi: #ffffff;
+    --accent-lo: #d1d1d6;
+    --accent-wash: rgba(255, 255, 255, .10);
+    --on-accent: #1d1d1f;
+    --focus: rgba(255, 255, 255, .45);
+    --sage: #30d158;
+    --sage-wash: rgba(48, 209, 88, .15);
+    --clay: #ff453a;
+    --clay-text: #ff6961;     /* red as words on grey needs to be lighter than red as a mark */
+    --clay-wash: rgba(255, 69, 58, .15);
+    --amber: #ffd60a;
+    --amber-text: #ffd60a;
+    --amber-wash: rgba(255, 214, 10, .15);
+    --shadow-float: 0 0 0 .5px rgba(255, 255, 255, .10), 0 2px 8px rgba(0, 0, 0, .3), 0 16px 40px -12px rgba(0, 0, 0, .55);
+    --shadow-window: 0 0 0 .5px rgba(255, 255, 255, .12), 0 8px 24px rgba(0, 0, 0, .3), 0 30px 70px -24px rgba(0, 0, 0, .6);
+    --glow: 0 1px 1px rgba(0, 0, 0, .3);
+    --grid-dot: rgba(255, 255, 255, .10);
+    --wire: #6e6e73;
+    --scroll: rgba(255, 255, 255, .24);
+    --stripe: rgba(255, 255, 255, .025);
+    --selection: #636366;
+    --selection-blur: rgba(255, 255, 255, .12);
+    --chevrons: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12' fill='none' stroke='%23c7c7cc' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 4.5L4 1.5L7 4.5M1 7.5L4 10.5L7 7.5'/%3E%3C/svg%3E");
+    --lg-fill: rgba(44, 44, 48, .58);
+    --lg-edge: rgba(0, 0, 0, .5);
+    --lg-spec: rgba(255, 255, 255, .14);
+    --lg-sheen: rgba(255, 255, 255, .04);
+    --lg-lift: 0 1px 3px rgba(0, 0, 0, .3);
+    --toolbar-band: rgba(30, 30, 30, .70);
+    --wall-a: rgba(63, 214, 192, .16);
+    --wall-b: rgba(167, 139, 250, .16);
+    --wall-c: rgba(255, 111, 174, .10);
+    --hue-1: #3fd6c0;
+    --hue-2: #30d158;
+    --hue-3: #a78bfa;
+    --hue-4: #ff6fae;
+    --hue-5: #40c8e0;
+    --hue-6: #c77dff;
+    --hue-7: #ff8fb1;
+    --hue-8: #aeaeb2;
+    --hue-9: #d1d1d6;
+    --k-trigger: #3fd6c0;
+    --k-agent: #a78bfa;
+    --k-logic: #ff6fae;
+    --k-tool: #40c8e0;
+    --k-data: #30d158;
+    --k-trust: #c77dff;
+    --k-connect: #ff8fb1;
+    --k-output: #d1d1d6;
+    --node-bg: #2a2a2c;
+    --node-line: rgba(255, 255, 255, .12);
+    --node-line-hover: rgba(255, 255, 255, .26);
 
-    --border-subtle: #1b2130;
-    --border-default: #252d3d;
-    --border-strong: #38425a;
+    --border-default: rgba(255, 255, 255, .10);
+    --minimap-mask: rgba(30, 30, 30, .72);
+    --color-node-shadow: rgba(0, 0, 0, .5);
+    --color-node-shadow-hover: rgba(0, 0, 0, .6);
 
-    --text-primary: #f2f5fa;
-    --text-secondary: #c3cad8;
-    --text-muted: #939db0;
-    --text-faint: #7d879e;
-    --text-on-accent: #ffffff;
-
-    --accent: #4763e6;
-    --accent-hover: #5470ea;
-    --accent-active: #6b86f5;
-    --accent-soft: rgba(91, 124, 255, 0.15);
-    --accent-soft-hover: rgba(91, 124, 255, 0.22);
-    --accent-border: rgba(91, 124, 255, 0.35);
-    --accent-ring: rgba(91, 124, 255, 0.40);
-    --accent-text: #9db0ff;
-
-    --status-ready: #34d399;
-    --status-ready-bg: rgba(52, 211, 153, 0.14);
-    --status-warning: #fbbf24;
-    --status-warning-bg: rgba(251, 191, 36, 0.14);
-    --status-error: #f87171;
-    --status-error-bg: rgba(248, 113, 113, 0.14);
-    --status-running: #5b7cff;
-    --status-running-bg: rgba(91, 124, 255, 0.16);
-    --status-muted: #939db0;
-    --status-muted-bg: rgba(136, 146, 165, 0.14);
-
-    --tone-agent: #5b7cff;
-    --tone-agent-fg: #9db0ff;
-    --tone-agent-bg: rgba(91, 124, 255, 0.16);
-    --tone-agent-border: rgba(91, 124, 255, 0.32);
-
-    --tone-tool: #ff8f3d;
-    --tone-tool-fg: #ffb578;
-    --tone-tool-bg: rgba(255, 143, 61, 0.15);
-    --tone-tool-border: rgba(255, 143, 61, 0.30);
-
-    --tone-workflow: #a476ff;
-    --tone-workflow-fg: #c4a6ff;
-    --tone-workflow-bg: rgba(164, 118, 255, 0.16);
-    --tone-workflow-border: rgba(164, 118, 255, 0.32);
-
-    --tone-trigger: #34d399;
-    --tone-trigger-fg: #6ee7b7;
-    --tone-trigger-bg: rgba(52, 211, 153, 0.15);
-    --tone-trigger-border: rgba(52, 211, 153, 0.30);
-
-    --tone-logic: #c364f0;
-    --tone-logic-fg: #dda5f7;
-    --tone-logic-bg: rgba(195, 100, 240, 0.15);
-    --tone-logic-border: rgba(195, 100, 240, 0.30);
-
-    --tone-output: #f87171;
-    --tone-output-fg: #fca5a5;
-    --tone-output-bg: rgba(248, 113, 113, 0.15);
-    --tone-output-border: rgba(248, 113, 113, 0.30);
-
-    --tone-security: #38bdf8;
-    --tone-security-fg: #7dd3fc;
-    --tone-security-bg: rgba(56, 189, 248, 0.15);
-    --tone-security-border: rgba(56, 189, 248, 0.30);
-
-    --tone-data: #f472b6;
-    --tone-data-fg: #f9a8d4;
-    --tone-data-bg: rgba(244, 114, 182, 0.15);
-    --tone-data-border: rgba(244, 114, 182, 0.30);
-
-    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
-    --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.7);
-
-    --canvas-bg: #0a0d14;
-    --canvas-dots: #232a3a;
-    --canvas-edge: #3c4661;
-    --minimap-node: #38425a;
-    --minimap-mask: rgba(6, 9, 15, 0.72);
-
-    --color-node-shadow: rgba(0, 0, 0, 0.5);
-    --color-node-shadow-hover: rgba(91, 124, 255, 0.25);
+    --color-blue-400: #aeaeb2; --color-blue-500: #8e8e93; --color-blue-600: #636366; --color-blue-700: #7c7c80;
+    --color-blue-900: #2c2c2e; --color-blue-950: #1c1c1e;
+    --color-sky-400: #aeaeb2; --color-sky-500: #8e8e93; --color-sky-600: #636366; --color-sky-700: #7c7c80;
+    --color-sky-900: #2c2c2e; --color-sky-950: #1c1c1e;
+    --color-indigo-400: #aeaeb2; --color-indigo-500: #8e8e93; --color-indigo-600: #636366; --color-indigo-700: #7c7c80;
+    --color-indigo-900: #2c2c2e; --color-indigo-950: #1c1c1e;
+    --color-amber-600: #ffd60a; --color-amber-700: #ffd60a; --color-amber-800: #3a3a3c; --color-amber-900: #2c2c2e; --color-amber-950: #232325;
+    --color-orange-600: #ffd60a; --color-orange-700: #ffd60a; --color-orange-800: #3a3a3c; --color-orange-900: #2c2c2e; --color-orange-950: #232325;
+    --color-yellow-600: #ffd60a; --color-yellow-700: #ffd60a; --color-yellow-800: #3a3a3c; --color-yellow-900: #2c2c2e; --color-yellow-950: #232325;
 }
 
-@theme {
-    --font-display: 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
-    --font-body: 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
-}
-
-body {
-    background-color: var(--surface-base);
-    color: var(--text-secondary);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    margin: 0;
-    padding: 0;
-}
-
-.dark body {
-    /* Two very low-opacity washes give the dark canvas depth without the
-       "gamer RGB" look a saturated gradient produces. */
-    background:
-        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(91, 124, 255, 0.07), transparent),
-        radial-gradient(ellipse 60% 50% at 100% 100%, rgba(164, 118, 255, 0.05), transparent),
-        var(--surface-base);
-    background-attachment: fixed;
+/* Tones are one hue at four strengths, derived rather than listed, so a new
+   kind only needs its hue. */
+:root, .dark {
+    --tone-agent-fg: var(--k-agent);
+    --tone-tool-fg: var(--k-tool);
+    --tone-workflow-fg: var(--k-connect);
+    --tone-trigger-fg: var(--k-trigger);
+    --tone-logic-fg: var(--k-logic);
+    --tone-output-fg: var(--k-output);
+    --tone-security-fg: var(--k-trust);
+    --tone-data-fg: var(--k-data);
+    --tone-agent-bg: color-mix(in srgb, var(--k-agent) 14%, transparent);
+    --tone-tool-bg: color-mix(in srgb, var(--k-tool) 14%, transparent);
+    --tone-workflow-bg: color-mix(in srgb, var(--k-connect) 14%, transparent);
+    --tone-trigger-bg: color-mix(in srgb, var(--k-trigger) 14%, transparent);
+    --tone-logic-bg: color-mix(in srgb, var(--k-logic) 14%, transparent);
+    --tone-output-bg: color-mix(in srgb, var(--k-output) 14%, transparent);
+    --tone-security-bg: color-mix(in srgb, var(--k-trust) 14%, transparent);
+    --tone-data-bg: color-mix(in srgb, var(--k-data) 14%, transparent);
+    --tone-agent-border: color-mix(in srgb, var(--k-agent) 28%, transparent);
+    --tone-tool-border: color-mix(in srgb, var(--k-tool) 28%, transparent);
+    --tone-workflow-border: color-mix(in srgb, var(--k-connect) 28%, transparent);
+    --tone-trigger-border: color-mix(in srgb, var(--k-trigger) 28%, transparent);
+    --tone-logic-border: color-mix(in srgb, var(--k-logic) 28%, transparent);
+    --tone-output-border: color-mix(in srgb, var(--k-output) 28%, transparent);
+    --tone-security-border: color-mix(in srgb, var(--k-trust) 28%, transparent);
+    --tone-data-border: color-mix(in srgb, var(--k-data) 28%, transparent);
 }
 
 /* ==========================================================================
-   Primitives
-
-   Small, composable classes so components stop hand-rolling colour. Each one
-   is theme-correct by construction because it only references tokens.
+   Base
    ========================================================================== */
 
-.dlx-surface { background-color: var(--surface-1); border-color: var(--border-default); }
-.dlx-surface-2 { background-color: var(--surface-2); border-color: var(--border-default); }
-.dlx-surface-3 { background-color: var(--surface-3); border-color: var(--border-default); }
-.dlx-sunken { background-color: var(--surface-sunken); border-color: var(--border-subtle); }
+@layer base {
+    html, body, #root { height: 100%; }
 
-.dlx-panel {
-    background-color: var(--surface-1);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
+    body {
+        margin: 0;
+        color: var(--text);
+        background: var(--window);
+        font-family: var(--font);
+        font-size: 13px;
+        line-height: 1.46;
+        letter-spacing: -0.006em;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+    }
+
+    ::selection { background: color-mix(in srgb, var(--text) 18%, transparent); color: var(--text); }
+    * { caret-color: var(--text); }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+
+    /* Overlay scrollbars, the way macOS draws them: a thin rounded thumb that
+       shows while you are over (or scrolling) the region, and nothing otherwise. */
+    * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+    *:hover, *:focus-within { scrollbar-color: var(--scroll) transparent; }
+    ::-webkit-scrollbar { width: 12px; height: 12px; background: transparent; }
+    ::-webkit-scrollbar-thumb {
+        background-color: transparent; border-radius: 999px; min-height: 36px;
+        border: 4px solid transparent; background-clip: padding-box;
+    }
+    *:hover::-webkit-scrollbar-thumb, *:focus-within::-webkit-scrollbar-thumb { background-color: var(--scroll); }
+    ::-webkit-scrollbar-thumb:hover { background-color: var(--dim); border-width: 3px; }
+    ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+
+    input[type="range"] { accent-color: var(--text); }
+    input[type="checkbox"], input[type="radio"] { accent-color: var(--text); }
 }
 
+/* Tracked capitals are not part of this system: section labels are sentence case.
+   Neutralising the utilities here fixes every panel that still asks for them. */
+.uppercase { text-transform: none !important; }
+.tracking-wider, .tracking-widest, .tracking-\[0\.09em\], .tracking-\[0\.2em\] { letter-spacing: .005em !important; }
+
+/* ==========================================================================
+   Materials, type and controls
+   ========================================================================== */
+
+@layer components {
+    .panel { background: var(--glass); border-radius: var(--r-lg); }
+    .well { background: var(--glass-sunken); border-radius: var(--r-md); }
+
+    /* Chrome floating over the work: menus, popovers, toasts. */
+    .glass-strong {
+        background: radial-gradient(140% 90% at 18% 0%, var(--lg-sheen), transparent 55%), var(--popover);
+        -webkit-backdrop-filter: blur(30px) saturate(190%);
+        backdrop-filter: blur(30px) saturate(190%);
+        box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 0 var(--lg-spec), var(--shadow-float);
+    }
+
+    /* A Liquid Glass control: toolbar groups, the activity capsule, canvas capsules. */
+    .liquid {
+        background: radial-gradient(160% 110% at 22% 0%, var(--lg-sheen), transparent 58%), var(--lg-fill);
+        -webkit-backdrop-filter: blur(18px) saturate(190%);
+        backdrop-filter: blur(18px) saturate(190%);
+        box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 0 var(--lg-spec), var(--lg-lift);
+    }
+
+    /* A pane floating over the canvas: palette, inspector, chat, Builder, Help. */
+    .glass-pane {
+        display: flex; flex-direction: column; border-radius: 22px; overflow: hidden;
+        background: radial-gradient(140% 50% at 20% 0%, var(--lg-sheen), transparent 55%), var(--popover);
+        -webkit-backdrop-filter: blur(34px) saturate(190%);
+        backdrop-filter: blur(34px) saturate(190%);
+        box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 0 var(--lg-spec), var(--shadow-float);
+    }
+    .glass-pane.from-left { animation: slide-in-left .24s var(--ease-out) both; }
+    .glass-pane.from-right { animation: slide-in-right .26s var(--ease-out) both; }
+
+    /* A scrolling list inside a pane: content fades out at the edges instead of
+       being cut off by a hard line. */
+    .scroll-soft {
+        overflow-y: auto; overscroll-behavior: contain;
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 16px), transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 16px), transparent 100%);
+    }
+
+    .mono { font-family: var(--font-mono-stack); font-size: 11.5px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+
+    .display { font-size: 28px; font-weight: 700; letter-spacing: -0.022em; line-height: 1.15; margin: 0; text-wrap: balance; }
+    .title-1 { font-size: 22px; font-weight: 700; letter-spacing: -0.016em; line-height: 1.2; margin: 0; }
+    .title-2 { font-size: 17px; font-weight: 600; letter-spacing: -0.012em; line-height: 1.3; margin: 0; }
+    .headline { font-size: 13px; font-weight: 600; margin: 0; }
+    .h-section { font-size: 11px; font-weight: 600; letter-spacing: .005em; color: var(--dim); }
+    .hint { font-size: 12px; color: var(--dim); line-height: 1.45; }
+    .lead { color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .text-dim { color: var(--dim); }
+    .text-muted { color: var(--muted); }
+    .reading { font-size: 15px; line-height: 1.62; color: var(--text); max-width: 72ch; }
+    .reading p { margin: 0 0 12px; }
+    .reading ul, .reading ol { margin: 0 0 12px; padding-left: 20px; }
+    .reading ul { list-style: disc; } .reading ol { list-style: decimal; }
+    .reading code { font-family: var(--font-mono-stack); font-size: 12.5px; background: var(--glass-sunken); padding: 1px 5px; border-radius: 5px; }
+    .reading pre { background: var(--glass-sunken); border-radius: var(--r-md); padding: 12px 14px; overflow-x: auto; margin: 0 0 12px; }
+    .reading pre code { background: none; padding: 0; }
+    .reading a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+    .reading strong { font-weight: 600; }
+    .reading h1, .reading h2, .reading h3 { font-size: 15px; font-weight: 600; margin: 16px 0 6px; }
+
+    .figure { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .figure > b { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; line-height: 1.15; color: var(--text); }
+    .figure > b small { font-size: 13px; font-weight: 500; color: var(--dim); margin-left: 2px; }
+    .figure > span { font-size: 11px; color: var(--dim); font-weight: 500; }
+    .figure.is-zero > b { color: var(--dim); font-weight: 500; }
+    .figures { display: flex; }
+    .figures > .figure { flex: 1; padding-left: 14px; border-left: 1px solid var(--line); }
+    .figures > .figure:first-child { padding-left: 0; border-left: 0; }
+
+    /* Push buttons are capsules with a tinted fill; the default action is the solid one. */
+    .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        height: 28px; padding: 0 14px; border-radius: 999px; border: 0;
+        background: var(--fill); color: var(--text);
+        font-family: inherit; font-size: 13px; font-weight: 500; letter-spacing: -0.006em;
+        white-space: nowrap; user-select: none; text-decoration: none; cursor: default;
+        transition: background-color .15s ease, color .15s ease, opacity .15s ease, transform .2s var(--ease-out);
+    }
+    .btn:hover:not(:disabled) { background: var(--fill-hover); }
+    .btn:active:not(:disabled) { background: var(--fill-active); }
+    .btn:disabled { opacity: .4; }
+    .btn > svg { flex: 0 0 auto; }
+    .btn-primary { background: var(--accent-fill); color: var(--on-accent); box-shadow: var(--glow); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hi); }
+    .btn-primary:active:not(:disabled) { background: var(--accent-lo); }
+    .btn-ghost { background: transparent; color: var(--muted); }
+    .btn-ghost:hover:not(:disabled) { background: var(--fill); color: var(--text); }
+    .btn-danger { background: transparent; color: var(--clay-text); }
+    .btn-danger:hover:not(:disabled) { background: var(--clay-wash); color: var(--clay-text); }
+    .btn-sm { height: 24px; padding: 0 11px; font-size: 12px; }
+    .btn-lg { height: 40px; padding: 0 22px; font-size: 15px; }
+    .btn-icon { padding: 0; width: 28px; }
+    .btn-sm.btn-icon { width: 24px; }
+    .btn-lg.btn-icon { width: 40px; }
+
+    /* Toolbar items: Liquid Glass capsules. */
+    .btn-toolbar {
+        height: 36px; padding: 0 16px;
+        background: radial-gradient(160% 110% at 22% 0%, var(--lg-sheen), transparent 58%), var(--lg-fill);
+        -webkit-backdrop-filter: blur(18px) saturate(190%);
+        backdrop-filter: blur(18px) saturate(190%);
+        box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 0 var(--lg-spec), var(--lg-lift);
+    }
+    .btn-toolbar:hover:not(:disabled) { background: radial-gradient(160% 110% at 22% 0%, var(--lg-sheen), transparent 58%), color-mix(in srgb, var(--lg-fill) 100%, var(--text) 5%); }
+    .btn-toolbar:active:not(:disabled) { background: radial-gradient(160% 110% at 22% 0%, var(--lg-sheen), transparent 58%), color-mix(in srgb, var(--lg-fill) 100%, var(--text) 9%); }
+    .btn-toolbar.btn-icon { width: 36px; padding: 0; }
+    .btn-toolbar[aria-pressed="true"], .btn-toolbar[aria-expanded="true"] {
+        background: radial-gradient(160% 110% at 22% 0%, var(--lg-sheen), transparent 58%), var(--fill-active);
+    }
+    .toolbar-group { display: inline-flex; align-items: center; height: 36px; padding: 0 3px; gap: 2px; border-radius: 999px; }
+    .toolbar-group > .btn { height: 30px; padding: 0 13px; background: transparent; }
+    .toolbar-group > .btn:hover:not(:disabled) { background: var(--fill); }
+    .toolbar-group > .btn-primary { background: var(--accent-fill); color: var(--on-accent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22); }
+    .toolbar-group > .btn-primary:hover:not(:disabled) { background: var(--accent-hi); }
+
+    .input, .select, .textarea {
+        display: block; width: 100%; min-height: 28px; padding: 4px 9px; border-radius: var(--r-sm);
+        background: var(--glass-raised); border: 1px solid var(--field-border);
+        color: var(--text); font-size: 13px; font-family: inherit; outline: none; letter-spacing: -0.006em;
+        transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .input::placeholder, .textarea::placeholder { color: var(--dim); }
+    .input:focus, .select:focus-visible, .textarea:focus {
+        border-color: color-mix(in srgb, var(--text) 45%, transparent);
+        box-shadow: 0 0 0 3px var(--focus); outline: none;
+    }
+    .input:disabled, .textarea:disabled, .select:disabled { opacity: .55; }
+    .textarea { resize: vertical; line-height: 1.5; padding: 6px 9px; }
+    .select {
+        appearance: none; -webkit-appearance: none; padding-right: 26px;
+        background-image: var(--chevrons); background-position: calc(100% - 10px) 50%;
+        background-size: 8px 12px; background-repeat: no-repeat;
+    }
+    .select option { background: var(--solid); color: var(--text); }
+    .search-field { position: relative; }
+    .search-field > svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--dim); pointer-events: none; }
+    .search-field > .input { padding-left: 30px; border-radius: 999px; background: var(--fill); border-color: transparent; }
+    .search-field > .input:focus { background: var(--glass-raised); }
+    .field-label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+    .field-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+
+    /* A badge: a small capsule, tinted, never outlined. */
+    .chip {
+        display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px;
+        font-size: 11px; font-weight: 500; line-height: 1.5; border: 0;
+        background: var(--fill); color: var(--muted); white-space: nowrap; max-width: 100%; min-width: 0;
+    }
+    .chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .chip-ok { color: var(--sage); background: var(--sage-wash); }
+    .chip-warn { color: var(--amber-text); background: var(--amber-wash); }
+    .chip-bad { color: var(--clay-text); background: var(--clay-wash); }
+    .chip-kind { color: var(--lane); background: color-mix(in srgb, var(--lane) 13%, transparent); }
+
+    /* A status mark. The shape carries the meaning; the hue confirms it. */
+    .sg { display: inline-block; width: 9px; height: 9px; border-radius: 999px; flex: 0 0 auto; background: var(--dim); }
+    .sg[data-shape="ok"] { background: var(--sage); }
+    .sg[data-shape="warn"] { background: transparent; box-shadow: inset 0 0 0 2.25px var(--amber); }
+    .sg[data-shape="idle"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--dim); }
+    .sg[data-shape="bad"] { background: var(--clay); border-radius: 2px; transform: rotate(45deg) scale(.86); }
+    .sg[data-shape="busy"] {
+        background: transparent; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--amber) 35%, transparent);
+        border-top: 2px solid var(--amber); box-sizing: border-box; animation: spin .9s linear infinite;
+    }
+    .chip .sg { width: 7px; height: 7px; }
+
+    .switch { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 2px 0; color: var(--muted); font: inherit; border-radius: 999px; }
+    .switch:disabled { opacity: .45; }
+    .switch-track { width: 38px; height: 20px; border-radius: 999px; position: relative; flex: 0 0 auto; background: var(--fill-active); transition: background-color .2s var(--ease-out); }
+    .switch-track[data-on] { background: var(--sage); }
+    .switch-thumb { position: absolute; top: 2px; left: 2px; width: 22px; height: 16px; border-radius: 999px; background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, .28), 0 0 0 .5px rgba(0, 0, 0, .06); transition: transform .22s var(--ease-out); }
+    .switch-track[data-on] .switch-thumb { transform: translateX(12px); }
+
+    /* The segmented control: a tinted track with the chosen segment raised out of it. */
+    .segmented { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--fill); max-width: 100%; }
+    .segmented > button {
+        height: 24px; padding: 0 12px; border-radius: 999px; border: 0; background: transparent; color: var(--muted);
+        font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap;
+        transition: background-color .18s var(--ease-out), color .18s ease, box-shadow .18s ease;
+    }
+    .segmented > button:hover:not(:disabled) { color: var(--text); }
+    .segmented > button:disabled { opacity: .4; }
+    .segmented > button[aria-checked="true"], .segmented > button[aria-selected="true"] {
+        background: radial-gradient(160% 120% at 25% 0%, var(--lg-sheen), transparent 60%), var(--glass-raised);
+        color: var(--text); font-weight: 500;
+        box-shadow: 0 0 0 .5px var(--lg-edge), 0 1px 2px rgba(0, 0, 0, .06);
+    }
+    .segmented.is-wide { display: flex; width: 100%; }
+    .segmented.is-wide > button { flex: 1; padding: 0 4px; min-width: 0; }
+    .segmented.is-dense > button { font-size: 12px; }
+    .segmented .count { color: var(--dim); font-variant-numeric: tabular-nums; font-weight: 400; }
+
+    /* Kind tile: the icon that says what a component is, everywhere it appears. */
+    .tile {
+        width: 32px; height: 32px; border-radius: 10px; flex: 0 0 auto; display: grid; place-items: center;
+        color: var(--lane); background: color-mix(in srgb, var(--lane) 15%, transparent);
+        box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--lane) 30%, transparent);
+    }
+    .tile.is-sm { width: 26px; height: 26px; border-radius: 8px; }
+    .tile.is-lg { width: 40px; height: 40px; border-radius: 12px; }
+
+    /* Menus highlight solid, the way a Mac menu does. */
+    .menu { position: absolute; z-index: 80; min-width: 240px; padding: 6px; border-radius: 16px; transform-origin: top right; animation: pop .18s var(--ease-out) both; }
+    .menu-item {
+        display: flex; align-items: center; gap: 9px; width: 100%; height: 30px; padding: 0 10px; border-radius: 10px;
+        background: none; border: 0; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: default;
+    }
+    .menu-item > svg { color: var(--muted); flex: 0 0 auto; }
+    .menu-item .menu-key { margin-left: auto; font-size: 12px; color: var(--dim); display: inline-flex; }
+    .menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--accent-fill); color: var(--on-accent); outline: none; }
+    .menu-item:hover:not(:disabled) > svg, .menu-item:focus-visible > svg,
+    .menu-item:hover:not(:disabled) .menu-key, .menu-item:focus-visible .menu-key { color: var(--on-accent); }
+    .menu-item:disabled { opacity: .4; }
+    .menu-sep { height: 1px; background: var(--line); margin: 5px 10px; }
+    .menu-label { font-size: 11px; font-weight: 600; color: var(--dim); padding: 4px 10px; }
+
+    .toast { display: inline-flex; align-items: center; gap: 9px; padding: 7px 7px 7px 16px; border-radius: 999px; font-size: 13px; color: var(--text); }
+
+    /* A sheet: opaque, rounded like the window, scaling in rather than sliding. */
+    .sheet-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .22); animation: fade .18s ease both; }
+    .sheet { color: var(--text); border-radius: var(--r-xl); background: var(--solid); box-shadow: var(--shadow-float); max-height: calc(100dvh - 32px); overflow: auto; animation: pop .22s var(--ease-out) both; }
+
+    /* ---------------------------------------------------------------- app shell */
+    .app {
+        display: flex; height: 100%; width: 100%; overflow: hidden;
+        background-color: var(--window);
+        background-image:
+            radial-gradient(520px 420px at 0% 8%, var(--wall-a), transparent 70%),
+            radial-gradient(480px 460px at 4% 72%, var(--wall-b), transparent 70%),
+            radial-gradient(360px 300px at 18% 102%, var(--wall-c), transparent 70%);
+    }
+    .app-nav {
+        width: var(--sidebar-w); flex: 0 0 var(--sidebar-w); display: flex; flex-direction: column; gap: 1px;
+        padding: 14px 10px; overflow-y: auto; z-index: 40;
+        background: linear-gradient(180deg, var(--lg-sheen), transparent 38%), var(--sidebar);
+        -webkit-backdrop-filter: blur(50px) saturate(200%);
+        backdrop-filter: blur(50px) saturate(200%);
+        box-shadow: inset -1px 0 0 var(--lg-spec), 1px 0 0 var(--lg-edge);
+        transition: margin-left .26s var(--ease-out), width .24s var(--ease-out), flex-basis .24s var(--ease-out), padding .24s var(--ease-out);
+    }
+
+    /* The icon rail: the Studio's default, so the canvas gets the room. Places
+       keep their coloured icons and name themselves in a tooltip. */
+    .app-nav[data-rail] { width: 64px; flex-basis: 64px; padding: 12px 8px; align-items: stretch; }
+    .app-nav[data-rail] .app-brand { justify-content: center; padding: 6px 0 12px; }
+    .app-nav[data-rail] .app-brand b,
+    .app-nav[data-rail] .nav-item .nav-text,
+    .app-nav[data-rail] .nav-item .nav-count,
+    .app-nav[data-rail] .nav-status > div { display: none; }
+    .app-nav[data-rail] .nav-group-label { font-size: 0; height: 1px; padding: 0; margin: 9px 12px; background: var(--line); }
+    .app-nav[data-rail] .nav-item { justify-content: center; padding: 0; min-height: 36px; width: 40px; margin: 0 auto; }
+    .app-nav[data-rail] .nav-status { justify-content: center; padding: 6px 0; }
+    .app-brand { display: flex; align-items: center; gap: 9px; padding: 6px 10px 14px; background: none; border: 0; color: var(--text); font: inherit; border-radius: 10px; text-align: left; cursor: default; }
+    .app-brand b { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
+    .nav-group-label { font-size: 11px; font-weight: 600; color: var(--dim); padding: 14px 10px 5px; }
+    .nav-item {
+        display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 5px 10px; border-radius: 10px;
+        border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 400; text-align: left; cursor: default;
+        transition: background-color .15s ease;
+    }
+    .nav-item > svg { color: var(--hue, var(--muted)); flex: 0 0 auto; }
+    .nav-item:hover:not(:disabled) { background: var(--fill); }
+    .nav-item[aria-current="page"] { background: var(--sidebar-sel); font-weight: 600; box-shadow: inset 0 1px 0 var(--lg-sheen); }
+    .nav-item[aria-current="page"] .nav-count { color: var(--muted); }
+    .nav-item .nav-count { margin-left: auto; font-size: 12px; color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+    .nav-item .nav-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 12px; }
+    .nav-status { display: flex; align-items: center; gap: 9px; padding: 6px 10px; }
+    .avatar { width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 600; background: var(--fill-active); color: var(--text); flex: 0 0 auto; }
+
+    .app-main { flex: 1; min-width: 0; position: relative; background: var(--window); display: flex; flex-direction: column; }
+    .app-content { flex: 1; min-height: 0; position: relative; }
+
+    .app-header {
+        position: absolute; top: 0; left: 0; right: 0; z-index: 30; height: var(--toolbar-h);
+        display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 0 14px 0 18px;
+        background: linear-gradient(180deg, var(--toolbar-band), color-mix(in srgb, var(--toolbar-band) 70%, transparent));
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        backdrop-filter: blur(24px) saturate(180%);
+        box-shadow: 0 .5px 0 var(--line);
+    }
+    .header-lead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .header-actions { justify-self: end; display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+    /* The activity capsule: what is open, what state it is in, and what is running. */
+    .activity { position: relative; display: flex; align-items: center; height: 36px; min-width: 0; width: clamp(300px, 34vw, 500px); padding: 0 4px 0 3px; border-radius: 999px; overflow: hidden; }
+    .activity-select {
+        flex: 1 1 auto; min-width: 0; height: 30px; border: 0; background-color: transparent; color: var(--text);
+        font: inherit; font-weight: 600; font-size: 13px; padding: 0 26px 0 13px; border-radius: 999px; text-overflow: ellipsis;
+        appearance: none; -webkit-appearance: none;
+        background-image: var(--chevrons); background-position: calc(100% - 10px) 50%; background-size: 8px 12px; background-repeat: no-repeat;
+    }
+    .activity-select:hover { background-color: var(--fill); }
+    .activity-select:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+    .activity-select option { background: var(--solid); color: var(--text); font-weight: 400; }
+    .activity-name { flex: 1 1 auto; min-width: 0; height: 30px; border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; font-size: 13px; padding: 0 13px; border-radius: 999px; text-overflow: ellipsis; outline: none; }
+    .activity-name:hover { background: var(--fill); }
+    .activity-name:focus { background: var(--glass-raised); box-shadow: 0 0 0 3px var(--focus); }
+    .activity-edited { color: var(--dim); font-size: 12px; padding: 0 8px 0 2px; white-space: nowrap; }
+    .activity-sep { width: 1px; height: 16px; background: var(--line-strong); flex: 0 0 auto; }
+    .activity-status {
+        display: inline-flex; align-items: center; gap: 7px; flex: 0 1 auto; min-width: 0; height: 30px;
+        padding: 0 13px 0 10px; border: 0; background: none; border-radius: 999px; font: inherit; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: default;
+    }
+    .activity-status:hover { background: var(--fill); color: var(--text); }
+    .activity-status > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+    .activity-progress { position: absolute; left: 16px; right: 16px; bottom: 1px; height: 2px; border-radius: 2px; background: var(--text); transform-origin: left; transition: transform .5s var(--ease-out); }
+    .activity-progress.is-indeterminate { left: 0; right: auto; width: 35%; animation: indeterminate 1.3s ease-in-out infinite; }
+
+    .page { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding: calc(var(--toolbar-h) + 22px) 32px 56px; scroll-padding-top: var(--toolbar-h); }
+    .page-inner { max-width: 1240px; margin: 0 auto; }
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px 20px; flex-wrap: wrap; }
+    .split-layout { display: grid; gap: 20px; margin-top: 20px; align-items: start; grid-template-columns: minmax(0, 1fr) 340px; }
+
+    /* ---------------------------------------------------------------- table + inspector */
+    .table-box { border-radius: var(--r-md); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--window); }
+    .mtable { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    .mtable th { text-align: left; font-size: 11px; font-weight: 600; color: var(--dim); padding: 8px 12px 7px; border-bottom: 1px solid var(--line); background: var(--window); white-space: nowrap; }
+    .mtable td { padding: 9px 12px; vertical-align: middle; color: var(--muted); }
+    .mtable .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .mtable tbody tr:nth-child(even) td { background: var(--stripe); }
+    .mtable tbody tr:hover td { background: var(--fill); }
+    .mtable tbody tr[aria-selected="true"] td { background: var(--selection-blur); }
+    .mtable tbody tr[aria-selected="true"] .row-sub { color: var(--muted); }
+    .mtable:focus-within tbody tr[aria-selected="true"] td { background: var(--selection); color: rgba(255, 255, 255, .82); }
+    .mtable:focus-within tbody tr[aria-selected="true"] .row-title { color: #ffffff; }
+    .mtable:focus-within tbody tr[aria-selected="true"] .row-sub { color: rgba(255, 255, 255, .72); }
+    .mtable:focus-within tbody tr[aria-selected="true"] .chip { background: rgba(255, 255, 255, .18); color: #ffffff; }
+    .mtable tbody tr[aria-selected="true"] td:first-child { border-radius: 8px 0 0 8px; }
+    .mtable tbody tr[aria-selected="true"] td:last-child { border-radius: 0 8px 8px 0; }
+    .row-title { display: block; background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--text); text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+    .row-title:focus-visible { outline: none; }
+    .mtable tbody tr:has(.row-title:focus-visible) td { box-shadow: inset 0 2px 0 var(--focus), inset 0 -2px 0 var(--focus); }
+    .row-sub { display: block; font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+    .row-status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+
+    .inspector { position: sticky; top: calc(var(--toolbar-h) + 12px); padding: 20px; border-radius: var(--r-lg); background: var(--glass); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .inspector-status { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .rows { display: flex; flex-direction: column; border-radius: 10px; background: var(--glass-raised); overflow: hidden; }
+    .rows > * { display: flex; align-items: center; gap: 8px; padding: 7px 10px; font-size: 12.5px; min-height: 32px; min-width: 0; }
+    .rows > * + * { border-top: 1px solid var(--line); }
+    .rows .row-k { color: var(--dim); flex: 0 0 auto; }
+    .rows .row-v { margin-left: auto; color: var(--text); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rows svg { color: var(--dim); flex: 0 0 auto; }
+
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 40px 24px; color: var(--dim); }
+    .empty-state .headline { color: var(--text); }
+
+    /* ---------------------------------------------------------------- canvas */
+    .canvas-legend { position: absolute; z-index: 10; display: flex; align-items: center; gap: 14px; height: 32px; padding: 0 14px; border-radius: 999px; font-size: 11.5px; color: var(--muted); pointer-events: none; }
+    .canvas-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .canvas-legend i { display: inline-block; width: 18px; height: 0; border-top: 1.5px solid var(--wire); }
+    .canvas-legend i.is-dashed { border-top-style: dashed; }
+    .canvas-legend .legend-hint { color: var(--dim); padding-left: 14px; box-shadow: -1px 0 0 var(--line); }
+
+    .pal-row {
+        display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 9px; width: 100%; height: 34px; padding: 0 8px;
+        border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: grab;
+        transition: background-color .12s ease, opacity .12s ease;
+    }
+    .pal-row:hover { background: var(--fill); }
+    .pal-row:active { cursor: grabbing; }
+    .pal-row[data-dragging="true"] { opacity: .35; }
+    .pal-row .pal-hint { font-size: 11px; color: var(--dim); opacity: 0; transition: opacity .12s ease; }
+    .pal-row:hover .pal-hint { opacity: 1; }
+
+    /* Canvas nodes: n8n's shapes, drawn the Apple way — flat surfaces, a hairline
+       edge, an icon in the component's kind colour, and a graphite ring for the
+       selection. Agents are cards with labelled attachment ports; tools, memory
+       and knowledge are round sub-nodes; triggers, routers and the answer are
+       compact tiles. Titles sit below the round and square shapes, as in n8n. */
+    .node-card {
+        position: relative; display: flex; align-items: center; gap: 11px; min-height: 64px;
+        padding: 11px 13px 11px 11px; border-radius: 14px; color: var(--text);
+        background: var(--node-bg);
+        box-shadow: 0 0 0 1px var(--node-line), 0 1px 2px rgba(0, 0, 0, .04);
+        transition: box-shadow .15s ease;
+    }
+    .node-card:hover, .node-shape:hover { box-shadow: 0 0 0 1px var(--node-line-hover), 0 1px 2px rgba(0, 0, 0, .04); }
+    .node-card.is-selected, .node-shape.is-selected { box-shadow: 0 0 0 2px var(--text), 0 1px 2px rgba(0, 0, 0, .04); }
+    .node-card.is-error, .node-shape.is-error { box-shadow: 0 0 0 1.5px var(--clay), 0 1px 2px rgba(0, 0, 0, .04); }
+    .node-card.is-error.is-selected, .node-shape.is-error.is-selected { box-shadow: 0 0 0 2px var(--clay); }
+    .node-card.is-running, .node-shape.is-running { box-shadow: 0 0 0 2px var(--amber), 0 1px 2px rgba(0, 0, 0, .04); }
+    .node-card.is-compact { min-height: 48px; padding: 8px 12px 8px 8px; gap: 9px; border-radius: 12px; }
+    .node-card.is-pill { min-height: 44px; padding: 7px 16px 7px 7px; gap: 9px; border-radius: 999px; }
+    .node-card.is-pill .tile, .node-card.is-compact .tile { width: 28px; height: 28px; border-radius: 8px; }
+    .node-card.is-pill .tile { border-radius: 999px; }
+    .node-card.is-agent { width: 248px; min-height: 92px; padding: 12px 14px 30px 12px; gap: 12px; align-items: flex-start; }
+    .node-card.is-agent .tile { width: 40px; height: 40px; border-radius: 11px; }
+    .node-card .tile { box-shadow: none; }
+    .node-text { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+    .node-kind { font-size: 11px; font-weight: 600; color: var(--dim); line-height: 1.2; }
+    .node-title { font-size: 14.5px; font-weight: 600; letter-spacing: -0.012em; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .node-card.is-compact .node-title, .node-card.is-pill .node-title { font-size: 13.5px; }
+    .node-sub { font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .node-meta { display: flex; align-items: center; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+    .node-meta .chip { padding: 0 6px; font-size: 10.5px; }
+
+    /* Round and square shapes, with the title underneath. */
+    .node-shape {
+        position: relative; display: grid; place-items: center; color: var(--lane);
+        background: color-mix(in srgb, var(--lane) 6%, var(--node-bg));
+        box-shadow: 0 0 0 1px var(--node-line), 0 1px 2px rgba(0, 0, 0, .04);
+        transition: box-shadow .15s ease;
+    }
+    .node-shape.is-orb { width: 60px; height: 60px; border-radius: 999px; }
+    .node-shape.is-square { width: 64px; height: 64px; border-radius: 16px; }
+    .node-shape.is-trigger { width: 64px; height: 64px; border-radius: 32px 16px 16px 32px; }
+    .node-caption {
+        position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+        width: 180px; display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; pointer-events: none;
+        color: var(--text);
+    }
+    .node-caption .node-title { font-size: 13.5px; max-width: 100%; }
+    .node-caption .node-sub { font-size: 11.5px; max-width: 100%; }
+    .node-badge {
+        position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center;
+        background: var(--node-bg); box-shadow: 0 0 0 1px var(--node-line);
+    }
+    .node-badge .sg { width: 8px; height: 8px; }
+
+    /* An agent's attachment ports, labelled underneath the way n8n labels them. */
+    /* Inside the card's foot, above their ports, as n8n prints them on its agent node. */
+    .port-labels { position: absolute; left: 0; bottom: 8px; width: 100%; height: 14px; pointer-events: none; }
+    .port-labels::before { content: ''; position: absolute; left: 12px; right: 12px; top: -7px; height: 1px; background: var(--line); }
+    .port-labels > span { position: absolute; transform: translateX(-50%); font-size: 10.5px; font-weight: 500; color: var(--dim); white-space: nowrap; transition: color .15s ease, opacity .15s ease; }
+    .port-labels > span.is-wanted { color: var(--text); }
+    .port-labels > span.is-dimmed { opacity: .35; }
+    .aux-label { position: absolute; font-size: 10.5px; font-weight: 500; color: var(--dim); transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
+
+    /* ---------------------------------------------------------------- chat */
+    .msg-user { align-self: flex-end; max-width: 85%; padding: 8px 13px; border-radius: 18px 18px 6px 18px; background: var(--accent-fill); color: var(--on-accent); font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .msg-bot { align-self: stretch; font-size: 13.5px; line-height: 1.55; color: var(--text); overflow-wrap: anywhere; }
+    .msg-bot p { margin: 0 0 8px; } .msg-bot p:last-child { margin-bottom: 0; }
+    .trace { display: flex; flex-direction: column; border-radius: 12px; background: var(--glass-sunken); padding: 4px 0; }
+    .trace > div { display: flex; align-items: center; gap: 9px; padding: 5px 12px; font-size: 12px; color: var(--muted); }
+    .trace .trace-t { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+    .composer { border-radius: 18px; background: var(--glass-raised); box-shadow: 0 0 0 1px var(--field-border); padding: 6px 6px 6px 12px; display: flex; flex-direction: column; gap: 4px; transition: box-shadow .15s ease; }
+    .composer:focus-within { box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 45%, transparent), 0 0 0 4px var(--focus); }
+    .composer textarea, .composer input { border: 0; outline: none; background: transparent; font: inherit; font-size: 13px; color: var(--text); resize: none; padding: 4px 0; width: 100%; }
+    .composer textarea::placeholder, .composer input::placeholder { color: var(--dim); }
+    .send-btn { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; border: 0; background: var(--accent-fill); color: var(--on-accent); flex: 0 0 auto; }
+    .send-btn:disabled { background: var(--fill-active); color: var(--dim); }
+}
+
+/* ==========================================================================
+   Landing — the front door
+   ========================================================================== */
+
+@layer components {
+    .landing-nav {
+        position: sticky; top: 0; z-index: 30; height: 60px;
+        display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 0 20px;
+        background: linear-gradient(180deg, var(--toolbar-band), color-mix(in srgb, var(--toolbar-band) 70%, transparent));
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        backdrop-filter: blur(24px) saturate(180%);
+        box-shadow: 0 .5px 0 var(--line);
+    }
+    @media (min-width: 768px) { .landing-nav { padding: 0 40px; } }
+    .landing-link { font: inherit; font-size: 13px; color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 999px; border: 0; background: none; cursor: default; }
+    .landing-link:hover { background: var(--fill); color: var(--text); }
+    .landing-hero { font-family: var(--font-display-stack); font-size: clamp(40px, 6.4vw, 78px); line-height: 1.02; font-weight: 700; letter-spacing: -0.045em; text-wrap: balance; margin: 0; max-width: 1000px; color: var(--text); }
+    .landing-lead { font-size: clamp(17px, 1.6vw, 20px); line-height: 1.5; color: var(--muted); letter-spacing: -0.012em; margin: 0; }
+    .landing-h2 { font-family: var(--font-display-stack); font-size: clamp(30px, 3.6vw, 46px); line-height: 1.08; font-weight: 700; letter-spacing: -0.035em; margin: 0; color: var(--text); text-wrap: balance; }
+    .landing-h3 { font-family: var(--font-display-stack); font-size: clamp(24px, 2.4vw, 32px); line-height: 1.12; font-weight: 700; letter-spacing: -0.028em; margin: 0; color: var(--text); }
+    .landing-p { font-size: 17px; line-height: 1.55; color: var(--muted); letter-spacing: -0.01em; margin: 0; }
+
+    /* The desktop the product sits on — the one place the wallpaper shows. */
+    .landing-desk {
+        position: relative; border-radius: 32px; overflow: hidden; padding: clamp(20px, 6vw, 80px) clamp(14px, 7vw, 94px);
+        background-color: #e9eaee;
+        background-image:
+            radial-gradient(900px 620px at 8% 0%, rgba(12, 143, 126, .34), transparent 65%),
+            radial-gradient(820px 640px at 96% 10%, rgba(110, 86, 207, .34), transparent 62%),
+            radial-gradient(760px 520px at 60% 108%, rgba(224, 69, 123, .26), transparent 65%);
+    }
+    .dark .landing-desk {
+        background-color: #151517;
+        background-image:
+            radial-gradient(900px 620px at 8% 0%, rgba(63, 214, 192, .22), transparent 65%),
+            radial-gradient(820px 640px at 96% 10%, rgba(167, 139, 250, .26), transparent 62%),
+            radial-gradient(760px 520px at 60% 108%, rgba(255, 111, 174, .18), transparent 65%);
+    }
+    .landing-window {
+        display: block; width: 100%; padding: 0; border: 0; cursor: default; overflow: hidden;
+        border-radius: clamp(8px, 1.2vw, 16px); background: var(--window); box-shadow: var(--shadow-window);
+        aspect-ratio: 1440 / 900; transition: transform .4s var(--ease-out);
+    }
+    .landing-shot { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .only-dark { display: none !important; }
+    .dark .only-dark { display: block !important; }
+    .dark .only-light { display: none !important; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes slide-in-right { from { opacity: 0; transform: translateX(16px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes slide-in-left { from { opacity: 0; transform: translateX(-16px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes indeterminate { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@keyframes caret { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-strong, .app-nav, .liquid, .btn-toolbar, .app-header, .glass-pane { background: var(--solid); }
+}
+
+/* Small laptop: the sidebar narrows. Tablet: an icon rail. Phone: hidden behind the menu button. */
+@media (max-width: 1279px) {
+    :root { --sidebar-w: 204px; }
+}
+@media (max-width: 1023px) {
+    :root { --sidebar-w: 68px; }
+    .app-nav { padding: 12px 8px; }
+    .app-nav .app-brand { justify-content: center; padding: 6px 0 10px; }
+    .app-nav .app-brand b, .nav-group-label, .nav-item .nav-text, .nav-item .nav-count, .nav-status > div { display: none; }
+    .nav-item { justify-content: center; padding: 0; min-height: 36px; }
+    .nav-status { justify-content: center; }
+}
+@media (max-width: 767px) {
+    .app-nav:not([data-drawer]) { display: none; }
+    .app-nav[data-drawer] { position: fixed; left: 8px; top: 8px; bottom: 8px; width: min(300px, calc(100vw - 48px)); border-radius: var(--r-xl); z-index: 90; --sidebar-w: 300px; }
+    .app-nav[data-drawer] .app-brand b, .app-nav[data-drawer] .nav-group-label, .app-nav[data-drawer] .nav-item .nav-text,
+    .app-nav[data-drawer] .nav-item .nav-count, .app-nav[data-drawer] .nav-status > div { display: revert; }
+    .app-nav[data-drawer] .nav-item { justify-content: flex-start; padding: 5px 10px; min-height: 44px; font-size: 15px; }
+    .app-header { padding: 0 10px; gap: 8px; grid-template-columns: auto minmax(0, 1fr) auto; }
+    .activity { width: 100%; }
+    .activity-sep, .activity-status { display: none; }
+    .palette-pane { width: calc(100% - 24px) !important; }
+    .hide-narrow { display: none !important; }
+    .page { padding: calc(var(--toolbar-h) + 14px) 16px 48px; }
+    .display { font-size: 24px; }
+    .split-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (min-width: 768px) { .only-narrow { display: none !important; } }
+@media (max-width: 1100px) { .split-layout { grid-template-columns: minmax(0, 1fr); } .inspector { position: static; } }
+
+@media (pointer: coarse) {
+    .btn { height: 40px; }
+    .btn-sm { height: 34px; }
+    .btn-icon { width: 40px; }
+    .btn-sm.btn-icon { width: 34px; }
+    .input, .select, .textarea { font-size: 16px; min-height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ==========================================================================
+   The older primitives, redrawn in the new language
+   ========================================================================== */
+
+.dlx-surface { background-color: var(--window); border-color: var(--line); }
+.dlx-surface-2 { background-color: var(--glass-raised); border-color: var(--line); }
+.dlx-surface-3 { background-color: var(--solid); border-color: var(--line); }
+.dlx-sunken { background-color: var(--glass); border-color: transparent; }
+.dlx-panel { background-color: var(--glass); border: 0; border-radius: var(--r-lg); }
 .dlx-card {
-    background-color: var(--surface-2);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-xs);
-    transition: border-color var(--duration-base) var(--ease-out),
-                box-shadow var(--duration-base) var(--ease-out),
-                transform var(--duration-base) var(--ease-out);
+    background-color: var(--glass); border: 0; border-radius: 16px;
+    transition: background-color var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out);
 }
+.dlx-card:hover { background-color: color-mix(in srgb, var(--glass) 100%, var(--text) 4%); }
+.dlx-text { color: var(--text); }
+.dlx-text-secondary { color: var(--muted); }
+.dlx-muted { color: var(--dim); }
+.dlx-faint { color: var(--dim); }
+.dlx-divider { background-color: var(--line); }
 
-.dlx-card:hover {
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow-md);
-}
-
-.dlx-text { color: var(--text-primary); }
-.dlx-text-secondary { color: var(--text-secondary); }
-.dlx-muted { color: var(--text-muted); }
-.dlx-faint { color: var(--text-faint); }
-
-.dlx-divider { background-color: var(--border-subtle); }
-
-/* Buttons */
 .dlx-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    white-space: nowrap;
-    transition: background-color var(--duration-fast) var(--ease-out),
-                border-color var(--duration-fast) var(--ease-out),
-                color var(--duration-fast) var(--ease-out),
-                box-shadow var(--duration-fast) var(--ease-out);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border-radius: 999px; font-weight: 500; white-space: nowrap;
+    transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
+.dlx-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.dlx-btn:disabled { opacity: .4; }
+.dlx-btn-primary { background-color: var(--accent-fill); color: var(--on-accent); border: 0; box-shadow: var(--glow); }
+.dlx-btn-primary:hover:not(:disabled) { background-color: var(--accent-hi); }
+.dlx-btn-primary:active:not(:disabled) { background-color: var(--accent-lo); }
+.dlx-btn-secondary { background-color: var(--fill); color: var(--text); border: 0; }
+.dlx-btn-secondary:hover:not(:disabled) { background-color: var(--fill-hover); }
+.dlx-btn-ghost { background-color: transparent; color: var(--muted); border: 0; }
+.dlx-btn-ghost:hover:not(:disabled) { background-color: var(--fill); color: var(--text); }
 
-.dlx-btn:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--accent-ring);
-}
-
-.dlx-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.dlx-btn-primary {
-    background-color: var(--accent);
-    color: var(--text-on-accent);
-    border: 1px solid transparent;
-    box-shadow: var(--shadow-xs);
-}
-.dlx-btn-primary:hover:not(:disabled) { background-color: var(--accent-hover); }
-.dlx-btn-primary:active:not(:disabled) { background-color: var(--accent-active); }
-
-.dlx-btn-secondary {
-    background-color: var(--surface-2);
-    color: var(--text-primary);
-    border: 1px solid var(--border-default);
-}
-.dlx-btn-secondary:hover:not(:disabled) {
-    background-color: var(--surface-hover);
-    border-color: var(--border-strong);
-}
-
-.dlx-btn-ghost {
-    background-color: transparent;
-    color: var(--text-muted);
-    border: 1px solid transparent;
-}
-.dlx-btn-ghost:hover:not(:disabled) {
-    background-color: var(--surface-hover);
-    color: var(--text-primary);
-}
-
-/* Inputs */
 .dlx-input {
-    width: 100%;
-    background-color: var(--surface-1);
-    color: var(--text-primary);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    transition: border-color var(--duration-fast) var(--ease-out),
-                box-shadow var(--duration-fast) var(--ease-out);
+    width: 100%; background-color: var(--glass-raised); color: var(--text);
+    border: 1px solid var(--field-border); border-radius: var(--r-sm);
+    transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
 }
-.dlx-input::placeholder { color: var(--text-faint); }
-.dlx-input:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-ring);
-}
-.dlx-input:disabled {
-    background-color: var(--surface-sunken);
-    color: var(--text-faint);
-    cursor: not-allowed;
+.dlx-input::placeholder { color: var(--dim); }
+.dlx-input:focus { outline: none; border-color: color-mix(in srgb, var(--text) 45%, transparent); box-shadow: 0 0 0 3px var(--focus); }
+.dlx-input:disabled { opacity: .55; }
+/* Every pop-up button draws the macOS up-down chevrons, not the browser's arrow. */
+select.dlx-input, select.input {
+    appearance: none; -webkit-appearance: none; padding-right: 26px;
+    background-image: var(--chevrons); background-position: calc(100% - 10px) 50%; background-size: 8px 12px; background-repeat: no-repeat;
 }
 
-/* Chips and badges */
-.dlx-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    border-radius: var(--radius-pill);
-    font-weight: 600;
-    border: 1px solid transparent;
-    white-space: nowrap;
-}
+.dlx-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; font-weight: 500; border: 0 !important; white-space: nowrap; }
 
-/* ==========================================================================
-   Component tones
-
-   `data-tone` on any element selects the family. Used by palette tiles,
-   library cards, canvas nodes and category headers alike, which is what makes
-   a "tool" look like a tool everywhere in the product.
-   ========================================================================== */
-
-[data-tone] { --tone: var(--accent); --tone-fg: var(--accent-text); --tone-bg: var(--accent-soft); --tone-border: var(--accent-border); }
+[data-tone] { --tone: var(--text); --tone-fg: var(--text); --tone-bg: var(--fill); --tone-border: var(--line); }
 [data-tone="agent"] { --tone: var(--tone-agent); --tone-fg: var(--tone-agent-fg); --tone-bg: var(--tone-agent-bg); --tone-border: var(--tone-agent-border); }
 [data-tone="tool"] { --tone: var(--tone-tool); --tone-fg: var(--tone-tool-fg); --tone-bg: var(--tone-tool-bg); --tone-border: var(--tone-tool-border); }
 [data-tone="workflow"] { --tone: var(--tone-workflow); --tone-fg: var(--tone-workflow-fg); --tone-bg: var(--tone-workflow-bg); --tone-border: var(--tone-workflow-border); }
@@ -432,444 +1034,147 @@ body {
 [data-tone="security"] { --tone: var(--tone-security); --tone-fg: var(--tone-security-fg); --tone-bg: var(--tone-security-bg); --tone-border: var(--tone-security-border); }
 [data-tone="data"] { --tone: var(--tone-data); --tone-fg: var(--tone-data-fg); --tone-bg: var(--tone-data-bg); --tone-border: var(--tone-data-border); }
 
-/* The icon chip that identifies a component everywhere it appears. */
 .dlx-glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    color: var(--tone-fg);
-    background-color: var(--tone-bg);
-    border: 1px solid var(--tone-border);
-    border-radius: var(--radius-md);
-    transition: transform var(--duration-base) var(--ease-spring),
-                box-shadow var(--duration-base) var(--ease-out),
-                background-color var(--duration-fast) var(--ease-out);
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    color: var(--tone-fg); background-color: var(--tone-bg);
+    box-shadow: inset 0 0 0 .5px var(--tone-border); border: 0; border-radius: 10px;
 }
 
-/* ==========================================================================
-   Palette tiles — the drag sources
-   ========================================================================== */
+.dlx-tile[data-dragging="true"], .dlx-card[data-dragging="true"] { opacity: .35; }
+.dlx-draggable { cursor: grab; transition: background-color var(--duration-base) var(--ease-out), opacity var(--duration-fast) ease; }
+.dlx-draggable:active { cursor: grabbing; }
 
-.dlx-tile {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    padding: 8px 4px;
-    border-radius: var(--radius-lg);
-    border: 1px solid transparent;
-    cursor: grab;
-    transition: background-color var(--duration-fast) var(--ease-out),
-                border-color var(--duration-fast) var(--ease-out),
-                transform var(--duration-base) var(--ease-spring);
-}
-
-.dlx-tile:hover {
-    background-color: var(--surface-hover);
-    border-color: var(--tone-border);
-}
-
-.dlx-tile:hover .dlx-glyph {
-    transform: translateY(-2px) scale(1.06);
-    box-shadow: 0 4px 12px color-mix(in srgb, var(--tone) 28%, transparent);
-}
-
-.dlx-tile:active { cursor: grabbing; transform: scale(0.96); }
-
-.dlx-tile:focus-visible {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-ring);
-}
-
-/* The source dims while its ghost is under the cursor, so it is obvious which
-   tile is in flight. */
-.dlx-tile[data-dragging="true"],
-.dlx-card[data-dragging="true"] {
-    opacity: 0.35;
-    transform: scale(0.97);
-    box-shadow: none;
-}
-
-.dlx-tile-label {
-    width: 100%;
-    text-align: center;
-    font-size: 9.5px;
-    line-height: 1.2;
-    font-weight: 500;
-    color: var(--text-muted);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.dlx-tile:hover .dlx-tile-label { color: var(--text-primary); }
-
-/* Draggable library card: the same lift language as a tile, at card scale. */
-.dlx-draggable {
-    cursor: grab;
-    transition: border-color var(--duration-base) var(--ease-out),
-                box-shadow var(--duration-base) var(--ease-out),
-                transform var(--duration-base) var(--ease-out),
-                opacity var(--duration-fast) var(--ease-out);
-}
-.dlx-draggable:hover {
-    transform: translateY(-2px);
-    border-color: var(--tone-border);
-    box-shadow: var(--shadow-md);
-}
-.dlx-draggable:active { cursor: grabbing; transform: translateY(0) scale(0.99); }
-
-/* Canvas drop target: the whole canvas states clearly that it will accept the
-   drop, rather than leaving the user to guess mid-drag. */
+/* The canvas says clearly that it will take a drop. */
 .dlx-canvas-dropping::after {
-    content: '';
-    position: absolute;
-    inset: 8px;
-    border: 2px dashed var(--accent-border);
-    border-radius: var(--radius-xl);
-    background: var(--accent-soft);
-    pointer-events: none;
-    z-index: 5;
-    animation: dropPulse 1.4s ease-in-out infinite;
+    content: ''; position: absolute; inset: 8px; pointer-events: none; z-index: 5;
+    border: 2px dashed var(--line-strong); border-radius: var(--r-xl); background: var(--accent-wash);
 }
 
-@keyframes dropPulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 0.9; }
-}
+.glass-panel { background: var(--solid); border: 0; box-shadow: var(--shadow-float); }
+.glass-panel-subtle { background: var(--glass); border: 0; }
 
-/* ==========================================================================
-   Legacy compatibility
+.ag-surface { background-color: var(--window) !important; border-color: var(--line) !important; }
+.ag-surface-subtle { background-color: var(--glass) !important; border-color: var(--line) !important; }
+.ag-surface-raised { background-color: var(--glass-raised) !important; border-color: var(--line) !important; }
+.ag-text { color: var(--text) !important; }
+.ag-text-secondary { color: var(--muted) !important; }
+.ag-muted { color: var(--dim) !important; }
+.ag-faint { color: var(--dim) !important; }
+.ag-label { background-color: var(--glass-raised) !important; color: var(--muted) !important; border: 0; }
 
-   Components not yet migrated still use these names. They now resolve to the
-   token set, so the app is visually coherent during the migration instead of
-   after it.
-   ========================================================================== */
+/* Panels that still ask for white or near-black by name get the window tokens,
+   so a light-only class never leaves a white box in dark mode. */
+.dark .bg-white, .dark .bg-gray-50, .dark .bg-gray-100, .dark .bg-slate-50 { background-color: var(--glass-raised) !important; }
+.dark .text-gray-700, .dark .text-gray-800, .dark .text-gray-900, .dark .text-slate-700, .dark .text-slate-800, .dark .text-slate-900 { color: var(--text) !important; }
+.dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300, .dark .border-slate-100, .dark .border-slate-200 { border-color: var(--line) !important; }
 
-.glass-panel {
-    background: var(--surface-1);
-    border: 1px solid var(--border-default);
-    box-shadow: var(--shadow-lg);
-}
+/* Tailwind's grey text ramp on white fails contrast at 400; lift it to the token. */
+.text-slate-400, .text-gray-400, .text-zinc-400 { color: var(--dim) !important; }
+.text-slate-500, .text-gray-500, .text-zinc-500, .dark .text-slate-500, .dark .text-gray-500, .dark .text-zinc-500 { color: var(--dim) !important; }
+.dlx-btn-secondary .dlx-faint { color: var(--muted); }
+.dark .text-slate-600, .dark .text-gray-600 { color: var(--muted) !important; }
+/* Accent-coloured text reads as ink, in both themes. */
+.text-blue-600, .text-blue-700, .text-blue-500, .dark .text-blue-400, .dark .text-blue-300, .dark .text-sky-400, .dark .text-sky-300 { color: var(--text) !important; }
 
-.glass-panel-subtle {
-    background: var(--surface-sunken);
-    border: 1px solid var(--border-subtle);
-}
-
-.ag-surface { background-color: var(--surface-1) !important; border-color: var(--border-default) !important; }
-.ag-surface-subtle { background-color: var(--surface-sunken) !important; border-color: var(--border-subtle) !important; }
-.ag-surface-raised { background-color: var(--surface-2) !important; border-color: var(--border-default) !important; }
-.ag-text { color: var(--text-primary) !important; }
-.ag-text-secondary { color: var(--text-secondary) !important; }
-.ag-muted { color: var(--text-muted) !important; }
-.ag-faint { color: var(--text-faint) !important; }
-
-.ag-label {
-    background-color: var(--surface-2) !important;
-    color: var(--text-secondary) !important;
-    border: 1px solid var(--border-default);
-}
-
-.dark .ag-label { box-shadow: var(--shadow-sm); }
-
-.text-gradient-primary {
-    background: linear-gradient(135deg, var(--accent) 0%, var(--tone-workflow) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.brand-lockup-title {
-    font-family: Inter, system-ui, sans-serif;
-    font-size: 16px;
-    line-height: 1;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
-}
-
-.brand-lockup-tagline {
-    font-family: Inter, system-ui, sans-serif;
-    font-size: 10px;
-    line-height: 1;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    text-transform: uppercase;
-}
-
-/* The dark-mode blanket overrides that used to live here forced every
-   `bg-white`/`text-gray-900` in the app to one hardcoded value with !important,
-   which is why panels could not be styled individually. They are replaced by
-   targeted mappings onto the token set. */
-.dark .bg-white,
-.dark .bg-gray-50,
-.dark .bg-gray-100,
-.dark .bg-slate-50 {
-    background-color: var(--surface-2) !important;
-}
-
-.dark .text-gray-800,
-.dark .text-gray-900,
-.dark .text-slate-800,
-.dark .text-slate-900 {
-    color: var(--text-primary) !important;
-}
-
-/* Components that still reach for Tailwind's grey ramp get the token values
-   instead. Those ramp steps were tuned against a white page and fail contrast
-   on both of our surfaces — the 400 and 500 steps were the single largest
-   source of unreadable text in the audit. Mapping them here fixes every
-   unmigrated component at once, in both themes, rather than editing ~1,300
-   class instances. */
-.text-slate-400,
-.text-gray-400,
-.text-zinc-400,
-.dark .text-slate-400,
-.dark .text-gray-400,
-.dark .text-zinc-400 {
-    color: var(--text-faint) !important;
-}
-
-.text-slate-500,
-.text-gray-500,
-.text-zinc-500,
-.dark .text-slate-500,
-.dark .text-gray-500,
-.dark .text-zinc-500 {
-    color: var(--text-muted) !important;
-}
-
-.text-slate-600,
-.text-gray-600,
-.dark .text-slate-600,
-.dark .text-gray-600 {
-    color: var(--text-secondary) !important;
-}
-
-/* blue-600 is tuned for a white page; on a dark surface it drops under 3.5:1.
-   The accent token already resolves per theme, so point the blue text ramp at
-   it rather than leaving each component to remember a dark: variant. */
-.text-blue-600,
-.text-blue-700,
-.dark .text-blue-600,
-.dark .text-blue-700,
-.dark .text-blue-400 {
-    color: var(--accent-text) !important;
-}
-
-.dark .border-gray-200,
-.dark .border-gray-300,
-.dark .border-slate-200 {
-    border-color: var(--border-default) !important;
-}
-
-/* ==========================================================================
-   Micro-interactions
-   ========================================================================== */
-
-@keyframes subtlePulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.02); }
-}
-
-.animate-micro-pulse { animation: subtlePulse 3s infinite ease-in-out; }
-
-@keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-}
-
-/* Loading placeholder that reads as "content is coming", not "something broke". */
 .dlx-skeleton {
-    background: linear-gradient(
-        90deg,
-        var(--surface-sunken) 25%,
-        var(--surface-hover) 50%,
-        var(--surface-sunken) 75%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.6s linear infinite;
-    border-radius: var(--radius-md);
+    background: linear-gradient(90deg, var(--glass) 25%, var(--fill) 50%, var(--glass) 75%);
+    background-size: 200% 100%; animation: shimmer 1.6s linear infinite; border-radius: var(--r-md);
 }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 
 /* ---- Live voice visualiser ----
-   Levels are measured from the real audio stream and written to --voice-level
-   and --b as custom properties (see useVoiceSession), so these rules own the
-   look and can honour prefers-reduced-motion in one place. */
-.voice-viz {
-    display: none;
-    align-items: center;
-    gap: 3px;
-    height: 20px;
-}
-
+   Levels come from the real audio stream as --voice-level and --b (see
+   useVoiceSession), so these rules own the look. */
+.voice-viz { display: none; align-items: center; gap: 3px; height: 20px; }
 .voice-viz.is-on { display: flex; }
-
-.voice-viz i {
-    width: 3px;
-    border-radius: 2px;
-    background: var(--accent);
-    opacity: 0.75;
-    height: calc(3px + var(--b, 0) * 17px);
-    transition: height 0.07s linear, opacity 0.18s linear;
-}
-
-/* The agent's own voice reads in a calmer tone, so it is obvious who is talking. */
-.voice-viz[data-speaking='true'] i {
-    background: var(--text-muted);
-    opacity: 0.95;
-}
-
-.voice-ring-ambient,
-.voice-ring-live {
-    position: absolute;
-    inset: 0;
-    border-radius: 9999px;
-    border: 2px solid var(--accent);
-    pointer-events: none;
-}
-
+.voice-viz i { width: 3px; border-radius: 2px; background: var(--text); opacity: .75; height: calc(3px + var(--b, 0) * 17px); transition: height .07s linear, opacity .18s linear; }
+.voice-viz[data-speaking='true'] i { background: var(--dim); opacity: .95; }
+.voice-ring-ambient, .voice-ring-live { position: absolute; inset: 0; border-radius: 9999px; border: 2px solid var(--text); pointer-events: none; }
 .voice-ring-ambient { animation: voiceAmbient 2.2s ease-out infinite; }
-
-.voice-ring-live {
-    transform: scale(calc(1 + var(--voice-level, 0) * 0.55));
-    opacity: calc(0.15 + var(--voice-level, 0) * 0.6);
-    transition: transform 0.06s linear, opacity 0.06s linear;
-}
-
-@keyframes voiceAmbient {
-    0% { transform: scale(1); opacity: 0.4; }
-    100% { transform: scale(1.5); opacity: 0; }
-}
-
+.voice-ring-live { transform: scale(calc(1 + var(--voice-level, 0) * .55)); opacity: calc(.15 + var(--voice-level, 0) * .6); transition: transform .06s linear, opacity .06s linear; }
+@keyframes voiceAmbient { 0% { transform: scale(1); opacity: .4; } 100% { transform: scale(1.5); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
     .voice-ring-ambient { animation: none; opacity: 0; }
-    .voice-ring-live { transition: none; transform: none; opacity: 0.35; }
+    .voice-ring-live { transition: none; transform: none; opacity: .35; }
     .voice-viz i { transition: none; height: 9px; }
     .dlx-skeleton { animation: none; }
-    .dlx-canvas-dropping::after { animation: none; }
-    .dlx-tile,
-    .dlx-glyph,
-    .dlx-card,
-    .dlx-draggable { transition: none; }
-    .dlx-tile:hover .dlx-glyph { transform: none; }
-    .dlx-draggable:hover { transform: none; }
 }
 
 /* ==========================================================================
-   Scrollbars
+   React Flow — a quiet dotted field, grey wires, glass controls
    ========================================================================== */
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-
-::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
-    border-radius: var(--radius-pill);
-    border: 2px solid transparent;
-    background-clip: padding-box;
-}
-
-::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
-
-* { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; }
-
-/* ==========================================================================
-   React Flow
-   ========================================================================== */
-
-/* Canvas nodes must NOT use backdrop-filter: every blurred node forces the browser to
-   re-composite the layer behind it on each frame of a drag or pan, which is the main
-   source of choppy node movement. Nodes sit on a flat dotted canvas, so a solid,
-   opaque surface looks identical and is dramatically cheaper to move. */
-.react-flow__node .ag-surface-raised,
-.react-flow__node .dlx-card {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background-color: var(--surface-2) !important;
-}
-
-.react-flow__edge-path {
-    stroke: var(--canvas-edge);
-    stroke-width: 2;
-    transition: stroke var(--duration-base) var(--ease-out), stroke-width var(--duration-base) var(--ease-out);
-}
-
-.react-flow__edge:hover .react-flow__edge-path {
-    stroke: var(--accent);
-    stroke-width: 3;
-}
-
-.react-flow__edge.selected .react-flow__edge-path {
-    stroke: var(--accent);
-    stroke-width: 3;
-}
-
-/* React Flow ships its own stylesheet, and it is imported from the canvas
-   component — which lands AFTER this file in the bundle. Its rules use the same
-   single-class specificity as ours, so source order decided the winner and the
-   zoom buttons stayed at its hardcoded #fefefe in dark mode.
-
-   The library exposes --xy-* variables for exactly this, so the theme is set
-   through those rather than by escalating specificity. That also survives a
-   library upgrade, which an !important arms race would not. */
 .react-flow {
-    --xy-controls-button-background-color: var(--surface-1);
-    --xy-controls-button-background-color-hover: var(--surface-hover);
-    --xy-controls-button-color: var(--text-secondary);
-    --xy-controls-button-color-hover: var(--text-primary);
-    --xy-controls-button-border-color: var(--border-subtle);
-    --xy-controls-box-shadow: var(--shadow-md);
-
-    --xy-minimap-background-color: var(--surface-1);
-    --xy-minimap-mask-background-color: var(--minimap-mask);
-    --xy-minimap-node-background-color: var(--minimap-node);
-
-    --xy-edge-stroke: var(--canvas-edge);
-    --xy-edge-stroke-selected: var(--accent);
-    --xy-connectionline-stroke: var(--accent);
-
-    --xy-handle-background-color: var(--surface-2);
-    --xy-handle-border-color: var(--border-strong);
-
-    --xy-background-pattern-color: var(--canvas-dots);
+    background: transparent;
+    --xy-edge-stroke: var(--wire);
+    --xy-edge-stroke-selected: var(--text);
+    --xy-connectionline-stroke: var(--text);
+    --xy-handle-background-color: var(--window);
+    --xy-handle-border-color: var(--wire);
+    --xy-background-pattern-color: var(--grid-dot);
+    --xy-controls-button-background-color: transparent;
+    --xy-controls-button-background-color-hover: var(--fill);
+    --xy-controls-button-color: var(--muted);
+    --xy-controls-button-color-hover: var(--text);
+    --xy-controls-button-border-color: transparent;
+    --xy-controls-box-shadow: none;
 }
+.react-flow__edge-path { stroke: var(--wire); stroke-width: 1.5; transition: stroke .2s ease, opacity .2s ease; }
+.react-flow__edge.animated .react-flow__edge-path { stroke: var(--text); stroke-width: 2; }
+.react-flow__edge.is-attachment .react-flow__edge-path { stroke-dasharray: 4 5; }
+.react-flow__edge.is-active .react-flow__edge-path { stroke: var(--text); stroke-width: 2; }
+.react-flow__edge.is-muted { opacity: .35; }
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path { stroke: var(--text); stroke-width: 2; }
+.react-flow__connection-path { stroke: var(--text); stroke-width: 1.5; }
+/* Markers are shared between edges and carry whatever colour an edge was made
+   with; painting them here keeps every arrowhead on the theme's wire grey. */
+.react-flow__arrowhead polyline { stroke: var(--wire) !important; fill: var(--wire) !important; }
+
+.react-flow__handle {
+    width: 9px; height: 9px; min-width: 0; min-height: 0; border-radius: 999px;
+    background: var(--window); border: 1.5px solid var(--wire);
+    transition: background-color .15s ease, border-color .15s ease, scale .15s var(--ease-out), opacity .15s ease;
+}
+/* scale, not transform: React Flow centres handles on the edge with a transform. */
+.react-flow__handle:hover { background: var(--text); border-color: var(--text); scale: 1.3; }
+.react-flow__handle.is-attached { background: var(--wire); }
+/* Attachment ports are diamonds, as in n8n: a different shape for a different kind of connection. */
+.react-flow__handle.is-port { width: 13px; height: 13px; border: 0; border-radius: 0; background: transparent; }
+.react-flow__handle.is-port::after {
+    content: ''; position: absolute; inset: 2.5px; border-radius: 2px; transform: rotate(45deg);
+    background: var(--window); box-shadow: inset 0 0 0 1.5px var(--wire);
+    transition: background-color .15s ease, box-shadow .15s ease;
+}
+.react-flow__handle.is-port:hover { background: transparent; }
+.react-flow__handle.is-port:hover::after, .react-flow__handle.is-port.is-wanted::after { background: var(--text); box-shadow: none; }
+.react-flow__handle.is-port.is-attached::after { background: var(--wire); box-shadow: none; }
+.react-flow__handle.is-port.is-wanted { box-shadow: none; }
+.react-flow__handle.is-wanted { background: var(--text); border-color: var(--text); box-shadow: 0 0 0 4px var(--focus); }
+.react-flow__handle.is-dimmed { opacity: .3; }
 
 .react-flow__controls {
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
+    border-radius: 999px; overflow: hidden; padding: 3px; margin: 14px;
+    background: radial-gradient(160% 110% at 22% 0%, var(--lg-sheen), transparent 58%), var(--lg-fill);
+    -webkit-backdrop-filter: blur(18px) saturate(190%); backdrop-filter: blur(18px) saturate(190%);
+    box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 0 var(--lg-spec), var(--lg-lift);
 }
-
-.react-flow__controls-button {
-    transition: background-color var(--duration-fast) var(--ease-out),
-                color var(--duration-fast) var(--ease-out);
-}
-
-.react-flow__controls-button svg { fill: currentColor; }
-
-.dark .react-flow { background: transparent; }
-
-.react-flow__minimap {
-    background: var(--surface-1);
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border-default);
-    box-shadow: var(--shadow-sm);
-}
-
+.react-flow__controls-button { background: transparent; border: 0; border-radius: 999px; width: 30px; height: 30px; padding: 7px; color: var(--muted); }
+.react-flow__controls-button:hover { background: var(--fill); color: var(--text); }
+.react-flow__controls-button svg { fill: currentColor; max-width: 12px; max-height: 12px; }
 .react-flow__attribution { display: none; }
+.react-flow__selection { background: var(--accent-wash); border: 1px solid var(--line-strong); }
+.react-flow__nodesselection-rect { background: var(--accent-wash); border: 1px dashed var(--line-strong); }
 
-/* The React Flow node wrapper is a plain rectangle — any outline/shadow on it
-   draws a box that ignores the component's rounded shape. Selection visuals
-   live on the node components themselves (thin colored border + soft ring
-   that follows the border-radius), so the wrapper stays invisible. */
+/* React Flow styles its built-in node types (input, default, output) as white
+   boxes; ours reuse the name "output", so the wrapper is reset to nothing. */
+.react-flow .react-flow__node-input, .react-flow .react-flow__node-default, .react-flow .react-flow__node-output {
+    padding: 0; border: 0; border-radius: 0; background: transparent; width: auto; box-shadow: none; text-align: left; font-size: inherit; color: inherit;
+}
+.react-flow .react-flow__node-input:hover, .react-flow .react-flow__node-default:hover, .react-flow .react-flow__node-output:hover,
+.react-flow .react-flow__node-output.selected, .react-flow .react-flow__node-output.selectable:hover { box-shadow: none; border: 0; }
+
+/* Selection lives on the node card itself, so the wrapper stays invisible. */
 .react-flow__node:focus,
 .react-flow__node:focus-visible,
 .react-flow__node.selected {

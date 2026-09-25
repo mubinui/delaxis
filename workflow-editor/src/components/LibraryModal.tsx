@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Wrench, Bot, Save, Loader2, Download, ChevronDown, ChevronRight, Globe, Code, Zap, Cpu, Settings2, Library, SlidersHorizontal, Key, FileJson, Search, FunctionSquare, MessageSquareText, ServerCog, Database, Check } from 'lucide-react';
+import { Plus, Trash2, Wrench, Bot, Save, Loader2, Download, ChevronRight, Globe, Code, Zap, Cpu, Settings2, SlidersHorizontal, Key, FileJson, Search, FunctionSquare, MessageSquareText, ServerCog, Check } from 'lucide-react';
 import { useLibraryStore } from '../stores/libraryStore';
+import { useUiStore } from '../stores/uiStore';
+import type { LibraryTab } from '../stores/uiStore';
+import { Toolbar, MoreMenu } from './shell/Toolbar';
+import { ActivityCapsule } from './shell/ActivityCapsule';
+import { StatusGlyph } from './shell/StatusGlyph';
 import type { LibraryItem, ItemType } from '../stores/libraryStore';
 import { SwaggerImportModal } from './SwaggerImportModal';
 import { AGENT_TYPES, HUMAN_INPUT_MODES } from '../constants/agentOptions';
@@ -8,111 +13,84 @@ import { LibraryStore, toStoreEntries } from './studio/LibraryStore';
 import type { StoreEntry } from './studio/LibraryStore';
 
 // --- Shared Constants (Matched with PropertiesPanel.tsx) ---
-interface LibraryModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    initialTab?: ResourceTab;
-}
+type ResourceTab = LibraryTab;
 
-type ResourceTab = 'browse' | 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops';
+const TAB_TITLE: Record<ResourceTab, { title: string; lead: string }> = {
+    browse: { title: 'Everything', lead: 'Every tool, agent and workflow you can drop onto the canvas. Drag one to the Studio, or open it to edit.' },
+    agents: { title: 'Agents', lead: 'Reusable agents your workflows call by name. Pick one to edit it, or create a new one.' },
+    tools: { title: 'Tools', lead: 'Functions, REST APIs, MCP servers, databases and mailboxes your agents can call.' },
+    functions: { title: 'Functions', lead: 'Small Python functions that become tools. The source runs on the backend.' },
+    prompts: { title: 'Prompts', lead: 'Reusable prompt templates with variables, for agents and the Builder.' },
+    providers: { title: 'Providers', lead: 'The model providers LiteLLM can reach, and the keys they use.' },
+    ops: { title: 'Health and data', lead: 'What the backend reports about itself, and the retrieval collections it holds.' },
+};
 
-// --- Premium Reusable Structural Block: Section ---
-const Section = ({ title, icon: Icon, children, defaultOpen = true, className = "" }: { title: string; icon: any; children: React.ReactNode; defaultOpen?: boolean; className?: string }) => {
+// A grouped box with a disclosure header.
+const Section = ({ title, children, defaultOpen = true, className = "" }: { title: string; icon?: any; children: React.ReactNode; defaultOpen?: boolean; className?: string }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
-        <div className={`border border-slate-200/80 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm transition-all ${className}`}>
+        <section className={`panel ${className}`}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 type="button"
-                className="w-full flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-slate-50 to-white hover:from-slate-100/70 hover:to-slate-50 dark:from-slate-900 dark:to-slate-900 dark:hover:from-slate-800/70 dark:hover:to-slate-800/70 transition-all text-left border-b border-slate-100 dark:border-slate-800"
+                aria-expanded={isOpen}
+                className="flex w-full items-center gap-2 px-5 py-3.5 text-left"
             >
-                <div className="flex items-center gap-3">
-                    <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
-                        <Icon size={15} />
-                    </div>
-                    <span className="font-bold text-slate-800 dark:text-slate-100 text-xs tracking-wide uppercase">{title}</span>
-                </div>
-                {isOpen ? <ChevronDown size={14} className="text-slate-400 dark:text-slate-500" /> : <ChevronRight size={14} className="text-slate-400 dark:text-slate-500" />}
+                <ChevronRight size={13} className={`transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} style={{ color: 'var(--dim)' }} />
+                <span className="headline">{title}</span>
             </button>
-            {isOpen && (
-                <div className="p-5 space-y-5">
-                    {children}
-                </div>
-            )}
-        </div>
+            {isOpen && <div className="space-y-4 px-5 pb-5">{children}</div>}
+        </section>
     );
 };
 
-// --- Premium Reusable UI Component: FormInput ---
-const FormInput = ({ label, placeholder, value, onChange, type = 'text', icon: Icon, mono = false, rows, disabled = false, helpText }: {
+const FormInput = ({ label, placeholder, value, onChange, type = 'text', mono = false, rows, disabled = false, helpText }: {
     label: string; placeholder?: string; value: string; onChange: (v: string) => void; type?: string; icon?: any; mono?: boolean; rows?: number; disabled?: boolean; helpText?: string;
 }) => (
-    <div className="space-y-1.5 w-full">
-        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 tracking-wide uppercase flex items-center gap-2">
-            {Icon && <Icon size={13} className="text-blue-500" />}
-            {label}
-        </label>
+    <label className="block w-full">
+        <span className="field-label">{label}</span>
         {rows ? (
             <textarea
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 rows={rows}
                 disabled={disabled}
-                className={`w-full px-3.5 py-2.5 bg-slate-50/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900
-                    transition-all resize-y disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500
-                    placeholder:text-slate-400 dark:placeholder:text-slate-500 leading-relaxed
-                    ${mono ? 'font-mono text-xs' : ''}`}
+                className={`textarea ${mono ? 'mono !text-[12px]' : ''}`}
                 placeholder={placeholder}
             />
         ) : (
-            <div className="relative flex items-center">
-                <input
-                    type={type}
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    disabled={disabled}
-                    className={`w-full px-3.5 py-2 bg-slate-50/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200
-                        focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900
-                        transition-all disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-500 font-medium
-                        placeholder:text-slate-400 dark:placeholder:text-slate-500 h-9
-                        ${mono ? 'font-mono text-xs' : ''}`}
-                    placeholder={placeholder}
-                />
-            </div>
-        )}
-        {helpText && <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{helpText}</p>}
-    </div>
-);
-
-// --- Premium Reusable UI Component: FormSelect ---
-const FormSelect = ({ label, value, onChange, options, icon: Icon, helpText }: {
-    label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; icon?: any; helpText?: string;
-}) => (
-    <div className="space-y-1.5 w-full">
-        <label className="text-xs font-bold text-slate-600 dark:text-slate-300 tracking-wide uppercase flex items-center gap-2">
-            {Icon && <Icon size={13} className="text-blue-500" />}
-            {label}
-        </label>
-        <div className="relative flex items-center">
-            <select
+            <input
+                type={type}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
-                className="w-full pl-3.5 pr-8 py-2 bg-slate-50/50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900
-                    transition-all appearance-none cursor-pointer font-medium h-9"
-            >
-                {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-            </select>
-            <div className="absolute right-3 pointer-events-none text-slate-400 dark:text-slate-500">
-                <ChevronDown size={14} />
-            </div>
-        </div>
-        {helpText && <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{helpText}</p>}
-    </div>
+                disabled={disabled}
+                className={`input ${mono ? 'mono !text-[12px]' : ''}`}
+                placeholder={placeholder}
+            />
+        )}
+        {helpText && <span className="hint mt-1 block">{helpText}</span>}
+    </label>
 );
 
-export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: LibraryModalProps) => {
+const FormSelect = ({ label, value, onChange, options, helpText }: {
+    label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; icon?: any; helpText?: string;
+}) => (
+    <label className="block w-full">
+        <span className="field-label">{label}</span>
+        <select value={value} onChange={(e) => onChange(e.target.value)} className="select">
+            {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        {helpText && <span className="hint mt-1 block">{helpText}</span>}
+    </label>
+);
+
+/**
+ * The Library, as a place in the sidebar. The sidebar picks the section; each
+ * section is a large-titled page, with a list and an editor where things can be
+ * created and changed.
+ */
+export const LibraryModal = ({ tab }: { tab: ResourceTab }) => {
+    const { openLibrary, go } = useUiStore();
     const {
         savedTools,
         savedAgents,
@@ -140,18 +118,8 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
         fetchLibraryItems,
     } = useLibraryStore();
 
-    const [activeTab, setActiveTab] = useState<ResourceTab>(initialTab);
-
-    // Escape closes the dialog. Users expect it of any modal, and without it the
-    // only way out is one small unlabelled button in the corner.
-    useEffect(() => {
-        if (!isOpen) return;
-        const onKey = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [isOpen, onClose]);
+    const activeTab = tab;
+    const setActiveTab = (next: ResourceTab) => openLibrary(next);
     const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
     const [isSwaggerModalOpen, setIsSwaggerModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -253,11 +221,10 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
     });
 
     useEffect(() => {
-        if (isOpen) {
-            fetchLibraryItems();
-            fetchOperationsData();
-        }
-    }, [isOpen]);
+        fetchLibraryItems();
+        fetchOperationsData();
+    }, []);
+
 
     // Providers come from the backend registry so the studio and the runtime
     // always agree on which providers exist.
@@ -358,8 +325,8 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
         if (entry.kind === 'agent') {
             setActiveTab('agents');
         } else if (entry.kind === 'workflow') {
-            // Workflows are edited on the canvas, not in this modal.
-            onClose();
+            // Workflows are edited on the canvas.
+            go('studio');
             return;
         } else {
             setActiveTab('tools');
@@ -461,24 +428,11 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
         }
     };
 
-    if (!isOpen) return null;
-
     const items = activeTab === 'tools' ? savedTools : activeTab === 'agents' ? savedAgents : [];
     const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const storeEntries = toStoreEntries(savedTools, savedAgents, savedWorkflows);
 
-    // Browsing is the common case and editing is the exception, so Browse leads
-    // and the per-type editors sit behind it.
-    const resourceTabs: Array<{ id: ResourceTab; label: string; count?: number }> = [
-        { id: 'browse', label: 'Browse', count: storeEntries.length },
-        { id: 'tools', label: 'Tools', count: savedTools.length },
-        { id: 'agents', label: 'Agents', count: savedAgents.length },
-        { id: 'functions', label: 'Functions', count: functions.length },
-        { id: 'prompts', label: 'Prompts', count: prompts.length },
-        { id: 'providers', label: 'Providers', count: providers.length },
-        { id: 'ops', label: 'Ops' },
-    ];
 
     const handleCreateFunction = async () => {
         try {
@@ -544,59 +498,17 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
 
     return (
         <>
-            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center z-[100] animate-in fade-in duration-200 p-4">
-                <div className="bg-white dark:bg-[#0b111b] rounded-2xl shadow-2xl w-full max-w-6xl h-[88vh] flex flex-col overflow-hidden ring-1 ring-slate-900/10 dark:ring-white/10 antialiased">
-
-                    {/* --- Elite Bespoke Workspace Banner --- */}
-                    <div className="h-16 px-6 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 shrink-0 z-20 relative">
-                        <div className="flex items-center gap-6">
-                            <div className="flex items-center gap-2">
-                                <div
-                                    className="p-1.5 rounded-lg"
-                                    style={{ backgroundColor: 'var(--accent)', color: 'var(--text-on-accent)' }}
-                                >
-                                    <Library size={16} />
-                                </div>
-                                <h2 className="dlx-text text-sm font-bold tracking-tight">Library</h2>
-                            </div>
-
-                            {/* Seamless Tab Controller Strip */}
-                            <div className="flex bg-slate-200/60 dark:bg-slate-800/60 p-1 rounded-xl gap-0.5">
-                                {resourceTabs.map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => { setActiveTab(tab.id); resetForm(); }}
-                                        type="button"
-                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all
-                                            ${activeTab === tab.id
-                                                ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm'
-                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-800/40'
-                                            }`}
-                                    >
-                                        {tab.label}
-                                        {typeof tab.count === 'number' && (
-                                            <span
-                                                className="ml-1 rounded-full px-1.5 py-0.2 text-[9px] font-mono font-bold"
-                                                style={activeTab === tab.id
-                                                    ? { color: 'var(--accent-text)', backgroundColor: 'var(--accent-soft)' }
-                                                    : { color: 'var(--text-secondary)', backgroundColor: 'var(--surface-sunken)' }}
-                                            >
-                                                {tab.count}
-                                            </span>
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
+            <div className="absolute inset-0 flex flex-col" style={{ paddingTop: 'var(--toolbar-h)' }}>
+                    <div className="flex shrink-0 flex-wrap items-end justify-between gap-4 px-8 pb-4 pt-5">
+                        <div className="min-w-0">
+                            <h1 className="display">{TAB_TITLE[activeTab].title}</h1>
+                            <p className="lead mt-1 max-w-[680px]">{TAB_TITLE[activeTab].lead}</p>
                         </div>
-
-                        <button aria-label="Close library" title="Close library" onClick={onClose} type="button" className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 rounded-xl transition-all">
-                            <X size={18} />
-                        </button>
                     </div>
 
                     {/* --- Browse: the store view --- */}
                     {activeTab === 'browse' ? (
-                        <div className="flex flex-1 overflow-hidden min-h-0">
+                        <div className="mx-8 mb-6 flex min-h-0 flex-1 overflow-hidden rounded-[18px]" style={{ boxShadow: '0 0 0 1px var(--line)' }}>
                             <LibraryStore
                                 entries={storeEntries}
                                 onInspect={handleInspectEntry}
@@ -606,114 +518,102 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                     ) : (
 
                     /* --- Master-detail editor --- */
-                    <div className="flex flex-1 overflow-hidden min-h-0">
+                    <div className="mx-8 mb-6 flex min-h-0 flex-1 gap-5 overflow-hidden">
 
-                        {/* --- Active Resource Index Sidebar --- */}
-                        <div className="w-80 border-r border-slate-200/80 dark:border-slate-800/80 flex flex-col bg-slate-50/30 dark:bg-slate-900/40">
-                            <div className="p-4 border-b border-slate-100 dark:border-slate-800 shrink-0 space-y-3">
-                                <button
-                                    onClick={resetForm}
-                                    type="button"
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/10 hover:-translate-y-0.5"
-                                >
-                                    <Plus size={15} />
-                                    New {activeTab === 'tools' ? 'tool' : 'agent'}
-                                </button>
+                        {/* --- The list of saved items, for the two editable kinds --- */}
+                        {(activeTab === 'tools' || activeTab === 'agents') && (
+                        <div className="panel flex w-[300px] shrink-0 flex-col overflow-hidden">
+                            <div className="shrink-0 space-y-2.5 p-3.5">
+                                <div className="flex gap-2">
 
-                                {activeTab === 'tools' && (
-                                    <button
-                                        onClick={() => setIsSwaggerModalOpen(true)}
-                                        type="button"
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-all border border-slate-200 dark:border-slate-700 shadow-sm"
-                                    >
-                                        <Download size={13} className="text-blue-500" />
-                                        Import OpenAPI / Swagger
-                                    </button>
-                                )}
+                                    {activeTab === 'tools' && (
+                                        <button onClick={() => setIsSwaggerModalOpen(true)} type="button" className="btn" title="Import tools from an OpenAPI or Swagger spec">
+                                            <Download size={13} />
+                                            OpenAPI
+                                        </button>
+                                    )}
+                                </div>
 
-                                <div className="relative flex items-center">
-                                    <Search size={13} className="absolute left-3 text-slate-400 dark:text-slate-500" />
+                                <div className="search-field">
+                                    <Search size={13} />
                                     <input
                                         type="text"
                                         placeholder="Filter by name"
+                                        aria-label="Filter by name"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 transition-all font-medium h-9"
+                                        className="input"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                            <div className="scroll-soft flex-1 space-y-px px-2 pb-2" role="listbox" aria-label={TAB_TITLE[activeTab].title}>
                                 {filteredItems.length === 0 ? (
-                                    <div className="text-center py-12 px-4">
-                                        <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-2 border border-slate-200 dark:border-slate-700">
-                                            <Search size={16} className="text-slate-400 dark:text-slate-500" />
-                                        </div>
-                                        <p className="dlx-text-secondary text-xs font-bold">Nothing saved yet</p>
-                                        <p className="dlx-faint mt-0.5 text-[11px]">Create one with the button above, or import from OpenAPI.</p>
+                                    <div className="empty-state">
+                                        <div className="headline">{searchQuery ? 'No matches' : 'Nothing saved yet'}</div>
+                                        <p className="hint">{searchQuery ? 'Try a different name.' : activeTab === 'tools' ? 'Create one with New tool, or import from OpenAPI.' : 'Create one with New agent.'}</p>
                                     </div>
                                 ) : (
                                     filteredItems.map(item => (
                                         <div
                                             key={item.id}
+                                            role="option"
+                                            aria-selected={editingItem?.id === item.id}
+                                            tabIndex={0}
                                             onClick={() => handleEdit(item)}
-                                            className={`p-3 rounded-xl cursor-pointer group transition-all border
-                                                ${editingItem?.id === item.id
-                                                    ? 'bg-blue-50/50 dark:bg-blue-950/30 border-blue-500/30 shadow-sm ring-1 ring-blue-500/10'
-                                                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-xs'}`}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleEdit(item); } }}
+                                            className={`group flex items-center gap-2 rounded-[10px] px-2.5 py-2 transition-colors ${editingItem?.id === item.id ? 'bg-[var(--sidebar-sel)]' : 'hover:bg-[var(--fill)]'}`}
                                         >
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0 flex-grow">
-                                                    <div className={`font-bold text-xs truncate ${editingItem?.id === item.id ? 'text-blue-600' : 'text-slate-800 dark:text-slate-100'}`}>
-                                                        {item.name}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 mt-1">
-                                                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-500"></span>
-                                                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate font-mono tracking-wide uppercase">
-                                                            {item.type}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
-                                                    type="button"
-                                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-all"
-                                                >
-                                                    <Trash2 size={13} />
-                                                </button>
+                                            <span className="tile is-sm" style={{ ['--lane' as string]: activeTab === 'tools' ? 'var(--k-tool)' : 'var(--k-agent)' }}>
+                                                {activeTab === 'tools' ? <Wrench size={13} /> : <Bot size={13} />}
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className={`truncate text-[13px] ${editingItem?.id === item.id ? 'font-semibold' : 'font-medium'}`}>{item.name}</div>
+                                                <div className="mono truncate text-dim !text-[11px]">{item.type}</div>
                                             </div>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
+                                                type="button"
+                                                className="btn btn-ghost btn-sm btn-icon opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                                                aria-label={`Delete ${item.name}`}
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
                                         </div>
                                     ))
                                 )}
                             </div>
                         </div>
 
-                        {/* --- Configurator Right Workspace Detail Panel --- */}
-                        <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 relative overflow-hidden min-w-0">
+                        )}
+
+                        {/* --- The editor --- */}
+                        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
                             {activeTab === 'functions' ? (
-                                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                    <Section title="Python Function Tools" icon={FunctionSquare}>
+                                <div className="scroll-soft max-w-[900px] flex-1 space-y-4 pb-4 pt-1">
+                                    <Section title="New function" icon={FunctionSquare}>
                                         <div className="grid grid-cols-2 gap-5">
                                             <FormInput label="Tool ID" value={functionForm.id} onChange={(v) => setFunctionForm({ ...functionForm, id: v })} placeholder="snake_case_tool_id" mono />
-                                            <FormInput label="Function Name" value={functionForm.name} onChange={(v) => setFunctionForm({ ...functionForm, name: v })} placeholder="my_tool" mono />
+                                            <FormInput label="Function name" value={functionForm.name} onChange={(v) => setFunctionForm({ ...functionForm, name: v })} placeholder="my_tool" mono />
                                         </div>
                                         <FormInput label="Description" value={functionForm.description} onChange={(v) => setFunctionForm({ ...functionForm, description: v })} rows={2} />
-                                        <FormInput label="Python Source Implementation" value={functionForm.code} onChange={(v) => setFunctionForm({ ...functionForm, code: v })} rows={10} mono />
-                                        <button onClick={handleCreateFunction} disabled={isLoading} type="button" className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
-                                            Compile Python Micro-Tool
+                                        <FormInput label="Python source" value={functionForm.code} onChange={(v) => setFunctionForm({ ...functionForm, code: v })} rows={10} mono />
+                                        <button onClick={handleCreateFunction} disabled={isLoading} type="button" className="btn">
+                                            Create function
                                         </button>
                                     </Section>
-                                    <Section title="Active Python Native Functions" icon={Code}>
+                                    <Section title="Functions" icon={Code}>
                                         <div className="space-y-2">
                                             {functions.map((fn) => (
-                                                <div key={fn.id} className="flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-3">
+                                                <div key={fn.id} className="flex items-center justify-between rounded-[12px] bg-[var(--glass-raised)] px-3.5 py-2.5">
                                                     <div>
-                                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{fn.name}</div>
-                                                        <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">{fn.entrypoint}</div>
+                                                        <div className="text-[13px] font-semibold">{fn.name}</div>
+                                                        <div className="mono text-dim mt-0.5">{fn.entrypoint}</div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <button onClick={() => handleViewFunctionSource(fn.id)} type="button" className="px-3 py-1 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-lg shadow-2xs transition-all">Source</button>
-                                                        <button onClick={() => deleteFunctionTool(fn.id)} type="button" className="px-3 py-1 text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/50 hover:border-red-200 dark:hover:border-red-800 rounded-lg transition-all">Revoke</button>
+                                                        <button onClick={() => handleViewFunctionSource(fn.id)} type="button" className="btn btn-sm">Source</button>
+                                                        <button onClick={() => deleteFunctionTool(fn.id)} type="button" className="btn btn-danger btn-sm">Delete</button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -721,56 +621,56 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                     </Section>
                                 </div>
                             ) : activeTab === 'prompts' ? (
-                                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                    <Section title="Dynamic System Prompt Templates" icon={MessageSquareText}>
+                                <div className="scroll-soft max-w-[900px] flex-1 space-y-4 pb-4 pt-1">
+                                    <Section title="New prompt" icon={MessageSquareText}>
                                         <div className="grid grid-cols-2 gap-5">
-                                            <FormInput label="Template Identifier" value={promptForm.id} onChange={(v) => setPromptForm({ ...promptForm, id: v })} mono />
-                                            <FormInput label="Human Readable Title" value={promptForm.name} onChange={(v) => setPromptForm({ ...promptForm, name: v })} />
+                                            <FormInput label="Prompt id" value={promptForm.id} onChange={(v) => setPromptForm({ ...promptForm, id: v })} mono />
+                                            <FormInput label="Name" value={promptForm.name} onChange={(v) => setPromptForm({ ...promptForm, name: v })} />
                                         </div>
-                                        <FormInput label="Objective Summary" value={promptForm.description} onChange={(v) => setPromptForm({ ...promptForm, description: v })} rows={2} />
-                                        <FormInput label="Raw Context Payload" value={promptForm.template} onChange={(v) => setPromptForm({ ...promptForm, template: v })} rows={8} mono />
+                                        <FormInput label="Description" value={promptForm.description} onChange={(v) => setPromptForm({ ...promptForm, description: v })} rows={2} />
+                                        <FormInput label="Template" value={promptForm.template} onChange={(v) => setPromptForm({ ...promptForm, template: v })} rows={8} mono />
                                         <div className="grid grid-cols-2 gap-5">
-                                            <FormInput label="Substitute Variables" value={promptForm.variables} onChange={(v) => setPromptForm({ ...promptForm, variables: v })} placeholder="name, query, target" />
-                                            <FormInput label="Domain Catalog" value={promptForm.category} onChange={(v) => setPromptForm({ ...promptForm, category: v })} />
+                                            <FormInput label="Variables" value={promptForm.variables} onChange={(v) => setPromptForm({ ...promptForm, variables: v })} placeholder="name, query, target" />
+                                            <FormInput label="Category" value={promptForm.category} onChange={(v) => setPromptForm({ ...promptForm, category: v })} />
                                         </div>
-                                        <button onClick={handleCreatePrompt} disabled={isLoading} type="button" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
-                                            Commit Template
+                                        <button onClick={handleCreatePrompt} disabled={isLoading} type="button" className="btn btn-primary">
+                                            Save prompt
                                         </button>
                                     </Section>
-                                    <Section title="Committed System Contexts" icon={MessageSquareText}>
+                                    <Section title="Saved prompts" icon={MessageSquareText}>
                                         <div className="space-y-2">
                                             {prompts.map((prompt) => (
-                                                <div key={prompt.id} className="flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-3">
+                                                <div key={prompt.id} className="flex items-center justify-between rounded-[12px] bg-[var(--glass-raised)] px-3.5 py-2.5">
                                                     <div>
-                                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{prompt.name}</div>
-                                                        <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">{prompt.id} · {prompt.category ?? 'Global Scope'}</div>
+                                                        <div className="text-[13px] font-semibold">{prompt.name}</div>
+                                                        <div className="mono text-dim mt-0.5">{prompt.id} · {prompt.category ?? 'No category'}</div>
                                                     </div>
-                                                    <button onClick={() => deletePrompt(prompt.id)} type="button" className="px-3 py-1 text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/50 hover:border-red-200 dark:hover:border-red-800 rounded-lg transition-all">Delete</button>
+                                                    <button onClick={() => deletePrompt(prompt.id)} type="button" className="btn btn-danger btn-sm">Delete</button>
                                                 </div>
                                             ))}
                                         </div>
                                     </Section>
                                 </div>
                             ) : activeTab === 'providers' ? (
-                                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                    <Section title="LLM Backend Handshake Gateways" icon={ServerCog}>
+                                <div className="scroll-soft max-w-[900px] flex-1 space-y-4 pb-4 pt-1">
+                                    <Section title="Add a provider" icon={ServerCog}>
                                         <div className="grid grid-cols-2 gap-5">
-                                            <FormInput label="Provider Key" value={providerForm.id} onChange={(v) => setProviderForm({ ...providerForm, id: v })} mono />
-                                            <FormInput label="Display Host Label" value={providerForm.name} onChange={(v) => setProviderForm({ ...providerForm, name: v })} />
-                                            <FormInput label="Engine Family" value={providerForm.type} onChange={(v) => setProviderForm({ ...providerForm, type: v })} />
-                                            <FormInput label="Base Uniform Resource Locator" value={providerForm.base_url} onChange={(v) => setProviderForm({ ...providerForm, base_url: v })} mono />
+                                            <FormInput label="Provider id" value={providerForm.id} onChange={(v) => setProviderForm({ ...providerForm, id: v })} mono />
+                                            <FormInput label="Display name" value={providerForm.name} onChange={(v) => setProviderForm({ ...providerForm, name: v })} />
+                                            <FormInput label="Type" value={providerForm.type} onChange={(v) => setProviderForm({ ...providerForm, type: v })} />
+                                            <FormInput label="Base URL" value={providerForm.base_url} onChange={(v) => setProviderForm({ ...providerForm, base_url: v })} mono />
                                         </div>
-                                        <FormInput label="Scope Documentation" value={providerForm.description} onChange={(v) => setProviderForm({ ...providerForm, description: v })} rows={2} />
+                                        <FormInput label="Description" value={providerForm.description} onChange={(v) => setProviderForm({ ...providerForm, description: v })} rows={2} />
                                         <div className="grid grid-cols-2 gap-5">
                                             <FormInput
-                                                label="Private Auth Cipher Token"
+                                                label="API key"
                                                 value={providerForm.api_key}
                                                 onChange={(v) => setProviderForm({ ...providerForm, api_key: v })}
                                                 type="password"
                                                 helpText="Stored in the config file. Prefer an env var below for shared deployments."
                                             />
                                             <FormInput
-                                                label="API Key Env Var"
+                                                label="API key env var"
                                                 value={providerForm.api_key_env}
                                                 onChange={(v) => setProviderForm({ ...providerForm, api_key_env: v })}
                                                 mono
@@ -778,7 +678,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                             />
                                         </div>
                                         <FormInput
-                                            label="Native Route Prefix"
+                                            label="LiteLLM prefix"
                                             value={providerForm.litellm_prefix}
                                             onChange={(v) => setProviderForm({ ...providerForm, litellm_prefix: v })}
                                             mono
@@ -794,22 +694,22 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                             placeholder={'qwen-plus\nqwen-max'}
                                             helpText="One per line (or comma separated). These become suggestions in the agent model picker."
                                         />
-                                        <FormInput label="Metadata Headers Structure (JSON)" value={providerForm.config} onChange={(v) => setProviderForm({ ...providerForm, config: v })} rows={4} mono />
-                                        <button onClick={handleCreateProvider} disabled={isLoading} type="button" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
-                                            Register Handshake Gateway
+                                        <FormInput label="Extra config (JSON)" value={providerForm.config} onChange={(v) => setProviderForm({ ...providerForm, config: v })} rows={4} mono />
+                                        <button onClick={handleCreateProvider} disabled={isLoading} type="button" className="btn btn-primary">
+                                            Add provider
                                         </button>
                                     </Section>
-                                    <Section title="Registered Gateways" icon={ServerCog}>
+                                    <Section title="Providers" icon={ServerCog}>
                                         <div className="space-y-2">
                                             {providers.map((provider) => (
-                                                <div key={provider.id} className="flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-3">
+                                                <div key={provider.id} className="flex items-center justify-between rounded-[12px] bg-[var(--glass-raised)] px-3.5 py-2.5">
                                                     <div>
-                                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100">{provider.name}</div>
-                                                        <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">{provider.id} · {provider.type} · {provider.enabled ? 'Live' : 'Bypassed'}</div>
+                                                        <div className="text-[13px] font-semibold">{provider.name}</div>
+                                                        <div className="mono text-dim mt-0.5">{provider.id} · {provider.type} · {provider.enabled ? 'on' : 'off'}</div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <button onClick={() => testProvider(provider.id).then((res) => alert(JSON.stringify(res, null, 2))).catch((e) => alert((e as Error).message))} type="button" className="px-3 py-1 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 rounded-lg shadow-2xs transition-all">Verify Packet</button>
-                                                        <button onClick={() => deleteProvider(provider.id)} type="button" className="px-3 py-1 text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/50 hover:border-red-200 dark:hover:border-red-800 rounded-lg transition-all">Deregister</button>
+                                                        <button onClick={() => testProvider(provider.id).then((res) => alert(JSON.stringify(res, null, 2))).catch((e) => alert((e as Error).message))} type="button" className="btn btn-sm">Test</button>
+                                                        <button onClick={() => deleteProvider(provider.id)} type="button" className="btn btn-danger btn-sm">Remove</button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -817,57 +717,93 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                     </Section>
                                 </div>
                             ) : activeTab === 'ops' ? (
-                                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                    <Section title="Runtime State Telemetry Matrix" icon={Database}>
-                                        <pre className="bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-xl p-4 overflow-auto max-h-64 shadow-inner border border-slate-900 leading-normal">{JSON.stringify({ health, metricsDashboard }, null, 2)}</pre>
-                                    </Section>
-                                    <Section title="Semantic Search Memory Partitions" icon={Database}>
-                                        <pre className="bg-slate-950 text-sky-400 font-mono text-[11px] rounded-xl p-4 overflow-auto max-h-96 shadow-inner border border-slate-900 leading-normal">{JSON.stringify({ ragConfig, ragCollections }, null, 2)}</pre>
-                                    </Section>
+                                <div className="scroll-soft max-w-[900px] flex-1 space-y-4 pb-4 pt-1">
+                                    {(() => {
+                                        const h = (health ?? {}) as Record<string, any>;
+                                        const m = (metricsDashboard ?? {}) as Record<string, any>;
+                                        const healthy = String(h.status ?? '').toLowerCase() === 'healthy' || String(h.status ?? '').toLowerCase() === 'ok';
+                                        const pct = (value: unknown) => (typeof value === 'number' ? `${(value * 100).toFixed(value < 0.1 ? 1 : 0)}%` : '—');
+                                        const collections: Array<Record<string, any>> = Array.isArray((ragCollections as any)?.collections) ? (ragCollections as any).collections : [];
+                                        return (
+                                            <>
+                                                <div className="panel figures flex-wrap gap-y-3 px-5 py-4">
+                                                    <div className="figure">
+                                                        <b className="flex h-[25px] items-center gap-2 !text-[15px]"><StatusGlyph shape={h.status ? (healthy ? 'ok' : 'warn') : 'idle'} />{h.status ? String(h.status).replace(/^./, (c) => c.toUpperCase()) : 'Unknown'}</b>
+                                                        <span>Backend{h.version ? ` · v${h.version}` : ''}</span>
+                                                    </div>
+                                                    <div className="figure"><b>{m.active_sessions ?? '—'}</b><span>Active sessions</span></div>
+                                                    <div className="figure"><b>{typeof m.total_messages === 'number' ? m.total_messages.toLocaleString() : '—'}</b><span>Messages</span></div>
+                                                    <div className="figure"><b>{typeof m.avg_response_time === 'number' ? <>{m.avg_response_time.toFixed(2)}<small>s</small></> : '—'}</b><span>Average reply</span></div>
+                                                    <div className="figure"><b>{pct(m.cache_hit_rate)}</b><span>Cache hits</span></div>
+                                                    <div className="figure"><b>{pct(m.error_rate)}</b><span>Errors</span></div>
+                                                </div>
+                                                <Section title="Retrieval collections">
+                                                    {collections.length === 0 ? (
+                                                        <p className="hint">No collections yet. Upload documents through the RAG API to create one.</p>
+                                                    ) : (
+                                                        <div className="table-box">
+                                                            <table className="mtable">
+                                                                <thead><tr><th>Collection</th><th className="num">Documents</th><th className="num">Chunks</th></tr></thead>
+                                                                <tbody>
+                                                                    {collections.map((c, i) => (
+                                                                        <tr key={String(c.name ?? c.id ?? i)}>
+                                                                            <td><span className="row-title">{String(c.name ?? c.id ?? 'Collection')}</span>{c.description && <span className="row-sub">{String(c.description)}</span>}</td>
+                                                                            <td className="num">{c.document_count ?? c.documents ?? c.files ?? '—'}</td>
+                                                                            <td className="num">{c.chunk_count ?? c.chunks ?? '—'}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </Section>
+                                                <Section title="Raw data" defaultOpen={false}>
+                                                    <pre className="well mono max-h-96 overflow-auto p-4" style={{ color: 'var(--muted)' }}>{JSON.stringify({ health, metricsDashboard, ragConfig, ragCollections }, null, 2)}</pre>
+                                                </Section>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             ) : (
                                 <>
-                                    <div className="p-6 pb-0 shrink-0">
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <h1 className="text-base font-black text-slate-900 dark:text-white tracking-tight uppercase">
-                                                {editingItem ? `Alter Target: ${activeTab === 'tools' ? 'Tool' : 'Agent'}` : `Initialize New ${activeTab === 'tools' ? 'Tool Blueprint' : 'Agent Unit'}`}
-                                            </h1>
-                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 uppercase tracking-wider">
-                                                {editingItem ? 'Update Override' : 'Fresh Stack Allocation'}
-                                            </span>
-                                        </div>
-                                        <p className="text-slate-500 dark:text-slate-400 text-xs font-medium max-w-xl">
-                                            Supply properties below. Instantiated profiles link directly to studio node topology triggers on workflow drop actions.
+                                    <div className="shrink-0 pb-3">
+                                        <h2 className="title-1">
+                                            {editingItem ? editingItem.name : `New ${activeTab === 'tools' ? 'tool' : 'agent'}`}
+                                        </h2>
+                                        <p className="hint mt-1">
+                                            {editingItem
+                                                ? `Changes are saved to the Library. Workflows that use this ${activeTab === 'tools' ? 'tool' : 'agent'} pick them up.`
+                                                : `Saved to the Library. Drag it onto the canvas from the Studio's Saved list.`}
                                         </p>
                                     </div>
 
-                                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                        <Section title="Identity Specification" icon={Settings2}>
+                                    <div className="scroll-soft max-w-[900px] flex-1 space-y-4 pb-4 pt-1">
+                                        <Section title="Identity" icon={Settings2}>
                                             <div className="grid grid-cols-1 gap-4">
                                                 <FormInput
-                                                    label="Unique Display Token"
+                                                    label="Name"
                                                     placeholder={`e.g. ${activeTab === 'tools' ? 'stock_analyzer_v2' : 'RiskAssessmentAgent'}`}
                                                     value={formData.name}
                                                     onChange={(v) => setFormData({ ...formData, name: v })}
-                                                    helpText="Systematic string key mapping to node parameters."
+                                                    helpText="The name agents and workflows refer to it by."
                                                 />
                                                 <FormInput
-                                                    label="Behavioral Prompt Goal"
-                                                    placeholder="Outline specific boundaries, contextual expectations, and return value constraints..."
+                                                    label="Description"
+                                                    placeholder="What it does, in a sentence."
                                                     value={formData.description}
                                                     onChange={(v) => setFormData({ ...formData, description: v })}
                                                     rows={2}
-                                                    helpText="Provides semantic grounding parameters for parent orchestration switches."
+                                                    helpText="Selectors read this to decide when to hand over, so say what it does."
                                                 />
                                             </div>
                                         </Section>
 
                                         {activeTab === 'tools' && (
-                                            <Section title="Payload Connectivity Parameters" icon={Wrench}>
+                                            <Section title="Connection" icon={Wrench}>
                                                 <div className="space-y-5">
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <FormSelect
-                                                            label="Adapter Execution Layer"
+                                                            label="Tool type"
                                                             value={formData.type}
                                                             onChange={(v) => setFormData({ ...formData, type: v })}
                                                             options={[
@@ -883,13 +819,13 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
 
                                                     {formData.type === 'function' && (
                                                         <FormInput
-                                                            label="Qualified Entrypoint Symbol"
+                                                            label="Entrypoint"
                                                             placeholder="src.infrastructure.tools:evaluate_market"
                                                             value={toolConfig.entrypoint}
                                                             onChange={(v) => setToolConfig({ ...toolConfig, entrypoint: v })}
                                                             icon={Code}
                                                             mono
-                                                            helpText="Target import resolution path invoked via thread executors."
+                                                            helpText="module.path:function — the Python callable the tool runs."
                                                         />
                                                     )}
 
@@ -898,7 +834,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                             <div className="grid grid-cols-3 gap-4">
                                                                 <div className="col-span-2">
                                                                     <FormInput
-                                                                        label="Network Uniform Resource Locator"
+                                                                        label="API URL"
                                                                         placeholder="https://api.domain.com/v1/extract"
                                                                         value={toolConfig.api_url}
                                                                         onChange={(v) => setToolConfig({ ...toolConfig, api_url: v })}
@@ -907,7 +843,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                                     />
                                                                 </div>
                                                                 <FormSelect
-                                                                    label="HTTP Request Packet verb"
+                                                                    label="Method"
                                                                     value={toolConfig.http_method}
                                                                     onChange={(v) => setToolConfig({ ...toolConfig, http_method: v })}
                                                                     options={[
@@ -920,19 +856,19 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                             </div>
 
                                                             <FormSelect
-                                                                label="Security Negotiation Filter"
+                                                                label="Authentication"
                                                                 value={toolConfig.auth_type}
                                                                 onChange={(v) => setToolConfig({ ...toolConfig, auth_type: v })}
                                                                 options={[
-                                                                    { value: 'none', label: 'Public Handshake' },
-                                                                    { value: 'bearer', label: 'Authorization Bearer Header' },
-                                                                    { value: 'api_key', label: 'Custom Header Injection' }
+                                                                    { value: 'none', label: 'None' },
+                                                                    { value: 'bearer', label: 'Bearer token' },
+                                                                    { value: 'api_key', label: 'API key header' }
                                                                 ]}
                                                                 icon={Key}
                                                             />
 
                                                             <FormInput
-                                                                label="Request Header Injections (JSON)"
+                                                                label="Headers (JSON)"
                                                                 placeholder='{"Content-Type": "application/json"}'
                                                                 value={toolConfig.headers}
                                                                 onChange={(v) => setToolConfig({ ...toolConfig, headers: v })}
@@ -941,23 +877,23 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                             />
 
                                                             <FormInput
-                                                                label="Request Stream Format Wrapper (JSON)"
+                                                                label="Body template (JSON)"
                                                                 placeholder='{"query": "{{input}}"}'
                                                                 value={toolConfig.body_template}
                                                                 onChange={(v) => setToolConfig({ ...toolConfig, body_template: v })}
                                                                 icon={FileJson}
                                                                 mono
                                                                 rows={2}
-                                                                helpText="Supports double handlebars syntax {{input}} replacement."
+                                                                helpText="Put {{input}} where the agent’s input should go."
                                                             />
 
                                                             <FormInput
-                                                                label="Response Struct Dot Selector"
+                                                                label="Response path"
                                                                 placeholder="data.items"
                                                                 value={toolConfig.response_path}
                                                                 onChange={(v) => setToolConfig({ ...toolConfig, response_path: v })}
                                                                 mono
-                                                                helpText="Pulls highly specific payload arrays out of nested API responses automatically."
+                                                                helpText="Dot path to the part of the response the agent should see."
                                                             />
                                                         </>
                                                     )}
@@ -1061,7 +997,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                                     type="checkbox"
                                                                     checked={toolConfig.allow_dml}
                                                                     onChange={(e) => setToolConfig({ ...toolConfig, allow_dml: e.target.checked })}
-                                                                    className="accent-blue-600 h-4 w-4 rounded"
+                                                                    className="h-4 w-4"
                                                                 />
                                                                 Allow write operations (DML) — off means read-only queries
                                                             </label>
@@ -1098,44 +1034,44 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
 
                                         {activeTab === 'agents' && (
                                             <>
-                                                <Section title="CrewAI Topology Role Mapping" icon={Bot}>
+                                                <Section title="Role and instructions" icon={Bot}>
                                                     <div className="space-y-5">
                                                         <div className="grid grid-cols-2 gap-4">
                                                             <FormSelect
-                                                                label="Inherited Agent Strategy Base"
+                                                                label="Agent type"
                                                                 value={agentConfig.agentType}
                                                                 onChange={(v) => setAgentConfig({ ...agentConfig, agentType: v })}
                                                                 options={AGENT_TYPES.map(t => ({ value: t.id, label: t.name }))}
                                                                 icon={Cpu}
                                                             />
                                                             <FormInput
-                                                                label="Execution Context Stash Key"
+                                                                label="Output key"
                                                                 placeholder="e.g. processed_output"
                                                                 value={agentConfig.output_key}
                                                                 onChange={(v) => setAgentConfig({ ...agentConfig, output_key: v })}
                                                                 mono
-                                                                helpText="Binds return results into global shared storage state."
+                                                                helpText="Later steps read this agent’s answer under this key."
                                                             />
                                                         </div>
 
                                                         <div className="grid grid-cols-2 gap-4 items-end">
                                                             <FormSelect
-                                                                label="Human Intervention Interrupt Check"
+                                                                label="Human input"
                                                                 value={agentConfig.human_input_mode}
                                                                 onChange={(v) => setAgentConfig({ ...agentConfig, human_input_mode: v })}
                                                                 options={HUMAN_INPUT_MODES.map(m => ({ value: m.id, label: m.name }))}
                                                             />
 
-                                                            <div className="flex items-center gap-2 px-3.5 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-900/40 h-9 mb-1.5">
+                                                            <div className="mb-1.5 flex h-8 items-center gap-2 rounded-[8px] bg-[var(--glass-raised)] px-3">
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={agentConfig.is_selector}
                                                                     onChange={(e) => setAgentConfig({ ...agentConfig, is_selector: e.target.checked })}
-                                                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 accent-blue-600"
+                                                                    className="h-4 w-4"
                                                                     id="is_selector_chk"
                                                                 />
                                                                 <label htmlFor="is_selector_chk" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                                                                    Mark As Stateful Router Specialist
+                                                                    Routes to other agents (selector)
                                                                 </label>
                                                             </div>
                                                         </div>
@@ -1143,7 +1079,7 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                         {agentConfig.agentType === 'LoopAgent' && (
                                                             <div className="grid grid-cols-2 gap-4">
                                                                 <FormInput
-                                                                    label="Loop Recursion Limit"
+                                                                    label="Maximum loops"
                                                                     value={agentConfig.max_loops.toString()}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, max_loops: parseInt(v) || 1 })}
                                                                     type="number"
@@ -1152,28 +1088,28 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                         )}
 
                                                         <FormInput
-                                                            label="Specialist System Prompt Directives"
-                                                            placeholder="You are an expert financial specialist. You must always review ledger tables..."
+                                                            label="Instructions"
+                                                            placeholder="You are a support agent for Acme. Answer from the knowledge base, and say when you don’t know."
                                                             value={agentConfig.instruction}
                                                             onChange={(v) => setAgentConfig({ ...agentConfig, instruction: v })}
                                                             rows={4}
-                                                            helpText="Establishes definitive behavior models and task-level expertise rules."
+                                                            helpText="What the agent is for, and how it should work."
                                                         />
                                                     </div>
                                                 </Section>
 
                                                 {(['LlmAgent', 'ReasoningAgent', 'conversable', 'SequentialAgent'].includes(agentConfig.agentType) || agentConfig.is_selector) && (
-                                                    <Section title="Model Parameters" icon={SlidersHorizontal}>
+                                                    <Section title="Model" icon={SlidersHorizontal}>
                                                         <div className="space-y-5">
                                                             <div className="grid grid-cols-2 gap-4">
                                                                 <FormSelect
-                                                                    label="Target Backend Provider"
+                                                                    label="Provider"
                                                                     value={agentConfig.provider}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, provider: v })}
                                                                     options={llmProviderOptions}
                                                                 />
                                                                 <FormInput
-                                                                    label="Model String Slug"
+                                                                    label="Model"
                                                                     placeholder={selectedAgentProviderModels[0] || 'gpt-4o'}
                                                                     value={agentConfig.model}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, model: v })}
@@ -1184,14 +1120,14 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
 
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <FormInput
-                                                                    label="Provider Network URL override"
+                                                                    label="Base URL override"
                                                                     placeholder={selectedAgentProvider?.base_url || 'Leave blank for the provider default'}
                                                                     value={agentConfig.base_url}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, base_url: v })}
                                                                     mono
                                                                 />
                                                                 <FormInput
-                                                                    label="API Key Env Var"
+                                                                    label="API key env var"
                                                                     placeholder={selectedAgentProvider?.api_key_env || 'Leave blank for the provider key'}
                                                                     value={agentConfig.api_key_env}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, api_key_env: v })}
@@ -1201,8 +1137,8 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
 
                                                             <div className="space-y-2">
                                                                 <div className="flex justify-between items-center">
-                                                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Creativity Temperature Factor</label>
-                                                                    <span className="text-[11px] font-mono font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50">
+                                                                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">Temperature</label>
+                                                                    <span className="chip mono">
                                                                         {agentConfig.temperature}
                                                                     </span>
                                                                 </div>
@@ -1213,17 +1149,17 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                                     step="0.05"
                                                                     value={agentConfig.temperature}
                                                                     onChange={(e) => setAgentConfig({ ...agentConfig, temperature: parseFloat(e.target.value) })}
-                                                                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                                                    className="w-full"
                                                                 />
                                                                 <div className="flex justify-between text-[10px] font-semibold text-slate-400 dark:text-slate-500">
-                                                                    <span>Absolute Determinism (0.0)</span>
-                                                                    <span>Highly Expressive (2.0)</span>
+                                                                    <span>Precise (0.0)</span>
+                                                                    <span>Creative (2.0)</span>
                                                                 </div>
                                                             </div>
 
                                                             <div className="grid grid-cols-2 gap-4">
                                                                 <FormInput
-                                                                    label="Maximum Burnout Token Budget"
+                                                                    label="Max tokens"
                                                                     value={agentConfig.max_tokens.toString()}
                                                                     onChange={(v) => setAgentConfig({ ...agentConfig, max_tokens: parseInt(v) || 2048 })}
                                                                     type="number"
@@ -1233,8 +1169,8 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                     </Section>
                                                 )}
 
-                                                <Section title="Tool Attachments Portfolio" icon={Wrench}>
-                                                    <div className="border border-slate-200/80 dark:border-slate-800/80 rounded-xl bg-slate-50/40 dark:bg-slate-900/40 p-4 max-h-56 overflow-y-auto">
+                                                <Section title="Tools" icon={Wrench}>
+                                                    <div className="well max-h-56 overflow-y-auto p-3">
                                                         {savedTools.length === 0 ? (
                                                             <div className="text-xs text-slate-400 dark:text-slate-500 text-center py-5 font-medium">
                                                                 No tools available yet. Create one in the Tools tab to attach it here.
@@ -1246,12 +1182,9 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                                                     return (
                                                                         <label
                                                                             key={tool.id}
-                                                                            className={`flex items-center gap-2.5 p-2.5 rounded-lg cursor-pointer transition-all border text-xs select-none
-                                                                                ${isChecked
-                                                                                    ? 'bg-white dark:bg-slate-900 border-blue-600 shadow-2xs font-bold text-blue-600'
-                                                                                    : 'bg-white/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-400 font-medium'}`}
+                                                                            className={`flex select-none items-center gap-2.5 rounded-[10px] p-2.5 text-[12.5px] transition-colors ${isChecked ? 'bg-[var(--glass-raised)] font-semibold shadow-[0_0_0_1.5px_var(--text)]' : 'bg-[var(--glass-raised)] hover:bg-[var(--fill)]'}`}
                                                                         >
-                                                                            <div className={`flex items-center justify-center w-4 h-4 rounded border shrink-0 transition-colors ${isChecked ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700'}`}>
+                                                                            <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] transition-colors ${isChecked ? 'bg-[var(--accent-fill)] text-[var(--on-accent)]' : 'shadow-[inset_0_0_0_1px_var(--field-border)]'}`}>
                                                                                 {isChecked && <Check size={10} strokeWidth={3} />}
                                                                             </div>
                                                                             <span className="truncate flex-grow">
@@ -1269,22 +1202,13 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                                     </div>
 
                                     {/* Footer save hooks */}
-                                    <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/40 flex items-center justify-between shrink-0">
-                                        <button
-                                            onClick={resetForm}
-                                            type="button"
-                                            className="px-5 py-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition-all shadow-2xs"
-                                        >
-                                            Discard Changes
+                                    <div className="flex max-w-[900px] shrink-0 items-center justify-end gap-2 pt-3" style={{ boxShadow: '0 -1px 0 var(--line)' }}>
+                                        <button onClick={resetForm} type="button" className="btn btn-ghost">
+                                            Discard
                                         </button>
-                                        <button
-                                            onClick={handleSave}
-                                            disabled={isLoading}
-                                            type="button"
-                                            className="flex items-center justify-center gap-2 px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-70"
-                                        >
-                                            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} className="text-blue-400" />}
-                                            {editingItem ? 'Save changes' : 'Create'}
+                                        <button onClick={handleSave} disabled={isLoading} type="button" className="btn btn-primary">
+                                            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                            {editingItem ? 'Save changes' : `Create ${activeTab === 'tools' ? 'tool' : 'agent'}`}
                                         </button>
                                     </div>
                                 </>
@@ -1292,8 +1216,20 @@ export const LibraryModal = ({ isOpen, onClose, initialTab = 'browse' }: Library
                         </div>
                     </div>
                     )}
-                </div>
             </div>
+            <Toolbar
+                center={<ActivityCapsule onStatusClick={() => go('studio')} />}
+                actions={
+                    <>
+                        {(activeTab === 'tools' || activeTab === 'agents') && (
+                            <button type="button" className="btn btn-toolbar" onClick={resetForm}>
+                                <Plus size={14} /> New {activeTab === 'tools' ? 'tool' : 'agent'}
+                            </button>
+                        )}
+                        <MoreMenu />
+                    </>
+                }
+            />
             <SwaggerImportModal isOpen={isSwaggerModalOpen} onClose={() => setIsSwaggerModalOpen(false)} />
         </>
     );

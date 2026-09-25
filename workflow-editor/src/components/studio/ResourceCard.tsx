@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { ChevronRight, GripVertical } from 'lucide-react';
 import { useRef, useState } from 'react';
-import type { DragEvent } from 'react';
+import type { CSSProperties, DragEvent } from 'react';
 import type { NodeType } from '../../types/workflow';
 import { StatusBadge } from './StatusBadge';
 
@@ -13,7 +13,23 @@ export type ResourceTone =
     | 'logic'
     | 'output'
     | 'security'
-    | 'data';
+    | 'data'
+    | 'connect';
+
+/** The canvas kind colour each tone reads as. */
+const TONE_LANE: Record<ResourceTone, string> = {
+    agent: 'var(--k-agent)',
+    tool: 'var(--k-tool)',
+    workflow: 'var(--k-connect)',
+    trigger: 'var(--k-trigger)',
+    logic: 'var(--k-logic)',
+    output: 'var(--k-output)',
+    security: 'var(--k-trust)',
+    data: 'var(--k-data)',
+    connect: 'var(--k-connect)',
+};
+
+const laneOf = (tone: ResourceTone) => ({ '--lane': TONE_LANE[tone] } as CSSProperties);
 
 export interface ResourceCardBadge {
     label: string;
@@ -33,34 +49,31 @@ export interface ResourceCardBadge {
  */
 const buildDragGhost = (label: string, tone: ResourceTone): HTMLElement => {
     const ghost = document.createElement('div');
-    ghost.setAttribute('data-tone', tone);
     ghost.style.cssText = [
         'position:fixed',
         'top:-1000px',
         'left:-1000px',
         'display:flex',
         'align-items:center',
-        'gap:8px',
-        'padding:8px 14px 8px 10px',
-        'border-radius:var(--radius-lg)',
-        'background:var(--surface-2)',
-        'border:1px solid var(--tone-border)',
-        'box-shadow:var(--shadow-lg)',
-        'font-family:Inter,system-ui,sans-serif',
-        'font-size:12px',
+        'gap:9px',
+        'padding:7px 16px 7px 7px',
+        'border-radius:999px',
+        'background:var(--glass-raised)',
+        'box-shadow:0 0 0 .5px var(--lg-edge), inset 0 1px 0 var(--lg-spec), 0 10px 26px -10px rgba(0,0,0,.3)',
+        'font-family:var(--font)',
+        'font-size:13px',
         'font-weight:600',
-        'color:var(--text-primary)',
+        'color:var(--text)',
         'white-space:nowrap',
         'pointer-events:none',
     ].join(';');
 
     const dot = document.createElement('span');
     dot.style.cssText = [
-        'width:22px',
-        'height:22px',
-        'border-radius:var(--radius-sm)',
-        'background:var(--tone-bg)',
-        'border:1px solid var(--tone-border)',
+        'width:24px',
+        'height:24px',
+        'border-radius:999px',
+        `background:color-mix(in srgb, ${TONE_LANE[tone]} 15%, transparent)`,
         'flex-shrink:0',
     ].join(';');
 
@@ -128,22 +141,22 @@ export const ResourceCard = ({
     };
 
     if (collapsed) {
-        // Rail tile: a compact, tone-coloured glyph with its name underneath.
+        // Palette row: a kind tile and a name; the hint shows on hover.
         return (
             <button
+                type="button"
                 draggable
                 onDragStart={dragStart}
                 onDragEnd={dragEnd}
                 onClick={onClick}
-                data-tone={tone}
                 data-dragging={isDragging}
-                className="dlx-tile"
+                className="pal-row"
+                style={laneOf(tone)}
                 title={description ? `${label} — ${description}` : label}
             >
-                <span className="dlx-glyph h-9 w-9">
-                    <Icon size={15} strokeWidth={2.1} />
-                </span>
-                <span className="dlx-tile-label">{label}</span>
+                <span className="tile is-sm"><Icon size={14} strokeWidth={1.8} /></span>
+                <span className="min-w-0 truncate">{label}</span>
+                <GripVertical size={13} className="pal-hint" />
             </button>
         );
     }
@@ -154,56 +167,43 @@ export const ResourceCard = ({
             onDragStart={dragStart}
             onDragEnd={dragEnd}
             onClick={onClick}
-            data-tone={tone}
             data-dragging={isDragging}
-            className={`dlx-card dlx-draggable group relative mb-1.5 ${compact ? 'p-2' : 'p-2.5'}`}
-            style={{ marginLeft: `${level * 12}px` }}
+            className="dlx-draggable group relative mb-1 flex items-center gap-2 rounded-xl px-1.5 py-1.5 hover:bg-[var(--fill)]"
+            style={{ marginLeft: `${level * 12}px`, ...laneOf(tone) }}
             title={description}
         >
-            <div className="flex items-center gap-2">
-                <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onToggle?.();
-                    }}
-                    className={`dlx-btn-ghost rounded p-0.5 ${expandable ? '' : 'invisible'}`}
-                    aria-label={expanded ? 'Collapse resource' : 'Expand resource'}
-                >
-                    <ChevronRight
-                        size={12}
-                        className={`transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
-                    />
-                </button>
+            <button
+                type="button"
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onToggle?.();
+                }}
+                className={`btn btn-ghost btn-sm btn-icon shrink-0 ${expandable ? '' : 'invisible'}`}
+                aria-label={expanded ? 'Collapse' : 'Expand'}
+                aria-expanded={expandable ? expanded : undefined}
+            >
+                <ChevronRight size={12} className={`transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`} />
+            </button>
 
-                <span className={`dlx-glyph ${compact ? 'h-7 w-7' : 'h-8 w-8'}`}>
-                    <Icon size={compact ? 14 : 16} strokeWidth={2.2} />
-                </span>
+            <span className={`tile ${compact ? 'is-sm' : ''}`}>
+                <Icon size={compact ? 14 : 16} strokeWidth={1.8} />
+            </span>
 
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="dlx-text truncate text-sm font-semibold">{label}</span>
-                        <GripVertical
-                            size={13}
-                            className="dlx-faint shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                        />
-                    </div>
-                    {description && !compact && (
-                        <div className="dlx-muted mt-0.5 line-clamp-2 text-[10px] leading-4">{description}</div>
-                    )}
-                    {badges.length > 0 && (
-                        <div className={`${compact ? 'mt-1' : 'mt-2'} flex flex-wrap gap-1`}>
-                            {badges.slice(0, compact ? 2 : 3).map((badge) => (
-                                <StatusBadge
-                                    key={badge.label}
-                                    tone={badge.tone ?? 'muted'}
-                                    label={badge.label}
-                                    compact={compact}
-                                />
-                            ))}
-                        </div>
-                    )}
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[13px] font-medium" style={{ color: 'var(--text)' }}>{label}</span>
+                    <GripVertical size={13} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100" style={{ color: 'var(--dim)' }} />
                 </div>
+                {description && !compact && (
+                    <div className="hint mt-0.5 line-clamp-2">{description}</div>
+                )}
+                {badges.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                        {badges.slice(0, compact ? 2 : 3).map((badge) => (
+                            <StatusBadge key={badge.label} tone={badge.tone ?? 'muted'} label={badge.label} compact={compact} />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

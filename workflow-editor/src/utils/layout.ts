@@ -51,3 +51,21 @@ export const positionsAreDegenerate = (positions: Array<{ x?: number; y?: number
     const spanY = Math.max(...ys) - Math.min(...ys);
     return spanX < 40 && spanY < 40;
 };
+
+type Px = `${number}px`;
+
+/**
+ * Framing for fitView that keeps the graph clear of the floating chrome: the
+ * toolbar band above, the palette on the left while it is open, and the
+ * capsules along the bottom. Zoom stops at 1 so a small graph is not blown up.
+ */
+export const canvasFit = (paletteOpen: boolean, duration?: number) => ({
+    padding: {
+        top: '80px' as Px,
+        bottom: '64px' as Px,
+        right: '48px' as Px,
+        left: (paletteOpen ? '282px' : '48px') as Px,
+    },
+    maxZoom: 1,
+    duration,
+});

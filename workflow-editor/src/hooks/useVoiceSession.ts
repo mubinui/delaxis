@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '../api/client';
+import { errorText } from '../utils/apiErrors';
 
 export type VoiceState = 'idle' | 'starting' | 'listening' | 'speaking' | 'error';
 
@@ -275,7 +276,7 @@ export const useVoiceSession = ({
             });
             if (!response.ok) {
                 const detail = await response.json().catch(() => null);
-                throw new Error(detail?.detail || `Voice unavailable (${response.status})`);
+                throw new Error(errorText(detail?.detail, `Voice unavailable (${response.status})`));
             }
             const ticket: TicketResponse = await response.json();
             outRate.current = ticket.output_sample_rate;

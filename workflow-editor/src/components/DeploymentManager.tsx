@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Rocket, Code, Copy, Check, Terminal, Layers, X, ExternalLink, Trash2, RefreshCw } from 'lucide-react';
+import { Copy, Check, ExternalLink, RefreshCw } from 'lucide-react';
+import { Toolbar, MoreMenu } from './shell/Toolbar';
+import { ActivityCapsule } from './shell/ActivityCapsule';
+import { StatusGlyph } from './shell/StatusGlyph';
+import { useUiStore } from '../stores/uiStore';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { useLibraryStore } from '../stores/libraryStore';
 import { api } from '../api/client';
@@ -19,10 +23,6 @@ interface IntegrationSnippets {
     };
 }
 
-interface DeploymentManagerProps {
-    onClose: () => void;
-}
-
 const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label = 'Copy' }) => {
     const [copied, setCopied] = useState(false);
     return (
@@ -32,9 +32,9 @@ const CopyButton: React.FC<{ text: string; label?: string }> = ({ text, label = 
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
             }}
-            className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-800 transition-colors flex items-center gap-1.5"
+            className="btn btn-sm"
         >
-            {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <Check size={12} /> : <Copy size={12} />}
             {copied ? 'Copied' : label}
         </button>
     );
@@ -44,19 +44,20 @@ const SnippetBlock: React.FC<{ title: string; hint: string; code: string }> = ({
     <div className="flex flex-col gap-2">
         <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-                <div className="text-xs font-bold text-gray-800 dark:text-gray-200">{title}</div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{hint}</p>
+                <div className="headline">{title}</div>
+                <p className="hint mt-0.5">{hint}</p>
             </div>
             {code && <CopyButton text={code} />}
         </div>
-        <pre className="p-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-mono text-gray-800 dark:text-gray-200 overflow-x-auto leading-relaxed">
+        <pre className="well mono overflow-x-auto p-4 leading-relaxed" style={{ color: 'var(--text)' }}>
             {code || 'Loading…'}
         </pre>
     </div>
 );
 
-export const DeploymentManager: React.FC<DeploymentManagerProps> = ({ onClose }) => {
-    const { workflowName, currentWorkflowId } = useWorkflowStore();
+export const DeploymentManager: React.FC = () => {
+    const go = useUiStore((state) => state.go);
+    const { currentWorkflowId } = useWorkflowStore();
     const { deployments, fetchOperationsData, deleteDeployment } = useLibraryStore();
     const [activeTab, setActiveTab] = useState<'deployments' | 'embed' | 'api'>('deployments');
     const [refreshing, setRefreshing] = useState(false);
@@ -120,220 +121,198 @@ curl -X POST ${origin}/api/v1/sessions/<session_id>/messages \\
   -H 'Content-Type: application/json' \\
   -d '{"message": "Hello!"}'`;
 
-    const tabClass = (tab: typeof activeTab) =>
-        `px-4 py-2 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === tab
-            ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-            : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-        }`;
+    const TABS: Array<{ id: typeof activeTab; label: string }> = [
+        { id: 'deployments', label: 'Live pages' },
+        { id: 'embed', label: 'Integrate' },
+        { id: 'api', label: 'REST API' },
+    ];
+
+    const noneYet = (
+        <div className="panel empty-state">
+            <div className="headline">No deployments yet</div>
+            <p className="hint max-w-[380px]">Open a workflow in the Studio, then use Deploy in the Builder to publish it as a chat page.</p>
+            <button type="button" className="btn mt-2" onClick={() => go('studio')}>Open the Studio</button>
+        </div>
+    );
 
     return (
-        <div className="absolute inset-0 bg-[var(--color-canvas-bg)] flex flex-col z-30 overflow-hidden">
-            {/* Top Toolbar Strip */}
-            <div className="h-14 bg-white dark:bg-[#0b111b] border-b border-gray-200 dark:border-slate-800 flex items-center justify-between px-6 shrink-0 shadow-sm">
-                <div className="flex items-center gap-2">
-                    <Rocket className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <span className="font-bold text-xs text-gray-900 dark:text-white uppercase tracking-wider">
-                        Deployments
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold">
-                        {workflowName || 'Workflow'}
-                    </span>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
-                >
-                    <X className="w-5 h-5" />
-                </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full flex flex-col gap-6">
-                <div className="p-4 rounded-2xl glass-panel-subtle flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div>
-                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                            Ship your workflow as a live chatbot
-                        </h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xl leading-relaxed">
-                            Flash-deploy from the Launchpad to publish a chat page served by this app at
-                            <span className="font-mono"> /d/&lt;name&gt;/</span>. Drop it into another site with
-                            one script tag, embed it as an iframe, or call the REST API directly.
-                        </p>
+        <>
+            <div className="page">
+                <div className="page-inner">
+                    <div className="page-head">
+                        <div>
+                            <h1 className="display">Deployments</h1>
+                            <p className="lead mt-1 max-w-[680px]">
+                                Every workflow you publish becomes a chat page at <span className="mono !text-[13px]">/d/&lt;name&gt;/</span>.
+                                Embed it with one script tag, an iframe, or the REST API.
+                            </p>
+                        </div>
+                        <div className="segmented" role="tablist" aria-label="View">
+                            {TABS.map((tab) => (
+                                <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    <button
-                        onClick={refresh}
-                        className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-600/10 transition-all flex items-center gap-2 shrink-0"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </button>
-                </div>
 
-                <div className="flex border-b border-gray-200 dark:border-slate-800 gap-2">
-                    <button onClick={() => setActiveTab('deployments')} className={tabClass('deployments')}>
-                        <Rocket className="w-4 h-4" /> Live Deployments
-                    </button>
-                    <button onClick={() => setActiveTab('embed')} className={tabClass('embed')}>
-                        <Code className="w-4 h-4" /> Integrate
-                    </button>
-                    <button onClick={() => setActiveTab('api')} className={tabClass('api')}>
-                        <Layers className="w-4 h-4" /> REST API
-                    </button>
-                </div>
-
-                {activeTab === 'deployments' && (
-                    <div className="flex flex-col gap-3">
-                        {deployments.length === 0 && (
-                            <div className="p-8 rounded-xl border border-dashed border-gray-300 dark:border-slate-700 text-center">
-                                <Terminal className="w-8 h-8 mx-auto text-gray-400 mb-3" />
-                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">No deployments yet</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Open the Launchpad panel and use Flash Deploy to publish this workflow as a chat page.
-                                </p>
-                            </div>
-                        )}
-                        {deployments.map((deployment) => (
-                            <div
-                                key={deployment.id}
-                                className="p-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-start justify-between gap-4"
-                            >
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-bold text-gray-900 dark:text-white truncate">{deployment.title}</span>
-                                        <span
-                                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${deployment.status === 'active'
-                                                ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
-                                                : 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300'
-                                                }`}
-                                        >
-                                            {deployment.status}
-                                        </span>
-                                    </div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                        workflow <span className="font-mono">{deployment.workflow_id}</span> · created{' '}
-                                        {new Date(deployment.created_at).toLocaleString()}
-                                    </div>
-                                    <a
-                                        href={deployment.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-xs text-blue-600 dark:text-blue-400 inline-flex items-center gap-1 mt-2 font-medium"
-                                    >
-                                        {origin}
-                                        {deployment.url} <ExternalLink size={11} />
-                                    </a>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                    <CopyButton text={embedFor(deployment)} label="Copy embed" />
-                                    <button
-                                        onClick={() => void deleteDeployment(deployment.id)}
-                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
-                                        title="Delete deployment"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {activeTab === 'embed' && (
-                    <div className="flex flex-col gap-4">
-                        {deployments.length === 0 ? (
-                            <div className="p-8 rounded-xl border border-dashed border-gray-300 dark:border-slate-700 text-center">
-                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">No deployments yet</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    Flash Deploy a workflow first — the integration snippets appear here once a chatbot is live.
-                                </p>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="flex items-center gap-3">
-                                    <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 shrink-0">
-                                        Deployment
-                                    </label>
-                                    <select
-                                        value={selected?.id ?? ''}
-                                        onChange={(event) => setSelectedId(event.target.value)}
-                                        className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-gray-800 dark:text-gray-200"
+                    {activeTab === 'deployments' && (deployments.length === 0 ? <div className="mt-5">{noneYet}</div> : (
+                        <div className="split-layout">
+                            <div className="table-box">
+                                <table className="mtable">
+                                    <thead>
+                                        <tr><th>Page</th><th className="hide-narrow">Workflow</th><th className="hide-narrow">Model</th><th>Published</th><th>Status</th></tr>
+                                    </thead>
+                                    <tbody
+                                        onKeyDown={(event) => {
+                                            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                                            event.preventDefault();
+                                            const index = deployments.findIndex((d) => d.id === selected?.id);
+                                            const next = deployments[Math.max(0, Math.min(deployments.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
+                                            if (next) {
+                                                setSelectedId(next.id);
+                                                (event.currentTarget.querySelector(`[data-row="${next.id}"]`) as HTMLElement | null)?.focus();
+                                            }
+                                        }}
                                     >
                                         {deployments.map((deployment) => (
-                                            <option key={deployment.id} value={deployment.id}>
-                                                {deployment.title} — {deployment.url}
-                                            </option>
+                                            <tr key={deployment.id} aria-selected={deployment.id === selected?.id} onClick={() => setSelectedId(deployment.id)}>
+                                                <td style={{ maxWidth: 0, width: '34%' }}>
+                                                    <button type="button" className="row-title" data-row={deployment.id} onFocus={() => setSelectedId(deployment.id)}>{deployment.title}</button>
+                                                    <span className="row-sub mono">{deployment.url}</span>
+                                                </td>
+                                                <td className="mono hide-narrow">{deployment.workflow_id}</td>
+                                                <td className="mono hide-narrow">{deployment.model_id || 'Default'}</td>
+                                                <td>{new Date(deployment.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                                                <td>
+                                                    <span className="row-status">
+                                                        <StatusGlyph shape={deployment.status === 'active' ? 'ok' : 'bad'} />
+                                                        {deployment.status === 'active' ? 'Live' : deployment.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
                                         ))}
-                                    </select>
-                                </div>
+                                    </tbody>
+                                </table>
+                            </div>
 
-                                {integrationError && (
-                                    <p className="text-xs text-red-600 dark:text-red-400">{integrationError}</p>
-                                )}
-
-                                <SnippetBlock
-                                    title="Floating widget"
-                                    hint="One script tag. Adds a launcher in the corner that opens the chat in an iframe — the recommended way to add it to an existing site."
-                                    code={integration?.snippets.widget ?? ''}
-                                />
-                                <SnippetBlock
-                                    title="Widget with options"
-                                    hint="Position, label and size are set with data- attributes on the same tag."
-                                    code={integration?.snippets.widget_options ?? ''}
-                                />
-                                <SnippetBlock
-                                    title="Inline iframe"
-                                    hint="Put the chat inside your own layout. Give it at least 520px of height."
-                                    code={integration?.snippets.iframe ?? embedFor(selected!)}
-                                />
-
-                                <div className="p-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                                    <p>
-                                        Direct link:{' '}
-                                        <a
-                                            href={integration?.snippets.link ?? `${origin}${selected?.url ?? ''}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-blue-600 dark:text-blue-400 underline font-mono"
-                                        >
-                                            {integration?.snippets.link ?? `${origin}${selected?.url ?? ''}`}
-                                        </a>
-                                    </p>
-                                    {integration?.auth_mode === 'public' && (
-                                        <p className="mt-2">
-                                            This deployment is <strong>public</strong> — anyone with the link can chat, and
-                                            every message costs model tokens. Tighten <span className="font-mono">REQUESTS_PER_MINUTE</span>{' '}
-                                            and pin a cheap model before sharing it.
-                                        </p>
+                            {selected && (
+                                <aside className="inspector">
+                                    <div>
+                                        <h2 className="title-2">{selected.title}</h2>
+                                        <div className="mono text-dim mt-0.5">{selected.url}</div>
+                                    </div>
+                                    <div className="inspector-status">
+                                        <StatusGlyph shape={selected.status === 'active' ? 'ok' : 'bad'} />
+                                        {selected.status === 'active' ? 'Live' : selected.status}
+                                        <span className="hint font-normal">· {selected.auth_mode === 'public' ? 'anyone with the link' : selected.auth_mode}</span>
+                                    </div>
+                                    {selected.greeting && (
+                                        <p className="text-muted pl-3 text-[13px]" style={{ boxShadow: 'inset 2px 0 0 var(--line-strong)' }}>“{selected.greeting}”</p>
                                     )}
-                                    <p className="mt-2">
-                                        Sessions, theming, custom pages and cross-domain setup are covered in{' '}
-                                        <span className="font-mono">docs/integration.md</span>.
-                                    </p>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'api' && (
-                    <div className="flex flex-col gap-4">
-                        <span className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                            Talk to your workflow programmatically. Create a session, then post messages to it.
-                            Full API reference is at{' '}
-                            <a href="/docs" target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 underline">
-                                {origin}/docs
-                            </a>
-                            .
-                        </span>
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">cURL example</span>
-                            <CopyButton text={apiSnippet} label="Copy cURL" />
+                                    <div>
+                                        <a className="btn btn-primary" href={selected.url} target="_blank" rel="noreferrer">
+                                            <ExternalLink size={13} /> Open page
+                                        </a>
+                                    </div>
+                                    <div className="rows">
+                                        <div><span className="row-k">Workflow</span><span className="row-v mono">{selected.workflow_id}</span></div>
+                                        {selected.trigger_id && <div><span className="row-k">Trigger</span><span className="row-v mono">{selected.trigger_id}</span></div>}
+                                        <div><span className="row-k">Model</span><span className="row-v mono">{selected.model_id || 'Default'}</span></div>
+                                        {selected.theme && <div><span className="row-k">Theme</span><span className="row-v">{selected.theme.replace(/^./, (c) => c.toUpperCase())}</span></div>}
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <span className="h-section">Embed</span>
+                                        <pre className="well mono overflow-x-auto whitespace-pre-wrap p-3 !text-[11px] leading-[1.55]" style={{ color: 'var(--muted)', wordBreak: 'break-all' }}>
+                                            {integration?.snippets.widget ?? embedFor(selected)}
+                                        </pre>
+                                        <div className="flex items-center gap-1.5">
+                                            <CopyButton text={integration?.snippets.widget ?? embedFor(selected)} label="Copy" />
+                                            <button type="button" className="btn btn-sm" onClick={() => setActiveTab('embed')}>More ways</button>
+                                            <span className="flex-1" />
+                                            <button
+                                                type="button"
+                                                className="btn btn-danger btn-sm"
+                                                onClick={() => { if (confirm(`Unpublish ${selected.title}? The page stops working for everyone.`)) void deleteDeployment(selected.id); }}
+                                            >
+                                                Unpublish
+                                            </button>
+                                        </div>
+                                    </div>
+                                </aside>
+                            )}
                         </div>
-                        <pre className="p-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-mono text-gray-800 dark:text-gray-200 overflow-x-auto leading-relaxed">
-                            {apiSnippet}
-                        </pre>
-                    </div>
-                )}
+                    ))}
+
+                    {activeTab === 'embed' && (deployments.length === 0 ? <div className="mt-5">{noneYet}</div> : (
+                        <div className="mt-5 flex max-w-[880px] flex-col gap-6">
+                            <label className="flex max-w-[480px] items-center gap-3">
+                                <span className="field-label !mb-0 shrink-0">Deployment</span>
+                                <select value={selected?.id ?? ''} onChange={(event) => setSelectedId(event.target.value)} className="select">
+                                    {deployments.map((deployment) => (
+                                        <option key={deployment.id} value={deployment.id}>{deployment.title} — {deployment.url}</option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            {integrationError && <p className="text-[12px]" style={{ color: 'var(--clay)' }}>{integrationError}</p>}
+
+                            <SnippetBlock
+                                title="Floating widget"
+                                hint="One script tag. Adds a launcher in the corner that opens the chat in an iframe — the recommended way to add it to an existing site."
+                                code={integration?.snippets.widget ?? ''}
+                            />
+                            <SnippetBlock
+                                title="Widget with options"
+                                hint="Position, label and size are set with data- attributes on the same tag."
+                                code={integration?.snippets.widget_options ?? ''}
+                            />
+                            <SnippetBlock
+                                title="Inline iframe"
+                                hint="Put the chat inside your own layout. Give it at least 520px of height."
+                                code={integration?.snippets.iframe ?? embedFor(selected!)}
+                            />
+
+                            <div className="panel flex flex-col gap-2 p-4 text-[12.5px]" style={{ color: 'var(--muted)' }}>
+                                <p>
+                                    Direct link:{' '}
+                                    <a href={integration?.snippets.link ?? `${origin}${selected?.url ?? ''}`} target="_blank" rel="noreferrer" className="mono">
+                                        {integration?.snippets.link ?? `${origin}${selected?.url ?? ''}`}
+                                    </a>
+                                </p>
+                                {integration?.auth_mode === 'public' && (
+                                    <p>
+                                        This deployment is <strong style={{ color: 'var(--text)' }}>public</strong>: anyone with the link can chat, and
+                                        every message costs model tokens. Tighten <span className="mono">REQUESTS_PER_MINUTE</span> and pin a cheap model before sharing it.
+                                    </p>
+                                )}
+                                <p>Sessions, theming, custom pages and cross-domain setup are covered in <span className="mono">docs/integration.md</span>.</p>
+                            </div>
+                        </div>
+                    ))}
+
+                    {activeTab === 'api' && (
+                        <div className="mt-5 flex max-w-[880px] flex-col gap-4">
+                            <p className="lead">
+                                Talk to a workflow from your own code: create a session, then post messages to it. The full reference is at{' '}
+                                <a href="/docs" target="_blank" rel="noreferrer">{origin}/docs</a>.
+                            </p>
+                            <SnippetBlock title="cURL" hint="Replace the session id with the one the first call returns." code={apiSnippet} />
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+            <Toolbar
+                center={<ActivityCapsule onStatusClick={() => go('studio')} />}
+                actions={
+                    <>
+                        <button type="button" className="btn btn-toolbar btn-icon" onClick={refresh} aria-label="Refresh" title="Refresh">
+                            <RefreshCw size={15} strokeWidth={1.8} className={refreshing ? 'animate-spin' : ''} />
+                        </button>
+                        <MoreMenu />
+                    </>
+                }
+            />
+        </>
     );
 };

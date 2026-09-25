@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, Save, ChevronDown, ChevronRight, Check, Activity, ArrowLeftRight, FlaskConical, Gauge, Settings2, Cpu, Wrench, Layers, Mail, Server, BookmarkPlus, ExternalLink } from 'lucide-react';
+import { X, Trash2, Save, ChevronDown, ChevronRight, Check, Activity, ArrowLeftRight, FlaskConical, Gauge, Cpu, Wrench, Layers, Mail, Server, BookmarkPlus, ExternalLink, Bot, Play, GitBranch, Workflow, Flag } from 'lucide-react';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { useLibraryStore } from '../stores/libraryStore';
 import { InspectorTabs } from './studio/InspectorTabs';
 import { StatusBadge } from './studio/StatusBadge';
+import { StatusGlyph } from './shell/StatusGlyph';
+import { useUiStore } from '../stores/uiStore';
+import { kindForTool, laneStyle } from '../utils/nodeTheme';
+import type { NodeKind } from '../utils/nodeTheme';
 import { DataPreview } from './studio/DataPreview';
 import { getAgentSummary, getToolSummary } from '../utils/studioDerivedState';
 import { api } from '../api/client';
@@ -111,6 +115,12 @@ export const PropertiesPanel = () => {
 
     // Stay out of the way while a node is mid-drag: the inspector only appears once the
     // drag is released, so moving a component never opens or resizes UI around it.
+    // The test chat, the Builder and Help share the right edge; the inspector sits
+    // beside whichever is open instead of underneath it.
+    const { pane, testOpen } = useUiStore(useShallow((state) => ({ pane: state.pane, testOpen: state.testOpen })));
+    const rightPaneWidth = testOpen ? 380 : pane === 'builder' ? 400 : pane === 'help' ? 380 : 0;
+    const rightOffset = rightPaneWidth ? rightPaneWidth + 20 : 10;
+
     if (!selectedNode || isNodeDragging) return null;
 
     const handleSave = () => {
@@ -244,37 +254,18 @@ export const PropertiesPanel = () => {
         if (selectedNode.type === 'agent') {
             const summary = getAgentSummary(config);
             return (
-                <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900/60 dark:to-slate-950/40 p-4 shadow-xs">
-                    <div className="mb-3.5 flex items-start justify-between gap-3">
-                        <div>
-                            <div className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase">Agent status</div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">What still needs setting up</div>
-                        </div>
-                        <StatusBadge tone={summary.health} label={summary.health === 'ready' ? 'Ready' : 'Needs setup'} />
+                <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2">
+                        <StatusGlyph shape={summary.health === 'ready' ? 'ok' : 'warn'} />
+                        <span className="font-semibold">{summary.health === 'ready' ? 'Ready' : 'Needs setup'}</span>
+                        <span className="hint truncate">{summary.issues.length ? summary.issues.join(' · ') : `${summary.toolCount} ${summary.toolCount === 1 ? 'tool' : 'tools'}`}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2.5 text-xs">
-                        <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Type</div>
-                            <div className="font-extrabold text-slate-700 dark:text-slate-300 mt-0.5 truncate">{summary.strategy}</div>
-                        </div>
-                        <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Model</div>
-                            <div className="font-extrabold text-slate-700 dark:text-slate-300 mt-0.5 truncate">{summary.model}</div>
-                        </div>
-                        <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tools</div>
-                            <div className="font-extrabold text-blue-600 dark:text-blue-400 mt-0.5">{summary.toolCount} attached</div>
-                        </div>
-                        <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Human input</div>
-                            <div className="font-extrabold text-slate-700 dark:text-slate-300 mt-0.5 truncate">{summary.humanInput}</div>
-                        </div>
+                    <div className="rows">
+                        <div><span className="row-k">Type</span><span className="row-v">{summary.strategy}</span></div>
+                        <div><span className="row-k">Model</span><span className="row-v mono">{summary.model}</span></div>
+                        <div><span className="row-k">Provider</span><span className="row-v">{summary.provider}</span></div>
+                        <div><span className="row-k">Human input</span><span className="row-v">{summary.humanInput.toLowerCase()}</span></div>
                     </div>
-                    {summary.issues.length > 0 && (
-                        <div className="mt-3 text-[11px] font-medium bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 text-amber-800 dark:text-amber-400 rounded-lg p-2.5">
-                            {summary.issues.join(' · ')}
-                        </div>
-                    )}
                 </div>
             );
         }
@@ -282,70 +273,42 @@ export const PropertiesPanel = () => {
         if (selectedNode.type === 'tool') {
             const summary = getToolSummary(config);
             return (
-                <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-b from-white to-slate-50/50 dark:from-slate-900/60 dark:to-slate-950/40 p-4 shadow-xs">
-                    <div className="mb-3.5 flex items-start justify-between gap-3">
-                        <div>
-                            <div className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase">Tool Interface</div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Connectivity protocol summary</div>
-                        </div>
-                        <StatusBadge tone={summary.health} label={summary.enabled ? 'Live Link' : 'Disabled'} />
+                <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2">
+                        <StatusGlyph shape={!summary.enabled ? 'idle' : summary.health === 'ready' ? 'ok' : 'warn'} />
+                        <span className="font-semibold">{!summary.enabled ? 'Turned off' : summary.health === 'ready' ? 'Ready' : 'Needs setup'}</span>
+                        {summary.issues.length > 0 && <span className="hint truncate">{summary.issues.join(' · ')}</span>}
                     </div>
-                    <div className="space-y-2 text-xs">
-                        <div className="flex items-center justify-between rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Type protocol</span>
-                            <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono text-[11px]">{summary.type}</span>
-                        </div>
-                        <div className="flex items-center justify-between rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Authentication</span>
-                            <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono text-[11px]">{summary.auth}</span>
-                        </div>
-                        <div className="rounded-lg bg-white dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 p-2.5 shadow-2xs">
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Resolution Target</div>
-                            <div className="truncate font-mono text-[11px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">{summary.endpoint || 'Not configured'}</div>
-                        </div>
+                    <div className="rows">
+                        <div><span className="row-k">Type</span><span className="row-v mono">{summary.type}</span></div>
+                        <div><span className="row-k">Authentication</span><span className="row-v">{summary.auth === 'none' ? 'None' : summary.auth}</span></div>
+                        <div><span className="row-k">Points at</span><span className="row-v mono" title={summary.endpoint}>{summary.endpoint || 'Not set'}</span></div>
                     </div>
-                    {summary.issues.length > 0 && (
-                        <div className="mt-3 text-[11px] font-medium bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/50 text-amber-800 dark:text-amber-400 rounded-lg p-2.5">
-                            {summary.issues.join(' · ')}
-                        </div>
-                    )}
                 </div>
             );
         }
 
-        return (
-            <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 p-4 text-xs text-slate-500 dark:text-slate-400 font-medium text-center">
-                Configure pipeline bindings via the runtime sub-inspector.
-            </div>
-        );
+        return <p className="hint">Set this component up in the tabs above.</p>;
     };
 
     const renderToolTest = () => (
         <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/60 p-4 shadow-xs">
-                <div className="mb-2.5 text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide">Payload Harness Injection</div>
+            <div className="rounded-2xl bg-[var(--glass-raised)] p-4">
+                <label className="field-label">Arguments (JSON)</label>
                 <textarea
                     value={testArgs}
                     onChange={(event) => setTestArgs(event.target.value)}
-                    className="min-h-28 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-3 font-mono text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 transition-all"
+                    className="textarea mono min-h-28"
                 />
-                <button
-                    onClick={runToolTest}
-                    disabled={isTesting}
-                    type="button"
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 py-2.5 text-xs font-bold text-white transition-all shadow-sm disabled:opacity-60"
-                >
-                    <FlaskConical size={14} className="text-blue-400" />
-                    {isTesting ? 'Evaluating Sandboxed Hook...' : 'Trigger Sandbox Execution'}
+                <button onClick={runToolTest} disabled={isTesting} type="button" className="btn mt-3 w-full">
+                    <FlaskConical size={14} />
+                    {isTesting ? 'Running…' : 'Run the tool'}
                 </button>
             </div>
             {testResult && (
-                <div className="rounded-xl bg-slate-950 p-4 shadow-inner border border-slate-900">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center justify-between">
-                        <span>Output Stream</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    </div>
-                    <pre className="max-h-72 overflow-auto font-mono text-[11px] text-emerald-400 leading-normal">{testResult}</pre>
+                <div className="well p-3">
+                    <div className="h-section mb-1.5">Result</div>
+                    <pre className="mono max-h-72 overflow-auto whitespace-pre-wrap text-[var(--text)]">{testResult}</pre>
                 </div>
             )}
         </div>
@@ -370,8 +333,8 @@ export const PropertiesPanel = () => {
         </div>
     );
 
-    const fieldCls = 'w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9';
-    const labelCls = 'text-[10px] font-extrabold text-slate-500 uppercase tracking-wider';
+    const fieldCls = 'input text-[12.5px]';
+    const labelCls = 'field-label !mb-0';
 
     const renderModelConfig = () => {
         let providerId = config.model_config?.provider_id || config.llm_config?.provider_id || '';
@@ -456,7 +419,7 @@ export const PropertiesPanel = () => {
                             onChange={(e) => updateNestedConfig('model_config', spec.key, parseFloat(e.target.value))}
                             className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
                         />
-                        <p className="text-[9px] text-slate-400 font-medium">{spec.help}</p>
+                        <p className="hint !text-[11px]">{spec.help}</p>
                     </div>
                 );
             }
@@ -471,7 +434,7 @@ export const PropertiesPanel = () => {
                         placeholder={spec.placeholder}
                         className={fieldCls}
                     />
-                    <p className="text-[9px] text-slate-400 font-medium">{spec.help}</p>
+                    <p className="hint !text-[11px]">{spec.help}</p>
                 </div>
             );
         };
@@ -534,14 +497,14 @@ export const PropertiesPanel = () => {
                                             : `No key — set ${selectedProvider?.api_key_env ?? 'an API key'}`}
                                     </span>
                                 </div>
-                                <p className="text-[9px] text-slate-400 font-medium">
+                                <p className="hint !text-[11px]">
                                     Manage keys under Library → Providers. Deployments use the environment key.
                                 </p>
                             </div>
                         )}
 
                         {droppedFields.length > 0 && (
-                            <p className="text-[9px] text-slate-400 font-medium">
+                            <p className="hint !text-[11px]">
                                 {effectiveRoute} ignores: {droppedFields.join(', ')} — hidden below.
                             </p>
                         )}
@@ -562,7 +525,7 @@ export const PropertiesPanel = () => {
                                         className={`${fieldCls} font-mono`}
                                         placeholder={selectedProvider?.base_url || 'provider default'}
                                     />
-                                    <p className="text-[9px] text-slate-400 font-medium">Only needed for a self-hosted or custom endpoint.</p>
+                                    <p className="hint !text-[11px]">Only needed for a self-hosted or custom endpoint.</p>
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className={labelCls}>API key env var</label>
@@ -573,7 +536,7 @@ export const PropertiesPanel = () => {
                                         className={`${fieldCls} font-mono`}
                                         placeholder={selectedProvider?.api_key_env || 'provider default'}
                                     />
-                                    <p className="text-[9px] text-slate-400 font-medium">Override which variable this agent reads its key from.</p>
+                                    <p className="hint !text-[11px]">Override which variable this agent reads its key from.</p>
                                 </div>
                             </div>
                         </details>
@@ -593,7 +556,7 @@ export const PropertiesPanel = () => {
         const assignedTools = config.tools || [];
         return renderSection('Tool Chain Attachments', 'tools_selector', (
             <div className="space-y-3">
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Toggle capability slots visible to parent node logic:</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Choose what this agent can use:</div>
                 <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-2.5 bg-slate-50/40 dark:bg-slate-950/40">
                     {savedTools.map(tool => {
                         const isSelected = assignedTools.includes(tool.name);
@@ -612,7 +575,7 @@ export const PropertiesPanel = () => {
                         );
                     })}
                     {savedTools.length === 0 && (
-                        <div className="text-xs text-slate-400 font-medium text-center py-4">Registry completely void. Define sub-blocks first.</div>
+                        <div className="hint py-4 text-center">No tools in the Library yet. Create one there first.</div>
                     )}
                 </div>
             </div>
@@ -628,71 +591,71 @@ export const PropertiesPanel = () => {
                 {renderSection('Role', 'agent_settings', (
                     <>
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Agent type</label>
+                            <label className="field-label !mb-0">Agent type</label>
                             <select
                                 value={config.type || 'LlmAgent'}
                                 onChange={(e) => updateConfig('type', e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                className="input text-[12.5px]"
                             >
                                 {AGENT_TYPES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Output State Variable Key</label>
+                            <label className="field-label !mb-0">Output key</label>
                             <input
                                 type="text"
                                 value={config.output_key || ''}
                                 onChange={(e) => updateConfig('output_key', e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                className="input text-[12.5px] font-mono"
                                 placeholder="e.g. summarized_analysis"
                             />
-                            <p className="text-[9px] text-slate-400 font-medium">Binds computed stream output into standard state cache dictionary.</p>
+                            <p className="hint !text-[11px]">Later steps read this agent’s answer under this key.</p>
                         </div>
 
-                        <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950/40 rounded-lg border border-slate-200/80 dark:border-slate-800/80">
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Router Switch Subagent</span>
+                        <div className="flex items-center justify-between rounded-[10px] bg-[var(--glass-raised)] p-2.5">
+                            <span className="text-[12.5px] font-medium text-[var(--text)]">Routes to other agents (selector)</span>
                             <input
                                 type="checkbox"
                                 checked={config.is_selector || false}
                                 onChange={(e) => updateConfig('is_selector', e.target.checked)}
-                                className="accent-blue-600 w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                className="h-4 w-4"
                             />
                         </div>
 
                         {agentType === 'LoopAgent' && (
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Cyclic Upper Bounds</label>
+                                <label className="field-label !mb-0">Maximum loops</label>
                                 <input
                                     type="number"
                                     value={config.loop_config?.max_loops || 5}
                                     onChange={(e) => updateNestedConfig('loop_config', 'max_loops', parseInt(e.target.value) || 1)}
-                                    className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                    className="input text-[12.5px]"
                                 />
                             </div>
                         )}
 
                         {(isLlmAgent || config.is_selector) && (
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">System Directives / Behavioral Boundaries</label>
+                                <label className="field-label !mb-0">Instructions</label>
                                 <textarea
                                     value={config.instruction || config.system_message || ''}
                                     onChange={(e) => {
                                         updateConfig('instruction', e.target.value);
                                         updateConfig('system_message', e.target.value);
                                     }}
-                                    className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all min-h-[140px] leading-relaxed"
-                                    placeholder="Define objective criteria, operational personas, constraints, and explicit formatted formats..."
+                                    className="input text-[12.5px] min-h-[140px] leading-relaxed"
+                                    placeholder="What should this agent do, and how should it answer?"
                                 />
                             </div>
                         )}
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Human Overrule Interruption Mode</label>
+                            <label className="field-label !mb-0">Human input</label>
                             <select
                                 value={config.human_input_mode || 'NEVER'}
                                 onChange={(e) => updateConfig('human_input_mode', e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                className="input text-[12.5px]"
                             >
                                 {HUMAN_INPUT_MODES.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
@@ -711,37 +674,37 @@ export const PropertiesPanel = () => {
                 {renderSection('Trigger Handlers', 'trigger_settings', (
                     <>
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Entry Interface</label>
+                            <label className="field-label !mb-0">Starts on</label>
                             <select
                                 value={triggerType}
                                 onChange={(e) => updateConfig('trigger_type', e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                className="input text-[12.5px]"
                             >
-                                <option value="manual">Manual Push Trigger</option>
-                                <option value="chat">Conversational State Catch</option>
-                                <option value="webhook">RESTful Webhook Receiver</option>
+                                <option value="manual">Manual run</option>
+                                <option value="chat">Chat message</option>
+                                <option value="webhook">Webhook call</option>
                             </select>
                         </div>
 
                         {triggerType === 'webhook' && (
                             <>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Public Webhook URL String</label>
+                                    <label className="field-label !mb-0">Webhook slug</label>
                                     <input
                                         type="text"
                                         value={config.public_slug || ''}
                                         onChange={(e) => updateConfig('public_slug', e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                        className="input text-[12.5px] font-mono"
                                         placeholder="customer-support-ingest"
                                     />
                                     <p className="text-[9px] text-slate-400 font-mono">Hook: /api/v1/webhooks/{config.public_slug || '{slug}'}</p>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">JSON Pointer Extraction Map</label>
+                                    <label className="field-label !mb-0">Input mapping (JSON)</label>
                                     <textarea
                                         value={config.input_mapping_text || JSON.stringify(config.input_mapping || { message: '$.message' }, null, 2)}
                                         onChange={(e) => updateConfig('input_mapping_text', e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all min-h-[90px]"
+                                        className="input text-[12.5px] font-mono min-h-[90px]"
                                     />
                                 </div>
                             </>
@@ -750,55 +713,55 @@ export const PropertiesPanel = () => {
                         {(triggerType === 'chat' || triggerType === 'webhook') && (
                             <>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Session Token Filter</label>
+                                    <label className="field-label !mb-0">Who can call it</label>
                                     <select
                                         value={config.auth_mode || 'public'}
                                         onChange={(e) => updateConfig('auth_mode', e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                        className="input text-[12.5px]"
                                     >
-                                        <option value="public">Fully Permissive</option>
-                                        <option value="api_key">Shared Application Key Check</option>
-                                        <option value="jwt">JSON Web Token Signing Proof</option>
+                                        <option value="public">Anyone (public)</option>
+                                        <option value="api_key">API key</option>
+                                        <option value="jwt">Signed JWT</option>
                                     </select>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Provider</label>
+                                        <label className="field-label !mb-0">Provider</label>
                                         <input
                                             type="text"
                                             value={config.provider_id || 'openrouter'}
                                             onChange={(e) => updateConfig('provider_id', e.target.value)}
-                                            className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                            className="input text-[12.5px] font-mono"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Fallback Model</label>
+                                        <label className="field-label !mb-0">Fallback Model</label>
                                         <input
                                             type="text"
                                             value={config.model_id || 'openai/gpt-4o'}
                                             onChange={(e) => updateConfig('model_id', e.target.value)}
-                                            className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                            className="input text-[12.5px] font-mono"
                                         />
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Initial Greeting Header</label>
+                                    <label className="field-label !mb-0">Greeting</label>
                                     <textarea
                                         value={config.greeting || 'Hi, how can I help?'}
                                         onChange={(e) => updateConfig('greeting', e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all min-h-[70px]"
+                                        className="input text-[12.5px] min-h-[70px]"
                                     />
                                 </div>
                             </>
                         )}
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Downstream Cascade Execution Slug</label>
+                            <label className="field-label !mb-0">Workflow to run</label>
                             <input
                                 type="text"
                                 value={config.workflow_id || ''}
                                 onChange={(e) => updateConfig('workflow_id', e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                className="input text-[12.5px] font-mono"
                                 placeholder="e.g. main_orchestration"
                             />
                         </div>
@@ -826,7 +789,7 @@ export const PropertiesPanel = () => {
                             <option value="persistent">Persistent — kept across sessions</option>
                         </select>
                     </div>
-                    <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    <p className="hint">
                         Attach to an agent&apos;s <strong>memory</strong> handle. Without this node the
                         workflow saves with memory off.
                     </p>
@@ -862,7 +825,7 @@ export const PropertiesPanel = () => {
                         className={fieldCls}
                     />
                 </div>
-                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                <p className="hint">
                     The agent gets a <code>search_knowledge</code> tool pinned to these collections.
                     Needs <code>RAG_PIPELINE_ENABLED=true</code>; with no collection named, no search
                     tool is created.
@@ -897,7 +860,7 @@ export const PropertiesPanel = () => {
                         />
                         Flag the result for human review
                     </label>
-                    <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    <p className="hint">
                         Checks the <strong>final</strong> output wherever this node sits, and makes the
                         agent retry twice when it does not conform. Remove the node to turn guardrails
                         off.
@@ -919,7 +882,7 @@ export const PropertiesPanel = () => {
                         <option value="broadcast">Broadcast — every branch receives the result</option>
                     </select>
                 </div>
-                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                <p className="hint">
                     On save the router is compiled into direct connections and the agent feeding it is
                     marked a router, so it can delegate to the branches. Wire it to at least two agents
                     — with one it is just a hand-off.
@@ -933,11 +896,11 @@ export const PropertiesPanel = () => {
             {renderSection('Protocol Payload Parameters', 'tool_details', (
                 <>
                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Interface Mechanism</label>
+                        <label className="field-label !mb-0">Tool type</label>
                         <select
                             value={config.type || 'function'}
                             onChange={(e) => updateConfig('type', e.target.value)}
-                            className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                            className="input text-[12.5px]"
                         >
                             <option value="function">Python Function</option>
                             <option value="api">REST API</option>
@@ -949,12 +912,12 @@ export const PropertiesPanel = () => {
 
                     {config.type === 'function' && (
                         <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Target Resolution Import Path</label>
+                            <label className="field-label !mb-0">Python entrypoint</label>
                             <input
                                 type="text"
                                 value={config.entrypoint || ''}
                                 onChange={(e) => updateConfig('entrypoint', e.target.value)}
-                                className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                className="input text-[12.5px] font-mono"
                                 placeholder="package.module:function_name"
                             />
                         </div>
@@ -963,22 +926,22 @@ export const PropertiesPanel = () => {
                     {config.type === 'api' && (
                         <div className="space-y-4">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Endpoint URL String</label>
+                                <label className="field-label !mb-0">Endpoint URL</label>
                                 <input
                                     type="text"
                                     value={config.api_url || ''}
                                     onChange={(e) => updateConfig('api_url', e.target.value)}
-                                    className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                    className="input text-[12.5px] font-mono"
                                     placeholder="https://api.example.com/v1/data"
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Verb</label>
+                                    <label className="field-label !mb-0">Verb</label>
                                     <select
                                         value={config.http_method || 'GET'}
                                         onChange={(e) => updateConfig('http_method', e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                        className="input text-[12.5px]"
                                     >
                                         <option>GET</option>
                                         <option>POST</option>
@@ -987,15 +950,15 @@ export const PropertiesPanel = () => {
                                     </select>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Negotiation Token</label>
+                                    <label className="field-label !mb-0">Authentication</label>
                                     <select
                                         value={config.auth_type || 'none'}
                                         onChange={(e) => updateConfig('auth_type', e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                        className="input text-[12.5px]"
                                     >
                                         <option value="none">Public</option>
                                         <option value="bearer">Bearer Auth</option>
-                                        <option value="api_key">API Custom Header</option>
+                                        <option value="api_key">API key header</option>
                                     </select>
                                 </div>
                             </div>
@@ -1134,7 +1097,7 @@ export const PropertiesPanel = () => {
                     <div className="space-y-1.5">
                         <label className={labelCls}>Env var holding the SQLAlchemy URI</label>
                         <input type="text" value={config.db_uri_env_var || ''} onChange={(e) => updateConfig('db_uri_env_var', e.target.value)} className={`${fieldCls} font-mono`} placeholder="SALES_DB_URI" />
-                        <p className="text-[9px] text-slate-400 font-medium">e.g. SALES_DB_URI=postgresql://user:pass@host:5432/sales in the backend .env</p>
+                        <p className="hint !text-[11px]">e.g. SALES_DB_URI=postgresql://user:pass@host:5432/sales in the backend .env</p>
                     </div>
                 ) : (
                     <div className="space-y-1.5">
@@ -1154,7 +1117,7 @@ export const PropertiesPanel = () => {
                     />
                 </div>
 
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-950/40 rounded-lg border border-slate-200/80 dark:border-slate-800/80">
+                <div className="flex items-center justify-between rounded-[10px] bg-[var(--glass-raised)] p-2.5">
                     <div>
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Allow write operations (DML)</span>
                         <span className="text-[9px] text-slate-400">Off = read-only SELECT queries only (recommended)</span>
@@ -1184,7 +1147,7 @@ export const PropertiesPanel = () => {
                 {/* Connection state */}
                 <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 p-3 space-y-2.5">
                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Google account</span>
+                        <span className="field-label !mb-0">Google account</span>
                         {gmailStatus === null ? (
                             <StatusBadge tone="muted" label="Status unknown" compact />
                         ) : !gmailStatus.configured ? (
@@ -1265,23 +1228,35 @@ export const PropertiesPanel = () => {
         );
     }
 
+    const kind: NodeKind =
+        selectedNode.type === 'agent' ? 'agent'
+            : selectedNode.type === 'tool' ? kindForTool(config)
+                : selectedNode.type === 'trigger' ? 'trigger'
+                    : selectedNode.type === 'router' ? 'logic'
+                        : selectedNode.type === 'workflow' ? 'connect'
+                            : 'output';
+    const KindIcon = selectedNode.type === 'agent' ? Bot
+        : selectedNode.type === 'tool' ? Wrench
+            : selectedNode.type === 'trigger' ? Play
+                : selectedNode.type === 'router' ? GitBranch
+                    : selectedNode.type === 'workflow' ? Workflow
+                        : Flag;
+    const kindLabel = selectedNode.type === 'agent'
+        ? `Agent · ${String(config.type ?? 'LlmAgent')}`
+        : selectedNode.type === 'tool' ? `Tool · ${String(config.type ?? 'function')}`
+            : String(selectedNode.type).replace(/^./, (c) => c.toUpperCase());
+
     return (
-        <div className="w-[400px] shrink-0 h-full bg-white dark:bg-[#0b111b] border-l border-[var(--color-ui-border)] shadow-xl flex flex-col antialiased animate-in slide-in-from-right duration-200">
-            {/* Docked Inspector Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-slate-50/60 to-white dark:from-[#0f1723]/80 dark:to-[#0b111b] shrink-0">
-                <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-2xs">
-                        <Settings2 size={15} />
-                    </div>
-                    <div>
-                        <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-xs tracking-wide uppercase">Properties</h3>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider">
-                                Type: {selectedNode.type}
-                            </span>
-                        </div>
-                    </div>
+        <aside
+            className="glass-pane from-right absolute z-20 w-[360px]"
+            style={{ top: 'calc(var(--toolbar-h) + 10px)', bottom: 10, right: rightOffset }}
+            aria-label="Inspector"
+        >
+            <div className="flex shrink-0 items-center gap-2.5 pb-3 pl-[18px] pr-3 pt-4" style={laneStyle(kind)}>
+                <span className="tile"><KindIcon size={16} strokeWidth={1.8} /></span>
+                <div className="min-w-0 flex-1">
+                    <div className="node-kind truncate">{kindLabel}</div>
+                    <div className="title-2 truncate">{label || 'Untitled'}</div>
                 </div>
                 <button
                     onClick={() => {
@@ -1289,22 +1264,24 @@ export const PropertiesPanel = () => {
                         onNodesChange([{ id: selectedNode.id, type: 'select', selected: false }]);
                     }}
                     type="button"
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 p-1.5 rounded-xl transition-all"
+                    className="btn btn-ghost btn-icon"
+                    aria-label="Close inspector"
+                    title="Close"
                 >
                     <X size={15} />
                 </button>
             </div>
 
             {/* Seamless Tab Strips & Field Scrollable View */}
-            <div className="p-5 overflow-y-auto flex-1 custom-scrollbar min-h-0 space-y-4">
+            <div className="scroll-soft min-h-0 flex-1 space-y-4 px-[18px] pb-5 pt-1">
                 <InspectorTabs
                     activeTab={activeInspectorTab}
                     onChange={setActiveInspectorTab}
                     tabs={[
-                        { id: 'overview', label: 'Overview', icon: Activity },
+                        { id: 'overview', label: 'General', icon: Activity },
                         { id: 'model', label: 'Model', icon: Cpu, disabled: selectedNode.type !== 'agent' },
                         { id: 'tools', label: selectedNode.type === 'tool' || selectedNode.type === 'router' ? 'Config' : 'Tools', icon: Wrench, disabled: selectedNode.type === 'trigger' },
-                        { id: 'runtime', label: 'Runtime', icon: Layers },
+                        { id: 'runtime', label: 'Setup', icon: Layers },
                         { id: 'data', label: 'Data', icon: ArrowLeftRight, disabled: selectedNode.type !== 'agent' && selectedNode.type !== 'tool' },
                         {
                             id: 'test',
@@ -1325,26 +1302,25 @@ export const PropertiesPanel = () => {
                     <div className="space-y-4 animate-in fade-in duration-200">
                         {renderStudioSummary()}
 
-                        <div className="space-y-4 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-4 shadow-2xs">
-                            <div className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase mb-1">Naming</div>
+                        <div className="space-y-3">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Name</label>
+                                <label className="field-label !mb-0">Name</label>
                                 <input
                                     type="text"
                                     value={label}
                                     onChange={(e) => setLabel(e.target.value)}
                                     onBlur={handleSave}
-                                    className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all h-9"
+                                    className="input text-[12.5px]"
                                 />
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Description</label>
+                                <label className="field-label !mb-0">Description</label>
                                 <textarea
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                     onBlur={handleSave}
-                                    className="w-full px-3 py-2 bg-slate-50/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 resize-y min-h-[60px] focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 transition-all leading-relaxed"
+                                    className="input text-[12.5px] resize-y min-h-[60px] leading-relaxed"
                                 />
                             </div>
                         </div>
@@ -1365,74 +1341,66 @@ export const PropertiesPanel = () => {
 
                     {activeInspectorTab === 'data' && (selectedNode.type === 'agent' || selectedNode.type === 'tool') && (
                         <div className="space-y-4">
-                            <div className="space-y-2 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-4 shadow-2xs">
+                            <div className="space-y-2 rounded-2xl bg-[var(--glass-raised)] p-4">
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs font-black text-emerald-700 dark:text-emerald-400 tracking-wide uppercase">Input</div>
                                     {selectedNode.data.lastInput && (
-                                        <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
+                                        <span className="hint !text-[11px]">
                                             {new Date(selectedNode.data.lastInput.timestamp).toLocaleTimeString()}
                                         </span>
                                     )}
                                 </div>
                                 <DataPreview
                                     value={selectedNode.data.lastInput?.data}
-                                    emptyMessage="No run data yet — press Run Live in the Execution timeline to populate."
+                                    emptyMessage="No run data yet. Run the workflow from the timeline — click the status in the toolbar."
                                 />
                             </div>
-                            <div className="space-y-2 rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 p-4 shadow-2xs">
+                            <div className="space-y-2 rounded-2xl bg-[var(--glass-raised)] p-4">
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs font-black text-sky-700 dark:text-sky-400 tracking-wide uppercase">Output</div>
                                     {selectedNode.data.lastOutput && (
-                                        <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500">
+                                        <span className="hint !text-[11px]">
                                             {new Date(selectedNode.data.lastOutput.timestamp).toLocaleTimeString()}
                                         </span>
                                     )}
                                 </div>
                                 <DataPreview
                                     value={selectedNode.data.lastOutput?.data}
-                                    emptyMessage="No run data yet — press Run Live in the Execution timeline to populate."
+                                    emptyMessage="No run data yet. Run the workflow from the timeline — click the status in the toolbar."
                                 />
                             </div>
                         </div>
                     )}
                     
                     {activeInspectorTab === 'test' && selectedNode.type === 'agent' && (
-                        <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 p-4 text-xs text-slate-500 dark:text-slate-400 font-medium text-center">
-                            Trigger full canvas traversal from control playback hub to track agent-level sequential reasoning outputs.
+                        <div className="well p-4 text-center hint">
+                            To try an agent, chat with the workflow: choose Test in the toolbar.
                         </div>
                     )}
                     {activeInspectorTab === 'test' && selectedNode.type === 'trigger' && (
-                        <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 p-4 text-xs text-slate-500 dark:text-slate-400 font-medium text-center">
-                            Trigger hooks can be activated directly via interactive testing push endpoints.
+                        <div className="well p-4 text-center hint">
+                            Run this trigger with the play button on its node.
                         </div>
                     )}
                     {activeInspectorTab !== 'overview' && selectedNode.type === 'output' && (
-                        <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 p-4 text-xs text-slate-500 dark:text-slate-400 font-medium text-center">
-                            Terminal node. Imposes hard pipeline exit blocks upon data pipeline traversal success.
+                        <div className="well p-4 text-center hint">
+                            The workflow’s answer leaves the graph here. There is nothing to set up.
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Bottom Actions Controls */}
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/30 flex gap-3 shrink-0">
-                <button
-                    onClick={handleDelete}
-                    type="button"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold hover:bg-red-50/60 dark:hover:bg-red-950/30 transition-all shadow-2xs"
-                >
+            <div className="flex shrink-0 items-center gap-2 px-3 pb-3 pt-2.5" style={{ boxShadow: '0 -1px 0 var(--line)' }}>
+                <button onClick={handleDelete} type="button" className="btn btn-danger">
                     <Trash2 size={13} />
-                    Delete
+                    Remove
                 </button>
-                <button
-                    onClick={handleSave}
-                    type="button"
-                    className="flex-[2] flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 shadow-sm transition-all"
-                >
+                <span className="flex-1" />
+                <button onClick={handleSave} type="button" className="btn">
                     <Save size={13} />
-                    Save
+                    Apply
                 </button>
             </div>
-        </div>
+        </aside>
     );
 };

@@ -20,9 +20,8 @@ const FRONTEND_MODEL_ID = 'google/gemini-3.6-flash';
 
 const GeneratingBubble = () => (
     <div className="inline-flex items-center gap-2 text-slate-500">
-        <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-40 animate-ping" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500" />
+        <span className="relative flex">
+            <span className="sg" data-shape="busy" />
         </span>
         <span className="text-sm">Generating</span>
         <span className="flex gap-0.5" aria-hidden="true">
@@ -641,7 +640,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
 
     const tabs = [
         { id: 'build' as const, label: 'Build', icon: Wand2 },
-        { id: 'api' as const, label: 'API Fix', icon: Wrench },
+        { id: 'api' as const, label: 'API', icon: Wrench },
         { id: 'triggers' as const, label: 'Triggers', icon: Cable },
         { id: 'frontend' as const, label: 'Frontend', icon: Code2 },
         { id: 'deploy' as const, label: 'Deploy', icon: Rocket },
@@ -650,71 +649,43 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     return (
         // Floating window over the canvas — toggled from the Builder button in the header.
         <aside
-            className="absolute top-4 right-4 bottom-24 z-40 flex w-[400px] flex-col overflow-hidden animate-in slide-in-from-right-4 fade-in duration-200"
-            style={{
-                backgroundColor: 'var(--surface-1)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-xl)',
-                boxShadow: 'var(--shadow-xl)',
-            }}
+            className="glass-pane from-right absolute right-2.5 z-30 w-[400px]"
+            style={{ top: 'calc(var(--toolbar-h) + 10px)', bottom: 10 }}
+            aria-label="Builder"
         >
-            <div
-                className="shrink-0 px-4 py-3.5"
-                style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-2)' }}
-            >
-                <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                        <div className="dlx-text flex items-center gap-2 text-sm font-bold">
-                            <span className="dlx-glyph h-7 w-7" data-tone="agent">
-                                <Bot size={15} />
-                            </span>
-                            Builder
-                        </div>
-                        <div className="dlx-muted mt-1 truncate text-[11px]">{workflowId ? `Building into ${workflowId}` : 'No saved workflow selected'}</div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                        {speech.supported && (
-                            <button
-                                onClick={speech.toggle}
-                                className={`dlx-btn p-2 ${speech.enabled ? 'dlx-btn-secondary' : 'dlx-btn-ghost'}`}
-                                style={speech.enabled ? { color: 'var(--accent-text)', backgroundColor: 'var(--accent-soft)' } : undefined}
-                                title={
-                                    speech.enabled
-                                        ? 'Spoken progress on — click to mute'
-                                        : 'Speak progress aloud while building'
-                                }
-                                aria-pressed={speech.enabled}
-                            >
-                                {speech.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                            </button>
-                        )}
-                        <button onClick={onClose} className="dlx-btn dlx-btn-ghost p-2" title="Close Builder">
-                            <X size={16} />
+            <div className="flex shrink-0 items-center gap-2.5 pb-2.5 pl-[18px] pr-3 pt-3.5">
+                <span className="tile" style={{ ['--lane' as string]: 'var(--hue-9)' }}><Bot size={16} strokeWidth={1.8} /></span>
+                <div className="min-w-0 flex-1">
+                    <div className="title-2">Builder</div>
+                    <div className="hint truncate">{workflowId ? `Building into ${workflowId}` : 'No saved workflow selected'}</div>
+                </div>
+                {speech.supported && (
+                    <button
+                        onClick={speech.toggle}
+                        className="btn btn-ghost btn-icon"
+                        aria-pressed={speech.enabled}
+                        title={speech.enabled ? 'Spoken progress on — click to mute' : 'Speak progress aloud while building'}
+                        aria-label="Spoken progress"
+                    >
+                        {speech.enabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+                    </button>
+                )}
+                <button onClick={onClose} className="btn btn-ghost btn-icon" title="Close Builder" aria-label="Close Builder">
+                    <X size={15} />
+                </button>
+            </div>
+
+            <div className="shrink-0 px-4 pb-2.5">
+                <div className="segmented is-wide" role="tablist" aria-label="Builder">
+                    {tabs.map(({ id, label }) => (
+                        <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
+                            {label}
                         </button>
-                    </div>
+                    ))}
                 </div>
             </div>
 
-            <div
-                className="grid grid-cols-5 gap-0.5 p-2"
-                style={{ borderBottom: '1px solid var(--border-subtle)' }}
-            >
-                {tabs.map(({ id, label, icon: Icon }) => (
-                    <button
-                        key={id}
-                        onClick={() => setTab(id)}
-                        className="flex h-12 flex-col items-center justify-center gap-1 rounded-lg text-[10.5px] font-semibold transition-colors duration-150"
-                        style={tab === id
-                            ? { backgroundColor: 'var(--accent)', color: 'var(--text-on-accent)' }
-                            : { color: 'var(--text-muted)' }}
-                    >
-                        <Icon size={16} />
-                        {label}
-                    </button>
-                ))}
-            </div>
-
-            <div className="p-3 border-b border-[var(--border-default)] space-y-2">
+            <div className="shrink-0 space-y-2 px-4 pb-3" style={{ boxShadow: '0 1px 0 var(--line)' }}>
                 <select
                     value={providerId}
                     disabled={models.length === 0}
@@ -752,13 +723,13 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="scroll-soft min-h-0 flex-1 space-y-3 px-4 py-3">
                 {tab === 'build' && (
                     <>
                         <select
                             value={buildKind}
                             onChange={(event) => setBuildKind(event.target.value as BuildKind)}
-                            className="w-full border border-[var(--border-default)] rounded-md px-3 py-2 text-sm dlx-surface-2 text-slate-900 dark:text-slate-200"
+                            className="input text-[12.5px]"
                         >
                             <option value="chatbot">Complete chatbot</option>
                             <option value="agent">Agent</option>
@@ -768,9 +739,9 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                             <option value="api">Raw API to tool</option>
                             <option value="frontend">Chatbot frontend</option>
                         </select>
-                        <div className="border border-[var(--border-default)] rounded-md dlx-sunken h-64 overflow-y-auto p-3 space-y-3">
+                        <div className="well h-64 overflow-y-auto p-3 space-y-3">
                             {buildMessages.length === 0 && (
-                                <div className="text-sm text-slate-500 dark:text-slate-400">
+                                <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
                                     Tell the builder what to create. Switch the type above for agents, tools, functions, workflows, APIs, full chatbots, or frontend.
                                 </div>
                             )}
@@ -779,8 +750,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                     key={`${chatMessage.role}-${index}`}
                                     className={`text-sm rounded-md p-3 whitespace-pre-wrap ${
                                         chatMessage.role === 'user'
-                                            ? 'bg-[var(--color-primary)] text-white ml-5'
-                                            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 mr-5'
+                                            ? 'ml-5 bg-[var(--accent-fill)] text-[var(--on-accent)]'
+                                            : 'mr-5 bg-[var(--glass-raised)] text-[var(--text)]'
                                     }`}
                                 >
                                     {chatMessage.content || <GeneratingBubble />}
@@ -790,7 +761,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                         <textarea
                             value={buildInput}
                             onChange={(event) => setBuildInput(event.target.value)}
-                            className="w-full min-h-24 border border-[var(--border-default)] rounded-md p-3 text-sm dlx-surface-2 text-slate-900 dark:text-slate-200"
+                            className="input text-[12.5px] min-h-24"
                             placeholder="Describe what you want to build..."
                         />
 
@@ -858,28 +829,28 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                             <button onClick={runChatBuilder} disabled={busy} className="dlx-btn dlx-btn-primary col-span-2 py-2 text-sm">
                                 <Send size={15} /> Send
                             </button>
-                            <button onClick={finalizeChatBuilder} disabled={busy || buildMessages.length === 0} className="bg-slate-900 dark:bg-slate-700 text-white rounded-md py-2 text-sm font-semibold disabled:opacity-50">
+                            <button onClick={finalizeChatBuilder} disabled={busy || buildMessages.length === 0} className="btn">
                                 Generate
                             </button>
                             <button onClick={runPlan} disabled={busy} className="bg-white dark:bg-slate-800 border border-[var(--border-default)] text-slate-700 dark:text-slate-300 rounded-md py-2 text-xs font-semibold disabled:opacity-50">
                                 Quick Plan
                             </button>
-                            <button onClick={applyPlan} disabled={busy || !plan} className="col-span-2 bg-slate-900 dark:bg-slate-700 text-white rounded-md py-2 text-sm font-semibold disabled:opacity-50">
+                            <button onClick={applyPlan} disabled={busy || !plan} className="btn col-span-2">
                                 Apply
                             </button>
                         </div>
-                        {plan && <pre className="text-xs bg-slate-950 text-slate-100 p-3 rounded-md overflow-auto max-h-96">{compactJson(plan)}</pre>}
+                        {plan && <pre className="well mono text-[11.5px] text-[var(--text)] p-3 overflow-auto max-h-96">{compactJson(plan)}</pre>}
                     </>
                 )}
 
                 {tab === 'api' && (
                     <>
-                        <textarea value={specification} onChange={(event) => setSpecification(event.target.value)} className="w-full min-h-20 border border-[var(--border-default)] rounded-md p-3 text-sm dlx-surface-2 text-slate-900 dark:text-slate-200" />
-                        <textarea value={rawApi} onChange={(event) => setRawApi(event.target.value)} className="w-full min-h-44 border border-[var(--border-default)] rounded-md p-3 text-sm font-mono dlx-surface-2 text-slate-900 dark:text-slate-200" />
+                        <textarea value={specification} onChange={(event) => setSpecification(event.target.value)} className="input text-[12.5px] min-h-20" />
+                        <textarea value={rawApi} onChange={(event) => setRawApi(event.target.value)} className="input text-[12.5px] min-h-44 font-mono" />
                         <button onClick={runNormalizeApi} disabled={busy} className="dlx-btn dlx-btn-primary w-full py-2 text-sm">
                             Normalize API
                         </button>
-                        {normalizedTool && <pre className="text-xs bg-slate-950 text-slate-100 p-3 rounded-md overflow-auto max-h-96">{compactJson(normalizedTool)}</pre>}
+                        {normalizedTool && <pre className="well mono text-[11.5px] text-[var(--text)] p-3 overflow-auto max-h-96">{compactJson(normalizedTool)}</pre>}
                     </>
                 )}
 
@@ -887,10 +858,10 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     <>
                         <div className="grid grid-cols-2 gap-2">
                             <button onClick={createChatTrigger} disabled={busy} className="dlx-btn dlx-btn-primary py-2 text-sm">Chat Trigger</button>
-                            <button onClick={createWebhookTrigger} disabled={busy} className="bg-slate-900 dark:bg-slate-700 text-white rounded-md py-2 text-sm font-semibold disabled:opacity-50">Webhook</button>
+                            <button onClick={createWebhookTrigger} disabled={busy} className="btn">Webhook</button>
                         </div>
                         {triggers.map((trigger) => (
-                            <div key={trigger.id} className="border border-[var(--border-default)] rounded-md p-3 dlx-sunken">
+                            <div key={trigger.id} className="well p-3">
                                 <div className="flex items-start justify-between gap-2">
                                     <div>
                                         <div className="text-sm font-semibold text-slate-900 dark:text-white">{trigger.name}</div>
@@ -907,7 +878,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 {tab === 'frontend' && (
                     <>
                         <div className="rounded-md border border-[var(--border-default)] p-2.5 space-y-2">
-                            <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">Generation mode</div>
+                            <div className="field-label">Generation mode</div>
                             <div className="grid grid-cols-2 gap-2">
                                 {([
                                     ['themed', 'Styled', 'Restyles the built-in page. Chat, history and buttons are the tested ones.'],
@@ -933,10 +904,10 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                 </p>
                             )}
                         </div>
-                        <button onClick={useGeminiFrontendModel} className="w-full bg-slate-900 dark:bg-slate-700 text-white rounded-md py-2 text-sm font-semibold">
+                        <button onClick={useGeminiFrontendModel} className="btn w-full">
                             Use Gemini Pro
                         </button>
-                        <div className="border border-[var(--border-default)] rounded-md dlx-sunken h-72 overflow-y-auto p-3 space-y-3">
+                        <div className="well h-72 overflow-y-auto p-3 space-y-3">
                             {frontendMessages.length === 0 && (
                                 <div className="text-sm text-slate-500 dark:text-slate-400">
                                     Describe the look you want — colours, tone, starter questions. The workflow behind it is untouched.
@@ -958,14 +929,14 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                         <textarea
                             value={frontendPrompt}
                             onChange={(event) => setFrontendPrompt(event.target.value)}
-                            className="w-full min-h-28 border border-[var(--border-default)] rounded-md p-3 text-sm dlx-surface-2 text-slate-900 dark:text-slate-200"
+                            className="input text-[12.5px] min-h-28"
                             placeholder="Ask Gemini to build or revise the chatbot frontend..."
                         />
                         <div className="grid grid-cols-2 gap-2">
                             <button onClick={runFrontendGenerate} disabled={busy} className="dlx-btn dlx-btn-primary py-2 text-sm">
                                 Generate UI
                             </button>
-                            <button onClick={runGeneratedFlashDeploy} disabled={busy || !frontendHtml} className="bg-slate-900 dark:bg-slate-700 text-white rounded-md py-2 text-sm font-semibold disabled:opacity-50">
+                            <button onClick={runGeneratedFlashDeploy} disabled={busy || !frontendHtml} className="btn">
                                 Flash Deploy
                             </button>
                         </div>
@@ -994,7 +965,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                         className="h-[28rem] w-full bg-white"
                                     />
                                 </div>
-                                <details className="rounded-lg border border-slate-200 bg-slate-950 text-slate-100">
+                                <details className="well mono text-[11.5px] text-[var(--text)]">
                                     <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
                                         View HTML Source
                                     </summary>
@@ -1010,38 +981,38 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                             Deployments are served by this app at <span className="font-mono">/d/&lt;name&gt;/</span> — same origin, no extra ports.
                         </p>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        <label className="field-label">
                             Chatbot title
                             <input
                                 value={deployTitle}
                                 onChange={(event) => setDeployTitle(event.target.value)}
                                 placeholder={workflowLabel}
-                                className="mt-1 w-full border border-[var(--border-default)] rounded-md px-2 py-1.5 text-sm font-normal dlx-surface-2 text-slate-900 dark:text-white"
+                                className="input text-[12.5px] mt-1"
                             />
                         </label>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        <label className="field-label">
                             Greeting
                             <input
                                 value={deployGreeting}
                                 onChange={(event) => setDeployGreeting(event.target.value)}
                                 placeholder="Hi, how can I help?"
-                                className="mt-1 w-full border border-[var(--border-default)] rounded-md px-2 py-1.5 text-sm font-normal dlx-surface-2 text-slate-900 dark:text-white"
+                                className="input text-[12.5px] mt-1"
                             />
                         </label>
-                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        <label className="field-label">
                             Starter prompts
                             <textarea
                                 value={deploySuggestions}
                                 onChange={(event) => setDeploySuggestions(event.target.value)}
                                 rows={3}
                                 placeholder={'One per line, up to four\nWhat can you do?\nSummarise this week\'s releases'}
-                                className="mt-1 w-full border border-[var(--border-default)] rounded-md px-2 py-1.5 text-sm font-normal dlx-surface-2 text-slate-900 dark:text-white resize-y"
+                                className="input text-[12.5px] mt-1 resize-y"
                             />
                             <span className="mt-1 block font-normal text-[11px] text-slate-500 dark:text-slate-400">
                                 Shown as chips on an empty conversation, so visitors know what to ask.
                             </span>
                         </label>
-                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        <div className="field-label">
                             Theme
                             <div className="mt-1.5 grid grid-cols-3 gap-2">
                                 {(themes.length ? themes : [{ id: 'midnight', label: 'Midnight', vars: {} } as ThemePreset]).map((preset) => (
@@ -1087,12 +1058,12 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
 
                             {voiceEnabled && voiceInfo?.key_available && (
                                 <div className="space-y-2.5 pl-5">
-                                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                    <label className="field-label">
                                         Realtime model
                                         <select
                                             value={voiceModel}
                                             onChange={(event) => setVoiceModel(event.target.value)}
-                                            className="mt-1 w-full border border-[var(--border-default)] rounded-md px-2 py-1.5 text-sm font-normal dlx-surface-2 text-slate-900 dark:text-white"
+                                            className="input text-[12.5px] mt-1"
                                         >
                                             <option value="">Server default</option>
                                             {voiceInfo.models.map((model) => (
@@ -1101,12 +1072,12 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                         </select>
                                     </label>
                                     {voiceInfo.voices.length > 0 && (
-                                        <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                        <label className="field-label">
                                             Voice
                                             <select
                                                 value={voiceName}
                                                 onChange={(event) => setVoiceName(event.target.value)}
-                                                className="mt-1 w-full border border-[var(--border-default)] rounded-md px-2 py-1.5 text-sm font-normal dlx-surface-2 text-slate-900 dark:text-white"
+                                                className="input text-[12.5px] mt-1"
                                             >
                                                 <option value="">Default</option>
                                                 {voiceInfo.voices.map((voice) => (
@@ -1115,14 +1086,14 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                                             </select>
                                         </label>
                                     )}
-                                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                    <label className="field-label">
                                         Voice persona
                                         <textarea
                                             value={voicePrompt}
                                             onChange={(event) => setVoicePrompt(event.target.value)}
                                             rows={3}
                                             placeholder="Leave blank to reuse the entry agent's own system message."
-                                            className="mt-1 w-full border border-[var(--border-default)] rounded-md px-2 py-1.5 text-sm font-normal dlx-surface-2 text-slate-900 dark:text-white resize-y"
+                                            className="input text-[12.5px] mt-1 resize-y"
                                         />
                                     </label>
                                     <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-400">
@@ -1137,7 +1108,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                             <PlayCircle size={16} /> Flash Deploy
                         </button>
                         {deployments.map((deployment) => (
-                            <div key={deployment.id} className="border border-[var(--border-default)] rounded-md p-3 dlx-sunken">
+                            <div key={deployment.id} className="well p-3">
                                 <div className="flex items-start justify-between gap-2">
                                     <div>
                                         <div className="text-sm font-semibold text-slate-900 dark:text-white">{deployment.title}</div>

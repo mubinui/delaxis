@@ -35,6 +35,27 @@ describe('workflowToCanvas', () => {
         expect(result.edges).toHaveLength(1);
     });
 
+    it('draws restored edges in the current wire style, keeping their connections', () => {
+        const saved = {
+            id: 'wf',
+            metadata: {
+                visual_canvas: {
+                    nodes: [{ id: 'a', type: 'agent', position: { x: 0, y: 0 }, data: { label: 'A', config: {} } }],
+                    edges: [
+                        { id: 'flow', source: 't', target: 'a', animated: true, style: { stroke: '#64748b', strokeWidth: 2 } },
+                        { id: 'aux', source: 'k', sourceHandle: 'attach', target: 'a', targetHandle: 'knowledge', style: { stroke: '#94a3b8', strokeDasharray: '6 4' } },
+                    ],
+                },
+            },
+        };
+        const [flow, aux] = workflowToCanvas({ config: saved }).edges;
+        expect(flow).toMatchObject({ id: 'flow', source: 't', target: 'a', animated: false });
+        expect(flow.style?.stroke).toBeUndefined();
+        expect(aux).toMatchObject({ sourceHandle: 'attach', targetHandle: 'knowledge' });
+        expect(aux.style?.strokeDasharray).toBe('4 5');
+        expect(aux.style?.stroke).toBeUndefined();
+    });
+
     it('lays out a generated workflow that has only a topology', () => {
         const config = {
             id: 'research_brief',

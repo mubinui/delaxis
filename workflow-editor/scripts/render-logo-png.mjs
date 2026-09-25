@@ -19,7 +19,7 @@ import { dirname, resolve } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const publicDir = resolve(root, 'public');
-const SOURCE = resolve(root, 'svg', 'delaxis-tile-paper-blue-light.svg');
+const SOURCE = resolve(root, 'svg', 'delaxis-tile-graphite-light.svg');
 
 // 64 for the browser tab, 180 for the iOS apple-touch-icon (iOS upscales
 // anything smaller and it looks soft on the home screen).

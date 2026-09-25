@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { X, Search, Check, Loader2, Download } from 'lucide-react';
+import { X, Search, Check, Loader2 } from 'lucide-react';
 import { useLibraryStore } from '../stores/libraryStore';
 
 interface SwaggerImportModalProps {
@@ -47,23 +47,20 @@ export const SwaggerImportModal = ({ isOpen, onClose }: SwaggerImportModalProps)
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[110] animate-in fade-in duration-200">
-            <div className="bg-white rounded-xl shadow-2xl w-[600px] max-h-[80vh] flex flex-col overflow-hidden">
+        <div className="sheet-backdrop !z-[110]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+            <div className="sheet flex max-h-[80vh] w-[600px] max-w-full flex-col overflow-hidden" role="dialog" aria-modal="true" aria-label="Import tools from OpenAPI">
                 {/* Header */}
-                <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                        <Download size={20} className="text-blue-600" />
-                        Import Tools from Swagger
-                    </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded">
-                        <X size={20} />
+                <div className="flex items-center justify-between gap-3 px-6 pb-2 pt-5">
+                    <h2 className="title-2">Import tools from OpenAPI</h2>
+                    <button onClick={onClose} className="btn btn-ghost btn-icon" aria-label="Close" title="Close">
+                        <X size={15} />
                     </button>
                 </div>
 
                 {/* Content */}
                 <div className="p-6 flex-1 overflow-y-auto">
                     {error && (
-                        <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
+                        <div className="mb-4 rounded-xl p-3 text-[12.5px]" style={{ background: 'var(--clay-wash)', color: 'var(--clay)' }}>
                             {error}
                         </div>
                     )}
@@ -71,27 +68,27 @@ export const SwaggerImportModal = ({ isOpen, onClose }: SwaggerImportModalProps)
                     {step === 'input' ? (
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Swagger / OpenAPI URL</label>
+                                <label className="field-label">Swagger / OpenAPI URL</label>
                                 <input
                                     type="text"
                                     value={url}
                                     onChange={(e) => setUrl(e.target.value)}
                                     placeholder="https://api.example.com/openapi.json"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                    className="input"
                                 />
-                                <p className="mt-1 text-xs text-gray-500">Provide a URL to a valid JSON OpenAPI specification.</p>
+                                <p className="hint mt-1">Provide a URL to a valid JSON OpenAPI specification.</p>
                             </div>
                         </div>
                     ) : (
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-gray-900">Select Tools to Import</h3>
+                                <h3 className="headline">Select Tools to Import</h3>
                                 <div className="text-sm text-gray-500">
                                     {selectedEndpoints.length} selected
                                 </div>
                             </div>
 
-                            <div className="border border-gray-200 rounded-lg max-h-[300px] overflow-y-auto">
+                            <div className="table-box max-h-[300px] overflow-y-auto">
                                 {previewData?.endpoints.map((tool: any) => (
                                     <label key={tool.operation_id} className="flex items-start gap-3 p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer">
                                         <input
@@ -121,14 +118,14 @@ export const SwaggerImportModal = ({ isOpen, onClose }: SwaggerImportModalProps)
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+                <div className="flex justify-end gap-2 px-6 pb-5 pt-3" style={{ boxShadow: '0 -1px 0 var(--line)' }}>
                     {step === 'input' ? (
                         <>
-                            <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm">Cancel</button>
+                            <button onClick={onClose} className="btn">Cancel</button>
                             <button
                                 onClick={handlePreview}
                                 disabled={!url || isLoading}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm flex items-center gap-2"
+                                className="btn btn-primary"
                             >
                                 {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
                                 Preview
@@ -136,11 +133,11 @@ export const SwaggerImportModal = ({ isOpen, onClose }: SwaggerImportModalProps)
                         </>
                     ) : (
                         <>
-                            <button onClick={() => setStep('input')} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm">Back</button>
+                            <button onClick={() => setStep('input')} className="btn">Back</button>
                             <button
                                 onClick={handleImport}
                                 disabled={selectedEndpoints.length === 0 || isLoading}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm flex items-center gap-2"
+                                className="btn btn-primary"
                             >
                                 {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                 Import Selected

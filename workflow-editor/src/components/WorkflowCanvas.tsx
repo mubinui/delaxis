@@ -1,10 +1,9 @@
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ReactFlow,
     Background,
     Controls,
-    MiniMap,
     useReactFlow,
     ConnectionMode,
     ConnectionLineType,
@@ -16,7 +15,9 @@ import '@xyflow/react/dist/style.css';
 
 import { useWorkflowStore } from '../stores/workflowStore';
 import { useLibraryStore } from '../stores/libraryStore';
-import { getLayoutedElements, positionsAreDegenerate } from '../utils/layout';
+import { useUiStore } from '../stores/uiStore';
+import { canvasFit } from '../utils/layout';
+import { workflowToCanvas } from '../utils/workflowToCanvas';
 import { isValidConnection as isValidConnectionRule } from '../utils/connectionRules';
 import type { NodeType } from '../types/workflow';
 
@@ -41,7 +42,54 @@ const WorkflowCanvasContent = () => {
     const [dropActive, setDropActive] = useState(false);
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, addNodes, addEdges, setCurrentWorkflow, setNodeDragging } = useWorkflowStore();
     const { savedAgents, savedTools } = useLibraryStore();
-    const { screenToFlowPosition, fitView } = useReactFlow();
+    const { screenToFlowPosition, fitView, getViewport, setViewport, getNodesBounds } = useReactFlow();
+    const paletteOpen = useUiStore((state) => state.paletteOpen);
+    const rightPane = useUiStore((state) => (state.testOpen ? 380 : state.pane === 'builder' ? 400 : state.pane === 'help' ? 380 : 0));
+
+
+
+    const fit = useMemo(() => canvasFit(paletteOpen), [paletteOpen]);
+
+    // Wires are neutral grey. The selected component's wires turn ink and the rest
+    // step back, so its connections read at a glance.
+    const selectedId = useMemo(() => nodes.find((node) => node.selected)?.id, [nodes]);
+    const shownEdges = useMemo(() => {
+        const decorate = (edge: (typeof edges)[number]) => {
+            const attachment = Boolean(edge.targetHandle && edge.sourceHandle === 'attach');
+            const touches = selectedId && (edge.source === selectedId || edge.target === selectedId);
+            const classes = [
+                attachment ? 'is-attachment' : '',
+                selectedId ? (touches ? 'is-active' : 'is-muted') : '',
+            ].filter(Boolean).join(' ');
+            return classes ? { ...edge, className: classes } : edge;
+        };
+        return edges.map(decorate);
+    }, [edges, selectedId]);
+
+    // Pan to reveal: when a pane opens on the right, or the inspector opens for a
+    // selected component, slide the graph left at the same zoom so the component
+    // (or, with nothing selected, the graph) clears it. Never re-zoom: that would
+    // shrink the text.
+    useEffect(() => {
+        const wrapper = reactFlowWrapper.current;
+        const graph = useWorkflowStore.getState().nodes;
+        const inset = rightPane ? rightPane + 20 : 0;
+        const inspector = selectedId ? 372 : 0;
+        if ((!inset && !inspector) || !wrapper || graph.length === 0) return;
+        const vp = getViewport();
+        const target = selectedId ? graph.filter((node) => node.id === selectedId) : graph;
+        const bounds = getNodesBounds(target);
+        const all = getNodesBounds(graph);
+        const right = (bounds.x + bounds.width) * vp.zoom + vp.x;
+        const left = all.x * vp.zoom + vp.x;
+        const limit = wrapper.clientWidth - inset - inspector - 36;
+        if (right <= limit) return;
+        // With something selected it must be seen, even if the graph's far left
+        // slides out; otherwise keep the graph's left edge on screen.
+        const shift = selectedId ? right - limit : Math.min(right - limit, Math.max(0, left - 24));
+        if (shift > 0) setViewport({ ...vp, x: vp.x - shift }, { duration: 260 });
+    }, [rightPane, selectedId, getViewport, setViewport, getNodesBounds]);
+
 
     // --- SMART MERGE: Preserves non-empty values from base when override has empty/null/undefined ---
     const smartMerge = (base: any, override: any): any => {
@@ -185,199 +233,54 @@ const WorkflowCanvasContent = () => {
             }
 
             // --- Handle Workflow Expansion ---
+            // A dropped workflow is built exactly the way opening one builds it:
+            // trigger, agents, the tools, memory and knowledge attached to them,
+            // and the answer — with each agent's saved configuration resolved.
+            // (Expanding only topology.nodes here used to land the agents alone.)
             if (type === 'workflow') {
-                // Check for topology in config (handle various structures)
-                const topology = config.topology || config;
-                const isSelectorWorkflow = Boolean(
-                    topology.entry_node
-                    && Array.isArray(topology.domain_agents)
-                    && topology.domain_agents.length > 0
-                );
-                const workflowNodes = topology.nodes || config.nodes || [];
-                const workflowEdges = topology.edges || config.edges || [];
-
-                if (workflowNodes.length === 0) {
-                    console.warn("Dropped workflow has no nodes.", config);
+                const graph = workflowToCanvas({ config, agents: savedAgents, tools: savedTools });
+                if (graph.nodes.length === 0) {
+                    console.warn('Dropped workflow has no nodes.', config);
                     return;
                 }
 
-                console.log("Processing Workflow Drop:", {
-                    nodeCount: workflowNodes.length,
-                    edgeCount: workflowEdges.length,
-                    sampleNode: workflowNodes[0]
-                });
+                // Keep node ids — run data maps back to them — unless they collide
+                // with something already on the canvas (the same workflow dropped twice).
+                const taken = new Set(useWorkflowStore.getState().nodes.map((node) => node.id));
+                const stamp = Date.now().toString(36);
+                const idFor = new Map(graph.nodes.map((node) => [node.id, taken.has(node.id) ? `${node.id}-${stamp}` : node.id]));
 
-                // Calculate Center of Mass of dropped workflow to center it on mouse
-                const xs = workflowNodes.map((n: any) => n.position?.x || 0);
-                const ys = workflowNodes.map((n: any) => n.position?.y || 0);
-                const minX = Math.min(...xs), maxX = Math.max(...xs);
-                const minY = Math.min(...ys), maxY = Math.max(...ys);
+                // Centre the whole graph on the drop point.
+                const xs = graph.nodes.map((node) => node.position?.x ?? 0);
+                const ys = graph.nodes.map((node) => node.position?.y ?? 0);
+                const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+                const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
 
-                const width = maxX - minX;
-                const height = maxY - minY;
-                const centerX = minX + width / 2;
-                const centerY = minY + height / 2;
-
-                const idMap = new Map<string, string>();
-
-                const newNodes = workflowNodes.map((n: any) => {
-                    // Library nodes carry agent_id instead of a top-level type; without
-                    // this fallback the id comes out as "undefined-<timestamp>-<rand>".
-                    const idPrefix = n.type || (n.agent_id ? 'agent' : 'node');
-                    const newId = `${idPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                    idMap.set(n.id, newId);
-
-                    // Position relative to the center of the workflow, applied to the mouse position
-                    const relativeX = (n.position?.x || 0) - centerX;
-                    const relativeY = (n.position?.y || 0) - centerY;
-
-                    // Normalize type for frontend
-                    let nodeType = 'default';
-                    const rawType = n.type || (n.agent_id ? 'agent' : 'default'); // Infer agent if agent_id exists
-
-                    // robust type checking
-                    if (['LlmAgent', 'ReasoningAgent', 'SequentialAgent', 'ParallelAgent', 'RecursiveAgent', 'conversable', 'agent'].includes(rawType) || (typeof rawType === 'string' && rawType.toLowerCase().includes('agent'))) {
-                        nodeType = 'agent';
-                    } else if ((typeof rawType === 'string' && rawType.toLowerCase().includes('tool')) || n.tool) {
-                        nodeType = 'tool';
-                    } else if (typeof rawType === 'string' && (rawType.toLowerCase() === 'userproxy' || rawType.toLowerCase() === 'trigger')) {
-                        nodeType = 'trigger';
-                    } else if (typeof rawType === 'string' && (rawType.toLowerCase() === 'router' || rawType.toLowerCase() === 'selector')) {
-                        nodeType = 'router';
-                    } else if (nodeTypes[rawType as NodeType]) {
-                        nodeType = rawType; // It's already valid (e.g. 'agent')
-                    }
-
-                    // Ensure label
-                    const label = n.data?.label || n.label || n.name || n.config?.name || n.agent_id || 'Untitled Node';
-
-                    // --- Resolve Config from Library ---
-                    // If this node references a stored agent/tool, we must fetch its latest config
-                    let resolvedConfig: any = {};
-                    let libraryAgent: any = null;
-
-                    if (nodeType === 'agent' && n.agent_id) {
-                        libraryAgent = savedAgents.find((a: any) => a.id === n.agent_id || a.name === n.agent_id || a.config?.id === n.agent_id);
-                        if (libraryAgent) {
-                            resolvedConfig = { ...libraryAgent.config };
-                            console.log(`Found library agent for ${n.agent_id}:`, libraryAgent.name);
-                        } else {
-                            console.warn(`Could not find library agent for ${n.agent_id}`);
-                        }
-                    } else if (nodeType === 'tool') {
-                        // Heuristic for tool ID
-                        const toolId = n.tool_id || n.tool || n.id;
-                        const foundTool = savedTools.find((t: any) => t.id === toolId || t.name === toolId || t.config?.id === toolId);
-                        if (foundTool) {
-                            resolvedConfig = { ...foundTool.config };
-                        }
-                    }
-
-                    // Use smartMerge to properly combine library config with any instance overrides
-                    // This preserves non-empty values from library when instance config has empty values
-                    const instanceConfig = n.data?.config || n.config || {};
-                    const rawConfig = smartMerge(resolvedConfig, instanceConfig);
-
-                    // Ensure critical identity fields
-                    rawConfig.name = rawConfig.name || instanceConfig.name || resolvedConfig.name || label;
-                    rawConfig.type = rawConfig.type || instanceConfig.type || resolvedConfig.type || (nodeType === 'agent' ? 'LlmAgent' : nodeType);
-
-                    // Normalize Tools: PropertiesPanel expects Names, but storage might have IDs
-                    if (rawConfig.tools && Array.isArray(rawConfig.tools)) {
-                        rawConfig.tools = rawConfig.tools.map((t: string) => {
-                            const foundTool = savedTools.find((st: any) => st.id === t || st.name === t || st.config?.id === t);
-                            return foundTool ? foundTool.name : t;
-                        });
-                    }
-
-                    // Validate & Normalize Config
-                    const normalizedConfig = normalizeConfig(rawConfig, nodeType);
-                    if (isSelectorWorkflow && n.id === topology.entry_node) {
-                        normalizedConfig.is_selector = true;
-                    }
-
-                    return {
-                        ...n,
-                        id: newId,
-                        type: nodeType, // Enforce normalized type
-                        position: {
-                            x: mousePos.x + relativeX,
-                            y: mousePos.y + relativeY,
-                        },
-                        data: {
-                            ...n.data,
-                            label: label,
-                            config: normalizedConfig,
-                            // Store original agent reference for debugging
-                            agent_id: n.agent_id,
-                            library_agent_name: libraryAgent?.name
-                        },
-                        selected: false
-                    };
-                });
-
-                if (workflowEdges.length === 0 && isSelectorWorkflow && topology.entry_node) {
-                    const entryNodeId = idMap.get(topology.entry_node); // Get new ID of entry node
-                    const selectorTargets = Array.isArray(topology.domain_agents) && topology.domain_agents.length > 0
-                        ? topology.domain_agents.map((agent: any) => agent.id)
-                        : Array.from(idMap.keys()).filter((nodeId) => nodeId !== topology.entry_node);
-                    if (entryNodeId) {
-                        selectorTargets.forEach((targetNodeId: string) => {
-                            if (targetNodeId !== topology.entry_node) {
-                                workflowEdges.push({
-                                    id: `auto-edge-${Date.now()}-${Math.random()}`,
-                                    source: topology.entry_node, // Original ID, will be mapped below
-                                    target: targetNodeId,
-                                    type: 'smoothstep'
-                                });
-                            }
-                        });
-                        console.log("Auto-generated edges for selector pattern", workflowEdges.length);
-                    }
-                }
-
-                const newEdges = workflowEdges.map((e: any) => ({
-                    ...e,
-                    id: `e-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-                    source: idMap.get(e.source) || e.source,
-                    target: idMap.get(e.target) || e.target,
+                const placedNodes = graph.nodes.map((node) => ({
+                    ...node,
+                    id: idFor.get(node.id) ?? node.id,
+                    position: {
+                        x: (node.position?.x ?? 0) - centerX + mousePos.x,
+                        y: (node.position?.y ?? 0) - centerY + mousePos.y,
+                    },
+                    selected: false,
+                }));
+                const placedEdges = graph.edges.map((edge) => ({
+                    ...edge,
+                    id: taken.size ? `${edge.id}-${stamp}` : edge.id,
+                    source: idFor.get(edge.source) ?? edge.source,
+                    target: idFor.get(edge.target) ?? edge.target,
                 }));
 
-                // Workflows stored as bare topology often carry no positions, which
-                // used to drop every node onto one stacked point until the user hit
-                // Format. Auto-layout those, re-centered on the drop point.
-                let placedNodes = newNodes;
-                if (positionsAreDegenerate(workflowNodes.map((n: any) => n.position))) {
-                    const { nodes: layouted } = getLayoutedElements(newNodes, newEdges);
-                    const lxs = layouted.map((n) => n.position.x);
-                    const lys = layouted.map((n) => n.position.y);
-                    const layoutCenterX = (Math.min(...lxs) + Math.max(...lxs)) / 2;
-                    const layoutCenterY = (Math.min(...lys) + Math.max(...lys)) / 2;
-                    placedNodes = layouted.map((n) => ({
-                        ...n,
-                        position: {
-                            x: n.position.x - layoutCenterX + mousePos.x,
-                            y: n.position.y - layoutCenterY + mousePos.y,
-                        },
-                    }));
-                }
-
-                // Bulk add nodes and edges
                 addNodes(placedNodes);
+                // Edges need their nodes measured first, or React Flow drops them.
+                if (placedEdges.length > 0) setTimeout(() => addEdges(placedEdges), 50);
 
-                if (newEdges.length > 0) {
-                    setTimeout(() => addEdges(newEdges), 50);
-                }
+                // Frame everything that is now on the canvas.
+                setTimeout(() => fitView({ ...fit, duration: 300 }), 140);
 
-                // Frame the dropped workflow at a sane zoom instead of leaving
-                // oversized nodes filling the viewport.
-                setTimeout(() => fitView({ padding: 0.25, duration: 300 }), 120);
-
-                // Set current workflow ID for testing (n8n-style)
-                // Try to extract workflow ID from dropped config
                 const workflowId = config.id || config.workflow_id || label || 'canvas_workflow';
-                setCurrentWorkflow(workflowId, label);
-
+                setCurrentWorkflow(workflowId, config.name || label);
                 return;
             }
 
@@ -427,7 +330,7 @@ const WorkflowCanvasContent = () => {
 
             addNode(newNode as any);
         },
-        [screenToFlowPosition, fitView, addNode, savedAgents, savedTools]
+        [screenToFlowPosition, fitView, fit, addNode, savedAgents, savedTools]
     );
 
     // Typed aux handles: only matching tool kinds may land on an agent's
@@ -440,14 +343,15 @@ const WorkflowCanvasContent = () => {
 
     return (
         <div
-            className={`relative flex-grow h-full bg-[var(--canvas-bg)] ${dropActive ? 'dlx-canvas-dropping' : ''}`}
+            className={`relative h-full w-full ${dropActive ? 'dlx-canvas-dropping' : ''}`}
+            style={{ background: 'var(--window)' }}
             ref={reactFlowWrapper}
             onDragEnter={onDragEnter}
             onDragLeave={onDragLeave}
         >
             <ReactFlow
                 nodes={nodes}
-                edges={edges}
+                edges={shownEdges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -460,61 +364,61 @@ const WorkflowCanvasContent = () => {
                 onSelectionDragStop={() => setNodeDragging(false)}
                 nodeTypes={nodeTypes as any}
                 fitView
-                fitViewOptions={{ padding: 0.2 }}
+                fitViewOptions={fit}
+                minZoom={0.2}
                 // animated:false — permanently marching dashes on every edge repaint the
                 // canvas nonstop; edges animate only during live execution (set by the store).
-                // The stroke is deliberately NOT set here. defaultEdgeOptions are
-                // copied into each edge's data at creation, so a literal colour
-                // would be frozen at whatever the theme was when the edge was
-                // drawn — an edge made in light mode stayed light forever after
-                // switching to dark. The stylesheet owns the stroke instead
-                // (.react-flow__edge-path), which repaints with the theme.
+                // The stroke is deliberately NOT set here: the stylesheet owns it
+                // (.react-flow__edge-path), so edges repaint when the theme changes.
                 defaultEdgeOptions={{
-                    type: 'smoothstep',
+                    // Flow wires curve the way n8n draws them; attachments stay straight and dashed.
+                    type: 'default',
                     animated: false,
-                    style: { strokeWidth: 2 },
-                    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--canvas-edge)' },
-                }}
+                    style: { strokeWidth: 1.5 },
+                    markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: 'var(--wire)' },
+                } as any}
                 // Strict: the drag preview only snaps to valid target handles, so the
                 // edge always lands exactly where the preview showed it.
                 connectionMode={ConnectionMode.Strict}
-                connectionLineType={ConnectionLineType.SmoothStep}
+                connectionLineType={ConnectionLineType.Bezier}
                 // Generous magnet radius so a dropped connection snaps to a nearby handle
                 // instead of demanding a pixel-perfect hit on a 10px dot.
                 connectionRadius={36}
-                // Dragging is free-form (no 15px snap jumps); use the Format button for tidy layout.
+                // Dragging is free-form (no 15px snap jumps); use Auto-arrange for tidy layout.
                 selectNodesOnDrag={false}
                 proOptions={{ hideAttribution: true }}
             >
-                <Background
-                    color="var(--canvas-dots)"
-                    gap={20}
-                    size={2}
-                    variant={BackgroundVariant.Dots}
+                <Background color="var(--grid-dot)" gap={22} size={1.3} variant={BackgroundVariant.Dots} />
+                <Controls
+                    showInteractive={false}
+                    position="bottom-left"
+                    style={{ marginLeft: paletteOpen ? 262 : 12, transition: 'margin-left .24s var(--ease-out)' }}
                 />
-                <Controls showInteractive={false} position="bottom-left" className="!bg-[var(--color-ui-bg)] !border-[var(--color-ui-border)] !shadow-lg" />
-                {/* Top-right keeps it clear of the chat button (bottom-right) and the
-                    controls/timeline (bottom-left); hidden entirely on an empty canvas
-                    where it would just render as a blank rectangle. */}
-                {nodes.length > 0 && (
-                    <MiniMap
-                        position="top-right"
-                        nodeColor={() => 'var(--minimap-node)'}
-                        maskColor="var(--minimap-mask)"
-                        className="!bg-[var(--surface-1)] !border-[var(--border-default)] !shadow-lg"
-                    />
-                )}
             </ReactFlow>
+
+
+            {nodes.length > 0 && !selectedId && (
+                <div className="canvas-legend liquid hide-narrow" style={{ right: 14, bottom: 14 }}>
+                    <span><i />Flow</span>
+                    <span><i className="is-dashed" />Attachment</span>
+                    <span className="legend-hint">Click a component to configure it</span>
+                </div>
+            )}
+
+            {nodes.length === 0 && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ paddingLeft: paletteOpen ? 250 : 0 }}>
+                    <div className="empty-state max-w-sm">
+                        <div className="headline text-[15px]">Start with a trigger</div>
+                        <p className="hint">Drag Chat or Manual from the components onto the canvas, add an agent, and connect them. Or open a saved workflow from the name at the top.</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-export const WorkflowCanvas = () => {
-    return (
-        <div className="flex flex-col h-full bg-[var(--color-canvas-bg)] relative">
-            <div className="flex-grow relative">
-                <WorkflowCanvasContent />
-            </div>
-        </div>
-    );
-};
+export const WorkflowCanvas = () => (
+    <div className="absolute inset-0">
+        <WorkflowCanvasContent />
+    </div>
+);

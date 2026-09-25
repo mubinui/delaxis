@@ -11,7 +11,23 @@
     "findings": [],
     "inverted": []
   },
+  "test-chat:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "builder:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "help:light": {
+    "findings": [],
+    "inverted": []
+  },
   "library-store:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-agents:light": {
     "findings": [],
     "inverted": []
   },
@@ -19,11 +35,19 @@
     "findings": [],
     "inverted": []
   },
+  "library-providers:light": {
+    "findings": [],
+    "inverted": []
+  },
   "library-ops:light": {
     "findings": [],
     "inverted": []
   },
-  "help:light": {
+  "deployments:light": {
+    "findings": [],
+    "inverted": []
+  },
+  "model-tester:light": {
     "findings": [],
     "inverted": []
   },
@@ -39,7 +63,23 @@
     "findings": [],
     "inverted": []
   },
+  "test-chat:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "builder:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "help:dark": {
+    "findings": [],
+    "inverted": []
+  },
   "library-store:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "library-agents:dark": {
     "findings": [],
     "inverted": []
   },
@@ -47,11 +87,19 @@
     "findings": [],
     "inverted": []
   },
+  "library-providers:dark": {
+    "findings": [],
+    "inverted": []
+  },
   "library-ops:dark": {
     "findings": [],
     "inverted": []
   },
-  "help:dark": {
+  "deployments:dark": {
+    "findings": [],
+    "inverted": []
+  },
+  "model-tester:dark": {
     "findings": [],
     "inverted": []
   }

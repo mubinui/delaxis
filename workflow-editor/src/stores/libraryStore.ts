@@ -239,28 +239,28 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
     fetchLibraryItems: async () => {
         set({ isLoading: true, error: null });
-        try {
-            const [workflows, agents, tools, functions, prompts, providers] = await Promise.all([
-                api<WorkflowConfig[]>('/api/v1/workflows'),
-                api<AgentConfig[]>('/api/v1/agents'),
-                api<ToolConfig[]>('/api/v1/tools'),
-                api<{ functions: FunctionTool[] }>('/api/v1/functions'),
-                api<PromptTemplate[]>('/api/v1/prompts').catch(() => []),
-                api<ApiProvider[]>('/api/v1/api-providers').catch(() => []),
-            ]);
-
-            set({
-                savedWorkflows: workflows.map(workflowToLibraryItem),
-                savedAgents: agents.map(agentToLibraryItem),
-                savedTools: tools.map(toolToLibraryItem),
-                functions: functions.functions ?? [],
-                prompts,
-                providers,
-                isLoading: false,
-            });
-        } catch (error) {
-            set({ error: (error as Error).message, isLoading: false });
-        }
+        // Settled, not all: one endpoint failing (a transient 500) must not blank
+        // the others. Each list keeps its last good value when its request fails.
+        const [workflows, agents, tools, functions, prompts, providers] = await Promise.allSettled([
+            api<WorkflowConfig[]>('/api/v1/workflows'),
+            api<AgentConfig[]>('/api/v1/agents'),
+            api<ToolConfig[]>('/api/v1/tools'),
+            api<{ functions: FunctionTool[] }>('/api/v1/functions'),
+            api<PromptTemplate[]>('/api/v1/prompts'),
+            api<ApiProvider[]>('/api/v1/api-providers'),
+        ]);
+        const current = get();
+        const failed = [workflows, agents, tools, functions].find((result) => result.status === 'rejected') as PromiseRejectedResult | undefined;
+        set({
+            savedWorkflows: workflows.status === 'fulfilled' ? workflows.value.map(workflowToLibraryItem) : current.savedWorkflows,
+            savedAgents: agents.status === 'fulfilled' ? agents.value.map(agentToLibraryItem) : current.savedAgents,
+            savedTools: tools.status === 'fulfilled' ? tools.value.map(toolToLibraryItem) : current.savedTools,
+            functions: functions.status === 'fulfilled' ? functions.value.functions ?? [] : current.functions,
+            prompts: prompts.status === 'fulfilled' ? prompts.value : current.prompts,
+            providers: providers.status === 'fulfilled' ? providers.value : current.providers,
+            error: failed ? String(failed.reason instanceof Error ? failed.reason.message : failed.reason) : null,
+            isLoading: false,
+        });
     },
 
     fetchOperationsData: async () => {

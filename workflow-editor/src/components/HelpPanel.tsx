@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BookOpen, CheckCircle2, Lightbulb, MessageCircleQuestion, Send, Sparkle, Stethoscope, Wrench, X, XCircle } from 'lucide-react';
+import { AlertTriangle, BookOpen, CheckCircle2, Lightbulb, MessageCircleQuestion, Send, Wrench, X, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useShallow } from 'zustand/react/shallow';
@@ -11,7 +11,7 @@ import { diagnoseWorkflow, summarizeDiagnostics } from '../utils/graphDiagnostic
 import { autoFixable, fixFor } from '../utils/diagnosticFixes';
 import type { Diagnostic } from '../utils/graphDiagnostics';
 import type { FixContext } from '../utils/diagnosticFixes';
-import { StatusBadge } from './studio/StatusBadge';
+import { StatusGlyph } from './shell/StatusGlyph';
 
 type Tab = 'issues' | 'components' | 'ask';
 
@@ -171,41 +171,36 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
         }
     };
 
-    const tabClass = (value: Tab) =>
-        `flex-1 px-2 py-1.5 text-[11px] font-bold rounded-md transition-colors ${
-            tab === value
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-        }`;
-
     return (
-        <aside className="absolute top-4 right-4 bottom-24 z-40 w-[380px] rounded-2xl border border-[var(--color-ui-border)] bg-white dark:bg-[#0b111b] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right-4 fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-[var(--color-ui-border)] px-4 py-3">
-                <div className="flex items-center gap-2">
-                    <Stethoscope size={15} className="text-blue-600 dark:text-blue-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">Help</span>
-                    <StatusBadge
-                        tone={summary.tone}
-                        label={
-                            summary.errors + summary.warnings === 0
-                                ? 'All clear'
-                                : `${summary.errors} error${summary.errors === 1 ? '' : 's'} · ${summary.warnings} warning${summary.warnings === 1 ? '' : 's'}`
-                        }
-                        compact
-                    />
+        <aside
+            className="glass-pane from-right absolute right-2.5 z-30 w-[380px]"
+            style={{ top: 'calc(var(--toolbar-h) + 10px)', bottom: 10 }}
+            aria-label="Help"
+        >
+            <div className="flex shrink-0 items-center gap-2 pb-2.5 pl-[18px] pr-3 pt-3.5">
+                <div className="min-w-0 flex-1">
+                    <div className="title-2">Help</div>
+                    <div className="hint flex items-center gap-1.5">
+                        <StatusGlyph shape={summary.errors ? 'bad' : summary.warnings ? 'warn' : 'ok'} />
+                        {summary.errors + summary.warnings === 0
+                            ? 'Nothing to fix'
+                            : `${summary.errors} ${summary.errors === 1 ? 'problem' : 'problems'} · ${summary.warnings} ${summary.warnings === 1 ? 'warning' : 'warnings'}`}
+                    </div>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white" title="Close help">
-                    <X size={16} />
+                <button onClick={onClose} className="btn btn-ghost btn-icon" title="Close help" aria-label="Close help">
+                    <X size={15} />
                 </button>
             </div>
 
-            <div className="flex gap-1 border-b border-[var(--color-ui-border)] bg-slate-50 dark:bg-slate-900/40 p-1.5">
-                <button onClick={() => setTab('issues')} className={tabClass('issues')}>Issues</button>
-                <button onClick={() => setTab('components')} className={tabClass('components')}>Components</button>
-                <button onClick={() => setTab('ask')} className={tabClass('ask')}>Ask</button>
+            <div className="shrink-0 px-4 pb-2.5">
+                <div className="segmented is-wide" role="tablist" aria-label="Help">
+                    <button type="button" role="tab" aria-selected={tab === 'issues'} onClick={() => setTab('issues')}>Problems</button>
+                    <button type="button" role="tab" aria-selected={tab === 'components'} onClick={() => setTab('components')}>Components</button>
+                    <button type="button" role="tab" aria-selected={tab === 'ask'} onClick={() => setTab('ask')}>Ask</button>
+                </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+            <div className="scroll-soft min-h-0 flex-1 space-y-2.5 px-4 pb-4 pt-1">
                 {tab === 'issues' && repairable.length > 0 && (
                     <div
                         className="flex items-center justify-between gap-3 rounded-xl p-2.5"
@@ -215,13 +210,13 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                             {repairable.length} of these can be fixed automatically.
                         </span>
                         <button onClick={fixEverything} className="dlx-btn dlx-btn-primary shrink-0 px-2.5 py-1 text-[10px]">
-                            <Sparkle size={11} /> Fix all
+                            <Wrench size={11} /> Fix all
                         </button>
                     </div>
                 )}
 
                 {tab === 'issues' && diagnostics.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-emerald-300 dark:border-emerald-900/60 p-6 text-center">
+                    <div className="empty-state">
                         <CheckCircle2 size={22} className="mx-auto mb-2 text-emerald-500" />
                         <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Nothing to fix</p>
                         <p className="mt-1 text-[11px] text-slate-500">Every component on the canvas looks configured.</p>
@@ -232,10 +227,10 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                     const Icon = severityIcon[finding.severity];
                     const isOpen = expanded === finding.id;
                     return (
-                        <div key={finding.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 overflow-hidden">
+                        <div key={finding.id} className="overflow-hidden rounded-2xl bg-[var(--glass-raised)]">
                             <button
                                 onClick={() => setExpanded(isOpen ? null : finding.id)}
-                                className="w-full flex items-start gap-2 p-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                className="flex w-full items-start gap-2 p-3 text-left transition-colors hover:bg-[var(--fill)]"
                             >
                                 <Icon
                                     size={14}
@@ -254,7 +249,7 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                             </button>
 
                             {isOpen && (
-                                <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 px-3 pb-3 pt-2">
+                                <div className="space-y-2 px-3 pb-3 pt-2" style={{ boxShadow: '0 -1px 0 var(--line)' }}>
                                     {finding.fixHint && (
                                         <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">→ {finding.fixHint}</p>
                                     )}
@@ -285,14 +280,14 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                                         <button
                                             disabled={busy === finding.id}
                                             onClick={() => streamExplain(finding.id, { mode: 'explain', diagnostic: finding })}
-                                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 dark:border-blue-900/60 px-2 py-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 disabled:opacity-50 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                                            className="btn btn-sm"
                                         >
                                             <MessageCircleQuestion size={10} /> {busy === finding.id ? 'Working…' : 'Explain'}
                                         </button>
                                         <button
                                             disabled={busy === `${finding.id}-fix`}
                                             onClick={() => streamExplain(`${finding.id}-fix`, { mode: 'fix', diagnostic: finding })}
-                                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 dark:border-blue-900/60 px-2 py-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 disabled:opacity-50 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                                            className="btn btn-sm"
                                         >
                                             <Lightbulb size={10} /> {busy === `${finding.id}-fix` ? 'Working…' : 'Suggest a fix'}
                                         </button>
@@ -333,10 +328,10 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                 {tab === 'components' && ALL_COMPONENT_HELP.map((entry) => {
                     const isOpen = expanded === entry.id;
                     return (
-                        <div key={entry.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 overflow-hidden">
+                        <div key={entry.id} className="overflow-hidden rounded-2xl bg-[var(--glass-raised)]">
                             <button
                                 onClick={() => setExpanded(isOpen ? null : entry.id)}
-                                className="w-full p-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                className="w-full p-3 text-left transition-colors hover:bg-[var(--fill)]"
                             >
                                 <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100">{entry.label}</span>
                                 <span className="mt-0.5 block text-[10px] text-slate-500 dark:text-slate-400">{entry.summary}</span>
@@ -372,7 +367,7 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
                             <button
                                 disabled={busy === 'ask' || !question.trim()}
                                 onClick={() => void streamExplain('ask', { mode: 'ask', question })}
-                                className="rounded-lg bg-blue-600 px-2.5 text-white disabled:opacity-40"
+                                className="send-btn"
                                 title="Ask"
                             >
                                 <Send size={13} />

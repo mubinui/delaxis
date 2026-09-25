@@ -159,6 +159,12 @@ const CONTRAST_PROBE = () => {
 
     // Also flag surfaces that stayed light while the page went dark: a strong
     // signal of a hardcoded class with no dark counterpart.
+    // The Graphite accent inverts on dark by design — primary buttons and the
+    // user's own chat bubble are the lightest things on a dark window — so a
+    // surface painted exactly the accent fill is not a leftover light panel.
+    const root = getComputedStyle(document.documentElement);
+    const accents = ['--accent-fill', '--accent-hi', '--accent-lo'].map((name) => parse(root.getPropertyValue(name).trim()));
+    const isAccent = (c) => accents.some((a) => a && Math.abs(c.r - a.r) < 2 && Math.abs(c.g - a.g) < 2 && Math.abs(c.b - a.b) < 2);
     const inverted = [];
     if (document.documentElement.classList.contains('dark')) {
         for (const el of document.querySelectorAll('*')) {
@@ -168,7 +174,7 @@ const CONTRAST_PROBE = () => {
             if (style.display === 'none' || style.visibility === 'hidden') continue;
             const bg = parse(style.backgroundColor);
             if (!bg || bg.a < 0.85) continue;
-            if (lum(bg) > 0.55) {
+            if (lum(bg) > 0.55 && !isAccent(bg)) {
                 const key = describe(el);
                 if (inverted.some((i) => i.el === key)) continue;
                 inverted.push({ el: key, bg: style.backgroundColor, size: `${Math.round(rect.width)}x${Math.round(rect.height)}` });
@@ -192,72 +198,63 @@ const setTheme = async (page, theme) => {
     await page.waitForTimeout(500);
 };
 
-// Each view: how to reach it from the canvas.
+// Each view: how to reach it from the one before. The sidebar reaches every
+// place; the Studio's panes open from its toolbar.
+const place = (name) => async (page) => {
+    await page.locator('.app-nav').getByRole('button', { name }).first().click();
+    await page.waitForTimeout(900);
+};
+
 const VIEWS = [
     { name: 'landing', open: async () => {} },
     {
         name: 'canvas',
         open: async (page) => {
-            await page.getByRole('button', { name: /Open the Studio/i }).click();
-            await page.waitForTimeout(2000);
+            await page.getByRole('button', { name: /Open the Studio/i }).first().click();
+            await page.waitForTimeout(800);
+            // Open the first saved workflow, so the canvas has nodes to measure.
+            await page.getByRole('button', { name: 'Open a workflow' }).click();
+            const saved = page.locator('.menu [role^="menuitem"]').nth(1);
+            if (await saved.count()) await saved.click();
+            else await page.keyboard.press('Escape');
+            await page.waitForTimeout(1500);
         },
     },
     {
         name: 'inspector',
         open: async (page) => {
-            // Drop a node, then select it to open the properties panel.
-            await page.evaluate(() => {
-                const tile = document.querySelector('.dlx-tile[data-tone="agent"]');
-                const pane = document.querySelector('.react-flow__pane');
-                const dt = new DataTransfer();
-                tile.dispatchEvent(new DragEvent('dragstart', { dataTransfer: dt, bubbles: true }));
-                const r = pane.getBoundingClientRect();
-                const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
-                pane.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, ...at }));
-                pane.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, ...at }));
-                tile.dispatchEvent(new DragEvent('dragend', { dataTransfer: dt, bubbles: true }));
-            });
-            await page.waitForTimeout(900);
             await page.locator('.react-flow__node').first().click();
             await page.waitForTimeout(900);
         },
     },
     {
-        name: 'library-store',
+        name: 'test-chat',
         open: async (page) => {
-            await page.locator('.dlx-tile').last().click();
-            await page.waitForTimeout(600);
-            await page.getByRole('button', { name: /Browse all/i }).click();
-            await page.waitForTimeout(1200);
+            await page.getByRole('button', { name: 'Test', exact: true }).click();
+            await page.waitForTimeout(900);
         },
     },
     {
-        name: 'library-tools',
+        name: 'builder',
         open: async (page) => {
-            await page.locator('div.fixed.inset-0').last().getByRole('button', { name: /^Tools/i }).first().click();
-            await page.waitForTimeout(1000);
-        },
-    },
-    {
-        name: 'library-ops',
-        open: async (page) => {
-            await page.locator('div.fixed.inset-0').last().getByRole('button', { name: /^Ops/i }).first().click();
-            await page.waitForTimeout(1200);
+            await page.getByRole('button', { name: /Builder/ }).first().click();
+            await page.waitForTimeout(900);
         },
     },
     {
         name: 'help',
         open: async (page) => {
-            // Earlier views leave the library modal open over the header. Rather
-            // than guess at a dismiss control, start from a clean page — the
-            // only deterministic way to reach the header again.
-            await page.goto(BASE, { waitUntil: 'networkidle' });
-            await page.getByRole('button', { name: /Open the Studio/i }).click();
-            await page.waitForTimeout(2000);
-            await page.getByRole('button', { name: 'Help' }).first().click({ timeout: 8000 });
-            await page.waitForTimeout(1400);
+            await page.getByRole('button', { name: 'Help', exact: true }).first().click();
+            await page.waitForTimeout(1200);
         },
     },
+    { name: 'library-store', open: place(/^Everything/) },
+    { name: 'library-agents', open: place(/^Agents/) },
+    { name: 'library-tools', open: place(/^Tools/) },
+    { name: 'library-providers', open: place(/^Providers/) },
+    { name: 'library-ops', open: place(/^Health and data/) },
+    { name: 'deployments', open: place(/^Deployments/) },
+    { name: 'model-tester', open: place(/^Model tester/) },
 ];
 
 const run = async () => {
@@ -266,6 +263,8 @@ const run = async () => {
 
     for (const theme of ['light', 'dark']) {
         const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+        // The demo build greets first-time visitors with a dialog; measure the app, not it.
+        await page.addInitScript(() => sessionStorage.setItem('delaxis-demo-intro-seen', '1'));
         await page.goto(BASE, { waitUntil: 'networkidle' });
         await setTheme(page, theme);
 

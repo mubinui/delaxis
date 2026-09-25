@@ -1,12 +1,34 @@
-import React, { useState } from 'react';
-import { Play, FlaskConical, Cpu, DollarSign, Clock, RefreshCw, X } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowUp, Copy } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useLibraryStore } from '../stores/libraryStore';
+import { Toolbar, MoreMenu } from './shell/Toolbar';
+import { ActivityCapsule } from './shell/ActivityCapsule';
+import { StatusGlyph } from './shell/StatusGlyph';
+import { useUiStore } from '../stores/uiStore';
 
-interface LiveLlmTesterProps {
-    onClose: () => void;
-}
+/** A slider drawn the way macOS 27 draws one: a thin track, an ink fill, a capsule knob. */
+const Slider = ({ label, value, display, min, max, step, onChange }: {
+    label: string; value: number; display: string; min: number; max: number; step: number; onChange: (value: number) => void;
+}) => (
+    <label className="block">
+        <span className="field-row"><span className="field-label">{label}</span><span className="mono text-dim">{display}</span></span>
+        <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(event) => onChange(Number(event.target.value))}
+            className="w-full"
+        />
+    </label>
+);
 
-export const LiveLlmTester: React.FC<LiveLlmTesterProps> = ({ onClose }) => {
+/** Send one prompt to any LiteLLM model and see the reply, latency, tokens and cost. */
+export const LiveLlmTester = () => {
+    const go = useUiStore((state) => state.go);
     const providers = useLibraryStore((s) => s.providers);
     const llmProviders = providers.filter((p) => p.type === 'llm' && p.enabled !== false);
     const [provider, setProvider] = useState('openrouter');
@@ -73,243 +95,126 @@ export const LiveLlmTester: React.FC<LiveLlmTesterProps> = ({ onClose }) => {
         }
     };
 
+    const canSend = !loading && model.trim() && userPrompt.trim();
+
     return (
-        <div className="absolute inset-0 bg-[var(--color-canvas-bg)] flex flex-col z-30 animate-fade-in overflow-hidden">
-            {/* Top Toolbar Strip */}
-            <div className="h-14 bg-white dark:bg-[#0b111b] border-b border-gray-200 dark:border-slate-800 flex items-center justify-between px-6 shrink-0 shadow-sm">
-                <div className="flex items-center gap-2">
-                    <FlaskConical className="w-4 h-4" style={{ color: 'var(--accent-text)' }} />
-                    <span className="dlx-text text-xs font-bold tracking-wide">
-                        Model tester
-                    </span>
-                    <span
-                        className="dlx-chip px-2 py-0.5 text-[10px]"
-                        style={{ color: 'var(--accent-text)', backgroundColor: 'var(--accent-soft)', borderColor: 'var(--accent-border)' }}
-                    >
-                        via LiteLLM
-                    </span>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800"
-                    title="Close Live Tester and return to Canvas"
-                >
-                    <X className="w-5 h-5" />
-                </button>
-            </div>
-
-            {/* Split Screen Workspace */}
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left Controls Column */}
-                <div className="w-1/2 border-r border-gray-200 dark:border-slate-800 bg-white/60 dark:bg-[#070b12]/60 overflow-y-auto p-6 flex flex-col gap-5">
-                    {/* Provider & Model Selectors */}
-                    <div className="grid grid-cols-2 gap-4">
+        <>
+            <div className="page">
+                <div className="page-inner">
+                    <div className="page-head">
                         <div>
-                            <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block mb-1">
-                                API Provider Gateway
+                            <h1 className="display">Model tester</h1>
+                            <p className="lead mt-1 max-w-[640px]">
+                                Send one prompt to any LiteLLM model. Check the key, the latency and the cost before you wire it into an agent.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-5 lg:grid-cols-[440px_minmax(0,1fr)]">
+                        <form
+                            className="panel flex flex-col gap-4 p-5"
+                            onSubmit={(event) => { event.preventDefault(); if (canSend) void handleRunTest(); }}
+                        >
+                            <div className="grid grid-cols-2 gap-3">
+                                <label className="block">
+                                    <span className="field-label">Provider</span>
+                                    <select value={provider} onChange={(e) => setProvider(e.target.value)} className="select">
+                                        {llmProviders.map((p) => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                        {llmProviders.length === 0 && <option value="openrouter">OpenRouter</option>}
+                                    </select>
+                                </label>
+                                <label className="block">
+                                    <span className="field-label">Model</span>
+                                    <input type="text" value={model} onChange={(e) => setModel(e.target.value)} className="input mono !text-[12px]" placeholder="google/gemma-3-27b-it" spellCheck={false} />
+                                </label>
+                            </div>
+                            <label className="block">
+                                <span className="field-label">API key</span>
+                                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="input mono" placeholder="Use the key set on the server" autoComplete="off" />
+                                <span className="hint mt-1 block">Optional. Sent with this request only.</span>
                             </label>
-                            <select
-                                value={provider}
-                                onChange={(e) => setProvider(e.target.value)}
-                                className="w-full p-2 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                            >
-                                {llmProviders.map((p) => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                                {llmProviders.length === 0 && <option value="openrouter">OpenRouter API</option>}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block mb-1">
-                                Target LLM Model
+                            <div className="grid grid-cols-2 gap-5">
+                                <Slider label="Temperature" value={temperature} display={temperature.toFixed(2)} min={0} max={1.5} step={0.05} onChange={setTemperature} />
+                                <Slider label="Max output tokens" value={maxTokens} display={maxTokens.toLocaleString()} min={256} max={8192} step={256} onChange={setMaxTokens} />
+                            </div>
+                            <label className="block">
+                                <span className="field-label">System prompt</span>
+                                <textarea rows={3} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} className="textarea" />
                             </label>
-                            <input
-                                type="text"
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                className="w-full p-2 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white font-mono"
-                                placeholder="e.g. google/gemma-3-27b-it"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Override Secret Key */}
-                    <div>
-                        <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block mb-1">
-                            Override Secret API Key (Optional)
-                        </label>
-                        <input
-                            type="password"
-                            value={apiKey}
-                            onChange={(e) => setApiKey(e.target.value)}
-                            className="w-full p-2 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white font-mono"
-                            placeholder="Leave empty to utilize server-configured default tokens"
-                        />
-                    </div>
-
-                    {/* Sliders Strip */}
-                    <div className="grid grid-cols-2 gap-4 bg-gray-50/50 dark:bg-slate-900/30 p-3 rounded-xl border border-gray-100 dark:border-slate-800">
-                        <div>
-                            <div className="flex justify-between text-[11px] mb-1">
-                                <span className="font-bold text-gray-600 dark:text-gray-400">Temperature</span>
-                                <span className="font-mono text-blue-600 dark:text-sky-400">{temperature}</span>
+                            <label className="block">
+                                <span className="field-label">Prompt</span>
+                                <textarea
+                                    rows={6}
+                                    value={userPrompt}
+                                    onChange={(e) => setUserPrompt(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSend) void handleRunTest(); }}
+                                    className="textarea"
+                                />
+                            </label>
+                            <div className="flex items-center justify-end gap-2.5">
+                                <span className="hint">⌘↩</span>
+                                <button type="submit" disabled={!canSend} className="btn btn-primary">
+                                    <ArrowUp size={14} strokeWidth={2.2} />
+                                    {loading ? 'Sending…' : 'Send'}
+                                </button>
                             </div>
-                            <input
-                                type="range"
-                                min="0"
-                                max="1.5"
-                                step="0.05"
-                                value={temperature}
-                                onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                                className="w-full accent-blue-600 cursor-pointer"
-                            />
-                        </div>
-                        <div>
-                            <div className="flex justify-between text-[11px] mb-1">
-                                <span className="font-bold text-gray-600 dark:text-gray-400">Max Output Tokens</span>
-                                <span className="font-mono text-purple-600 dark:text-purple-400">{maxTokens}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="256"
-                                max="8192"
-                                step="256"
-                                value={maxTokens}
-                                onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-                                className="w-full accent-purple-600 cursor-pointer"
-                            />
-                        </div>
-                    </div>
+                        </form>
 
-                    {/* System Instructions */}
-                    <div>
-                        <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block mb-1">
-                            System Role Definitions & Guardrails
-                        </label>
-                        <textarea
-                            rows={3}
-                            value={systemPrompt}
-                            onChange={(e) => setSystemPrompt(e.target.value)}
-                            className="w-full p-2.5 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white font-mono resize-none leading-relaxed"
-                        />
-                    </div>
-
-                    {/* User Prompt Query */}
-                    <div className="flex-1 flex flex-col">
-                        <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 block mb-1">
-                            Incoming User Prompt / Message
-                        </label>
-                        <textarea
-                            rows={5}
-                            value={userPrompt}
-                            onChange={(e) => setUserPrompt(e.target.value)}
-                            className="w-full flex-1 p-2.5 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white font-mono resize-none leading-relaxed"
-                        />
-                    </div>
-
-                    {/* Action Trigger */}
-                    <button
-                        onClick={handleRunTest}
-                        disabled={loading}
-                        className="w-full py-3 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-xl shadow-md shadow-purple-600/10 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                        {loading ? (
-                            <>
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                                Evaluating Inference Engine...
-                            </>
-                        ) : (
-                            <>
-                                <Play className="w-4 h-4 fill-current" />
-                                Execute Live Stream Testing
-                            </>
-                        )}
-                    </button>
-                </div>
-
-                {/* Right Results Column */}
-                <div className="w-1/2 bg-gray-50/30 dark:bg-[#05080d] overflow-y-auto p-6 flex flex-col">
-                    <span className="text-[11px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider block mb-3">
-                        Inference Output & Telemetry Cost Attribution
-                    </span>
-
-                    {/* Metric Stats Banner */}
-                    {result ? (
-                        <div className="grid grid-cols-3 gap-3 mb-4 shrink-0 animate-fade-in">
-                            <div className="p-3 rounded-xl bg-white dark:bg-[#0f1723] border border-gray-200 dark:border-slate-800/80 flex flex-col gap-1">
-                                <div className="flex items-center gap-1.5 text-gray-400">
-                                    <Clock className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-bold">Latency</span>
+                        <div className="flex min-w-0 flex-col gap-4">
+                            <div className="panel figures px-5 py-3.5" aria-live="polite">
+                                <div className={`figure ${result ? '' : 'is-zero'}`}><b>{result ? result.latency_ms.toLocaleString() : '—'}{result && <small>ms</small>}</b><span>Latency</span></div>
+                                <div className={`figure ${result ? '' : 'is-zero'}`}><b>{result ? (result.token_usage?.total_tokens ?? 0).toLocaleString() : '—'}</b><span>Tokens</span></div>
+                                <div className={`figure ${result ? '' : 'is-zero'}`}><b>{result ? `$${result.estimated_cost_usd?.toFixed(6) ?? '0.000000'}` : '—'}</b><span>Estimated cost</span></div>
+                                <div className="figure">
+                                    <b className="flex h-[25px] items-center gap-2 !text-[15px]">
+                                        <StatusGlyph shape={loading ? 'busy' : error ? 'bad' : result ? 'ok' : 'idle'} />
+                                        {loading ? 'Waiting' : error ? 'Failed' : result ? 'Answered' : 'Not sent'}
+                                    </b>
+                                    <span>Status</span>
                                 </div>
-                                <span className="text-sm font-mono font-bold text-blue-600 dark:text-sky-400">
-                                    {result.latency_ms} ms
-                                </span>
                             </div>
 
-                            <div className="p-3 rounded-xl bg-white dark:bg-[#0f1723] border border-gray-200 dark:border-slate-800/80 flex flex-col gap-1">
-                                <div className="flex items-center gap-1.5 text-gray-400">
-                                    <Cpu className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-bold">Total Tokens</span>
+                            <section className="panel flex min-h-[420px] flex-1 flex-col gap-3 px-6 py-5">
+                                <div className="flex items-center gap-2">
+                                    <span className="h-section flex-1">Response</span>
+                                    {result && <span className="chip mono">{model}</span>}
+                                    {result && (
+                                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void navigator.clipboard?.writeText(result.response)}>
+                                            <Copy size={12} /> Copy
+                                        </button>
+                                    )}
                                 </div>
-                                <span className="text-sm font-mono font-bold text-purple-600 dark:text-purple-400">
-                                    {result.token_usage?.total_tokens || 0}
-                                </span>
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-white dark:bg-[#0f1723] border border-gray-200 dark:border-slate-800/80 flex flex-col gap-1">
-                                <div className="flex items-center gap-1.5 text-gray-400">
-                                    <DollarSign className="w-3.5 h-3.5" />
-                                    <span className="text-[10px] font-bold">Est. Run Cost</span>
-                                </div>
-                                <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                    ${result.estimated_cost_usd?.toFixed(6) || '0.000000'}
-                                </span>
-                            </div>
+                                {loading ? (
+                                    <div className="empty-state flex-1">
+                                        <StatusGlyph shape="busy" />
+                                        <span>Waiting for the model…</span>
+                                    </div>
+                                ) : error ? (
+                                    <div className="flex flex-col gap-2">
+                                        <div className="rounded-xl p-3" style={{ background: 'var(--clay-wash)' }}>
+                                            <div className="headline" style={{ color: 'var(--clay)' }}>The call failed</div>
+                                            <pre className="mono mt-1 whitespace-pre-wrap" style={{ color: 'var(--clay)' }}>{error}</pre>
+                                        </div>
+                                        <p className="hint">Check the API key, the provider and the model id, then send again.</p>
+                                    </div>
+                                ) : result ? (
+                                    <div className="reading">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.response}</ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    <div className="empty-state flex-1">
+                                        <div className="headline">No reply yet</div>
+                                        <p className="hint max-w-[340px]">Pick a provider and a model, write a prompt, and send it. The reply, latency, tokens and cost appear here.</p>
+                                    </div>
+                                )}
+                            </section>
                         </div>
-                    ) : (
-                        <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-slate-800/60 text-xs text-blue-800 dark:text-sky-300 mb-4 flex items-center gap-2">
-                            <FlaskConical className="w-4 h-4 shrink-0" />
-                            <span>Pick a provider and model, write a prompt, then run it to see the reply, latency, token usage, and estimated cost.</span>
-                        </div>
-                    )}
-
-                    {/* Output Text Window */}
-                    <div className="flex-1 rounded-xl border border-gray-200 dark:border-slate-800/80 bg-white dark:bg-[#0b111b] overflow-y-auto p-4 flex flex-col">
-                        <span className="text-[10px] font-bold text-gray-400 dark:text-slate-600 uppercase block mb-2 pb-2 border-b border-gray-100 dark:border-slate-900/60">
-                            Payload Streaming Context
-                        </span>
-
-                        {loading ? (
-                            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
-                                <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-                                <span className="text-xs">Waiting for the model response...</span>
-                            </div>
-                        ) : error ? (
-                            <div className="flex-1 flex flex-col gap-2">
-                                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50">
-                                    <span className="text-xs font-bold text-red-700 dark:text-red-300 block mb-1">
-                                        LLM call failed
-                                    </span>
-                                    <pre className="text-xs text-red-600 dark:text-red-400 font-mono whitespace-pre-wrap bg-transparent border-none p-0">
-                                        {error}
-                                    </pre>
-                                </div>
-                                <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                                    Check the API key, provider, and model id, then try again.
-                                </span>
-                            </div>
-                        ) : result ? (
-                            <pre className="text-xs text-gray-800 dark:text-gray-200 font-mono whitespace-pre-wrap word-break bg-transparent border-none p-0">
-                                {result.response}
-                            </pre>
-                        ) : (
-                            <div className="flex-1 flex items-center justify-center text-gray-300 dark:text-slate-700 text-xs italic">
-                                Model output will appear here
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
-        </div>
+            <Toolbar center={<ActivityCapsule onStatusClick={() => go('studio')} />} actions={<MoreMenu />} />
+        </>
     );
 };

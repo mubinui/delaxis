@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Blocks, Check, Copy, Download, Home, Layout, Moon, Play, Plus, Rocket, Save, ShieldCheck, Stethoscope, Sun, Upload, Zap } from 'lucide-react';
+import { Blocks, Check, Copy, Download, FilePlus2, LayoutDashboard, LifeBuoy, Play, Save, ShieldCheck, Upload, Zap } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
@@ -7,24 +7,22 @@ import { useLibraryStore } from '../stores/libraryStore';
 import { buildWorkflowPayload, getAgentBindings } from '../utils/workflowPayload';
 import { workflowToCanvas } from '../utils/workflowToCanvas';
 import { describeSaveError } from '../utils/saveErrors';
-import { getLayoutedElements } from '../utils/layout';
-import { DelaxisLogo } from './DelaxisLogo';
-import { useTheme } from '../hooks/useTheme';
+import { canvasFit, getLayoutedElements } from '../utils/layout';
+import { useUiStore } from '../stores/uiStore';
+import { Toolbar, MoreMenu } from './shell/Toolbar';
+import { ActivityCapsule } from './shell/ActivityCapsule';
+import { MenuItem, MenuSeparator } from './shell/Menu';
 
-interface HeaderProps {
-    onOpenLanding?: () => void;
-    onOpenTester?: () => void;
-    onOpenDeploy?: () => void;
-    builderOpen?: boolean;
-    onToggleBuilder?: () => void;
-    helpOpen?: boolean;
-    onToggleHelp?: () => void;
-}
-
-export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onOpenDeploy, builderOpen = false, onToggleBuilder, helpOpen = false, onToggleHelp }) => {
-    // Only `workflowName` is actually rendered here — everything else is read fresh via
-    // getState() inside handlers so this header doesn't re-render on every node/edge
-    // change (e.g. every mousemove frame while dragging a node on the canvas).
+/**
+ * The Studio's toolbar. The activity capsule holds the workflow's name, the
+ * saved workflows and its state; related actions share one glass capsule, with
+ * Test as the one solid action; everything occasional lives under More.
+ */
+export const Header: React.FC = () => {
+    // Only `workflowName` is subscribed to (the handlers name files and payloads with
+    // it) — everything else is read fresh via getState() inside handlers so this
+    // toolbar doesn't re-render on every node/edge change (e.g. every mousemove frame
+    // while dragging a node on the canvas).
     const workflowName = useWorkflowStore((state) => state.workflowName);
     const { setNodes, setEdges, onNodesChange, setWorkflowName, setCurrentWorkflow, loadWorkflow, updateNodeData } = useWorkflowStore(
         useShallow((state) => ({
@@ -41,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
     const { fitView } = useReactFlow();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [copied, setCopied] = useState(false);
-    const { isDark, toggleTheme } = useTheme();
+    const { pane, togglePane, testOpen, setTestOpen, timelineOpen, setTimelineOpen } = useUiStore();
 
     const handleNew = () => {
         if (confirm("Are you sure you want to create a new workflow? Unsaved changes will be lost.")) {
@@ -62,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
         }));
         // @ts-ignore
         onNodesChange(changes);
-        setTimeout(() => fitView({ padding: 0.2, duration: 800 }), 100);
+        setTimeout(() => fitView(canvasFit(useUiStore.getState().paletteOpen, 800)), 100);
     }, [onNodesChange, fitView]);
 
     const handleSave = async () => {
@@ -141,7 +139,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
             tools: savedTools,
         });
         loadWorkflow(workflow.id, workflow.name, nodes, edges);
-        setTimeout(() => fitView({ padding: 0.2, duration: 500 }), 100);
+        // An opened graph gets the full width; the palette is one click away.
+        useUiStore.getState().setPaletteOpen(false);
+        setTimeout(() => fitView(canvasFit(false, 500)), 100);
     };
 
     const handleValidate = async () => {
@@ -222,7 +222,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
                     workflow.edges || []
                 );
 
-                setTimeout(() => fitView({ padding: 0.2, duration: 500 }), 100);
+                // An opened graph gets the full width; the palette is one click away.
+                useUiStore.getState().setPaletteOpen(false);
+                setTimeout(() => fitView(canvasFit(false, 500)), 100);
                 alert(`Workflow "${name}" imported successfully!`);
             } catch (err) {
                 alert('Failed to import workflow: ' + (err as Error).message);
@@ -260,148 +262,86 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLanding, onOpenTester, onO
         }
     };
 
-    // One quiet, uniform style for every secondary action — the previous header mixed
-    // blue/purple/emerald bold nav buttons with labeled and icon buttons of different
-    // sizes, which read as clutter. Icon-only actions carry a title tooltip.
-    const iconAction = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition-colors';
-    const navAction = 'flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition-colors';
-
     return (
-        <header className="h-14 shrink-0 bg-white dark:bg-[#0b111b] border-b border-[var(--color-ui-border)] flex items-center justify-between gap-3 px-4 z-20 shadow-sm transition-colors">
-            {/* Brand + workflow identity */}
-            <div className="flex min-w-0 items-center gap-3">
-                <DelaxisLogo className="w-8 h-8 shrink-0" />
-                <div className="flex min-w-0 flex-col">
-                    <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-                        <span className="brand-lockup-title">Delaxis</span>
-                        <span className="brand-lockup-tagline hidden xl:inline">Agent Studio</span>
-                    </div>
-                    <input
-                        className="w-44 truncate text-sm font-semibold text-gray-900 dark:text-white bg-transparent border-none p-0 focus:ring-0 hover:bg-gray-50 dark:hover:bg-slate-800/50 rounded px-1 -ml-1 transition-colors"
-                        value={workflowName}
-                        onChange={(e) => setWorkflowName(e.target.value)}
-                        title="Workflow name"
-                    />
-                </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex shrink-0 items-center gap-1">
-                {/* Builder — collapses into this button; opens as a floating window */}
-                {onToggleBuilder && (
-                    <button
-                        onClick={onToggleBuilder}
-                        className={`flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-all ${builderOpen
-                            ? 'bg-[var(--color-primary)] text-white shadow-sm'
-                            : 'border border-blue-500/40 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
-                            }`}
-                        title={builderOpen ? 'Close the Builder' : 'Open the Builder — describe what you need and it drafts agents, tools, and workflows'}
-                    >
-                        <Blocks size={14} />
-                        <span className="hidden md:inline">Builder</span>
-                    </button>
-                )}
-
-                {/* Help — diagnoses the graph and documents each component */}
-                {onToggleHelp && (
-                    <button
-                        onClick={onToggleHelp}
-                        className={`flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-all ${helpOpen
-                            ? 'bg-[var(--color-primary)] text-white shadow-sm'
-                            : 'border border-slate-300/60 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
-                            }`}
-                        title={helpOpen ? 'Close help' : 'Help — check this workflow for problems and learn what each component does'}
-                    >
-                        <Stethoscope size={14} />
-                        <span className="hidden md:inline">Help</span>
-                    </button>
-                )}
-
-                <div className="mx-1.5 h-5 w-px bg-gray-200 dark:bg-slate-800" />
-
-                {/* View navigation */}
-                {onOpenLanding && (
-                    <button onClick={onOpenLanding} className={navAction} title="Return to welcome hub">
-                        <Home size={14} />
-                        <span className="hidden lg:inline">Hub</span>
-                    </button>
-                )}
-                {onOpenTester && (
-                    <button onClick={onOpenTester} className={navAction} title="Open live LLM tester">
-                        <Zap size={14} />
-                        <span className="hidden lg:inline">Live API</span>
-                    </button>
-                )}
-                {onOpenDeploy && (
-                    <button onClick={onOpenDeploy} className={navAction} title="Open deploy hub">
-                        <Rocket size={14} />
-                        <span className="hidden lg:inline">Deploy</span>
-                    </button>
-                )}
-
-                <div className="mx-1.5 h-5 w-px bg-gray-200 dark:bg-slate-800" />
-
-                {/* File actions */}
-                <button onClick={handleExport} className={iconAction} title="Download workflow as JSON">
-                    <Download size={15} />
-                </button>
-                <button onClick={() => fileInputRef.current?.click()} className={iconAction} title="Import workflow from JSON">
-                    <Upload size={15} />
-                </button>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json,.workflow.json"
-                    onChange={handleImport}
-                    className="hidden"
+        <Toolbar
+            center={
+                <ActivityCapsule
+                    editable
+                    onNewWorkflow={handleNew}
+                    onOpenWorkflow={(id) => void handleLoadWorkflow(id)}
+                    statusExpanded={timelineOpen || pane === 'help'}
+                    onStatusClick={(hasIssues) => {
+                        if (hasIssues) {
+                            setTimelineOpen(false);
+                            if (pane !== 'help') togglePane('help');
+                        } else {
+                            setTimelineOpen(!timelineOpen);
+                        }
+                    }}
                 />
-                <button onClick={handleCopy} className={iconAction} title="Copy workflow to clipboard">
-                    {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
-                </button>
-                <button onClick={handleLayout} className={iconAction} title="Auto-arrange layout">
-                    <Layout size={15} />
-                </button>
-
-                <div className="mx-1.5 h-5 w-px bg-gray-200 dark:bg-slate-800" />
-
-                {/* Workflow lifecycle */}
-                <select
-                    onFocus={() => fetchLibraryItems()}
-                    onChange={(event) => handleLoadWorkflow(event.target.value)}
-                    value=""
-                    className="hidden md:block h-8 max-w-40 rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs font-medium text-gray-700 dark:text-gray-200 transition-colors"
-                    title="Load workflow from backend"
-                >
-                    <option value="">Load workflow…</option>
-                    {savedWorkflows.map((workflow) => (
-                        <option key={workflow.id} value={workflow.id}>{workflow.name}</option>
-                    ))}
-                </select>
-                <button onClick={handleValidate} className={iconAction} title="Validate saved workflow">
-                    <ShieldCheck size={15} />
-                </button>
-                <button onClick={handleExecute} className={iconAction} title="Execute saved workflow">
-                    <Play size={15} />
-                </button>
-
-                <div className="mx-1.5 h-5 w-px bg-gray-200 dark:bg-slate-800" />
-
-                <button onClick={toggleTheme} className={iconAction} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-                    {isDark ? <Sun size={15} /> : <Moon size={15} />}
-                </button>
-                <button onClick={handleNew} className={navAction} title="Start a new workflow">
-                    <Plus size={14} />
-                    <span className="hidden lg:inline">New</span>
-                </button>
-                <button
-                    onClick={handleSave}
-                    disabled={isLoading}
-                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3.5 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--color-primary-hover)] disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                    <Save size={14} />
-                    {isLoading ? 'Saving…' : 'Save'}
-                </button>
-            </div>
-        </header>
+            }
+            actions={
+                <>
+                    <button
+                        type="button"
+                        onClick={() => togglePane('builder')}
+                        className="btn btn-toolbar hide-narrow"
+                        aria-pressed={pane === 'builder'}
+                        title="Builder — describe what you need and it drafts agents, tools and workflows"
+                    >
+                        <Blocks size={15} strokeWidth={1.8} />
+                        <span className="hidden xl:inline">Builder</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => togglePane('help')}
+                        className="btn btn-toolbar btn-icon hide-narrow"
+                        aria-pressed={pane === 'help'}
+                        aria-label="Help"
+                        title="Help — check this workflow for problems and learn what each component does"
+                    >
+                        <LifeBuoy size={16} strokeWidth={1.8} />
+                    </button>
+                    <div className="toolbar-group liquid" role="group" aria-label="Workflow">
+                        <button type="button" onClick={handleSave} disabled={isLoading} className="btn hide-narrow" title="Save to the backend">
+                            <Save size={15} strokeWidth={1.8} />
+                            <span className="hidden lg:inline">{isLoading ? 'Saving…' : 'Save'}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setTestOpen(!testOpen)}
+                            className="btn btn-primary"
+                            aria-pressed={testOpen}
+                            title="Chat with this workflow"
+                        >
+                            <Play size={12} fill="currentColor" />
+                            Test
+                        </button>
+                    </div>
+                    <MoreMenu>
+                        {(close) => (
+                            <>
+                                <MenuItem icon={FilePlus2} onSelect={() => { close(); handleNew(); }}>New workflow</MenuItem>
+                                <MenuItem icon={Upload} onSelect={() => { close(); fileInputRef.current?.click(); }}>Import JSON…</MenuItem>
+                                <MenuItem icon={Download} onSelect={() => { close(); handleExport(); }}>Export JSON</MenuItem>
+                                <MenuItem icon={copied ? Check : Copy} onSelect={() => { void handleCopy(); close(); }}>Copy as JSON</MenuItem>
+                                <MenuItem icon={LayoutDashboard} onSelect={() => { close(); handleLayout(); }}>Auto-arrange</MenuItem>
+                                <MenuSeparator />
+                                <MenuItem icon={ShieldCheck} onSelect={() => { close(); void handleValidate(); }}>Validate saved workflow</MenuItem>
+                                <MenuItem icon={Zap} onSelect={() => { close(); void handleExecute(); }}>Run saved workflow…</MenuItem>
+                                <MenuSeparator />
+                            </>
+                        )}
+                    </MoreMenu>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".json,.workflow.json"
+                        onChange={handleImport}
+                        className="hidden"
+                    />
+                </>
+            }
+        />
     );
 };

@@ -51,5 +51,5 @@ export const isValidConnection = (
 export const AUX_EDGE_OPTIONS = {
     type: 'straight' as const,
     animated: false,
-    style: { strokeWidth: 1.5, strokeDasharray: '6 4', stroke: '#94a3b8' },
+    style: { strokeWidth: 1.5, strokeDasharray: '4 5', stroke: 'var(--wire)' },
 };

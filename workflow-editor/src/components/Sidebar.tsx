@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-    Bot, Wrench, Play, GitBranch, Square, MessageSquare, Link, Settings, Plus, Brain,
+    Bot, Wrench, Play, GitBranch, Flag, MessageSquare, Link, Settings, Plus, Brain,
     FileSearch, ShieldCheck, ListChecks, FolderOpen, X, Server, Database, Mail, Search,
     FileUp, ScanEye, ScrollText, Network, EyeOff,
 } from 'lucide-react';
 import type { NodeType } from '../types/workflow';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useLibraryModal } from '../App';
+import { useUiStore } from '../stores/uiStore';
 import { ResourceCard } from './studio/ResourceCard';
 import type { ResourceTone } from './studio/ResourceCard';
 import { getAgentSummary, getToolSummary, getWorkflowSummary } from '../utils/studioDerivedState';
@@ -54,8 +55,8 @@ const PALETTE_GROUPS: PaletteGroup[] = [
         label: 'Logic',
         items: [
             { type: 'router', label: 'Router', icon: GitBranch, tone: 'logic', hint: 'Branch the flow on a condition', config: { type: 'router', routing_mode: 'conditional' } },
-            { type: 'tool', label: 'Memory', icon: Brain, tone: 'tool', hint: 'Persist state across turns', config: { type: 'memory', memory_enabled: true, retention: 'session' } },
-            { type: 'tool', label: 'Knowledge', icon: FileSearch, tone: 'tool', hint: 'Retrieve from a knowledge source', config: { type: 'knowledge', knowledge_enabled: true, top_k: 5 } },
+            { type: 'tool', label: 'Memory', icon: Brain, tone: 'logic', hint: 'Persist state across turns', config: { type: 'memory', memory_enabled: true, retention: 'session' } },
+            { type: 'tool', label: 'Knowledge', icon: FileSearch, tone: 'logic', hint: 'Retrieve from a knowledge source', config: { type: 'knowledge', knowledge_enabled: true, top_k: 5 } },
             { type: 'router', label: 'Guardrail', icon: ShieldCheck, tone: 'logic', hint: 'Validate output before it continues', config: { type: 'guardrail', guardrails_enabled: true, output_schema: 'text' } },
         ],
     },
@@ -74,8 +75,8 @@ const PALETTE_GROUPS: PaletteGroup[] = [
         id: 'governance',
         label: 'Trust',
         items: [
-            { type: 'tool', label: 'Security', icon: ScanEye, tone: 'security', hint: 'Scan for secrets and prompt injection', config: { type: 'function', tool_ids: ['security_scan', 'scan_for_secrets', 'detect_prompt_injection'] } },
-            { type: 'tool', label: 'PII', icon: EyeOff, tone: 'security', hint: 'Detect and redact personal information', config: { type: 'function', tool_ids: ['detect_pii', 'redact_pii'] } },
+            { type: 'tool', label: 'Security scan', icon: ScanEye, tone: 'security', hint: 'Scan for secrets and prompt injection', config: { type: 'function', tool_ids: ['security_scan', 'scan_for_secrets', 'detect_prompt_injection'] } },
+            { type: 'tool', label: 'PII redaction', icon: EyeOff, tone: 'security', hint: 'Detect and redact personal information', config: { type: 'function', tool_ids: ['detect_pii', 'redact_pii'] } },
             { type: 'tool', label: 'Audit', icon: ScrollText, tone: 'security', hint: 'Record and query the tamper-evident audit trail', config: { type: 'function', tool_ids: ['record_audit_event', 'query_audit_log'] } },
         ],
     },
@@ -83,15 +84,15 @@ const PALETTE_GROUPS: PaletteGroup[] = [
         id: 'integrations',
         label: 'Connect',
         items: [
-            { type: 'tool', label: 'MCP', icon: Server, tone: 'tool', hint: 'Attach an MCP server and its tools', config: { type: 'mcp', transport: 'stdio', command: '', args: [], tool_filter: [] } },
-            { type: 'tool', label: 'Gmail', icon: Mail, tone: 'tool', hint: 'Send, search, and read email', config: { type: 'gmail', account_email: '', capabilities: ['send', 'search', 'read'], max_results: 10 } },
+            { type: 'tool', label: 'MCP server', icon: Server, tone: 'connect', hint: 'Attach an MCP server and its tools', config: { type: 'mcp', transport: 'stdio', command: '', args: [], tool_filter: [] } },
+            { type: 'tool', label: 'Gmail', icon: Mail, tone: 'connect', hint: 'Send, search, and read email', config: { type: 'gmail', account_email: '', capabilities: ['send', 'search', 'read'], max_results: 10 } },
         ],
     },
     {
         id: 'output',
         label: 'End',
         items: [
-            { type: 'output', label: 'Output', icon: Square, tone: 'output', hint: 'Where the workflow result leaves the graph', config: { type: 'output' } },
+            { type: 'output', label: 'Output', icon: Flag, tone: 'output', hint: 'Where the workflow result leaves the graph', config: { type: 'output' } },
         ],
     },
 ];
@@ -167,6 +168,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 export const Sidebar = () => {
     const { savedAgents, savedTools, savedWorkflows, fetchLibraryItems } = useLibraryStore();
     const { openLibraryModal } = useLibraryModal();
+    const setPaletteOpen = useUiStore((state) => state.setPaletteOpen);
     const [libraryOpen, setLibraryOpen] = useState(false);
     const [query, setQuery] = useState('');
 
@@ -242,14 +244,16 @@ export const Sidebar = () => {
         });
     };
 
-    const flyoutSectionHeader = (label: string, icon: React.ReactNode, manageTab?: 'agents' | 'tools') => (
-        <div className="dlx-faint mb-2 flex items-center justify-between pl-1 pr-1 text-[10px] font-bold uppercase tracking-wider">
-            <span className="flex items-center gap-1.5">{icon} {label}</span>
+    const flyoutSectionHeader = (label: string, manageTab?: 'agents' | 'tools') => (
+        <div className="mb-1 flex items-center justify-between px-2">
+            <span className="h-section">{label}</span>
             {manageTab && (
                 <button
+                    type="button"
                     onClick={() => openLibraryModal(manageTab)}
-                    className="dlx-btn dlx-btn-ghost p-1"
-                    title={`Manage ${label}`}
+                    className="btn btn-ghost btn-sm btn-icon"
+                    title={`Manage ${label.toLowerCase()} in the Library`}
+                    aria-label={`Manage ${label.toLowerCase()}`}
                 >
                     <Settings size={12} />
                 </button>
@@ -257,46 +261,47 @@ export const Sidebar = () => {
         </div>
     );
 
+    const paneTop = 'calc(var(--toolbar-h) + 10px)';
+
     return (
-        <div className="relative z-[45] flex h-full shrink-0">
-            {/* Icon rail — the whole component palette in 80px */}
+        <>
+            {/* The palette floats over the canvas as glass, so the canvas keeps its width. */}
             <aside
-                className="flex h-full w-[80px] shrink-0 flex-col overflow-hidden"
-                style={{
-                    backgroundColor: 'var(--surface-1)',
-                    borderRight: '1px solid var(--border-default)',
-                }}
+                className="glass-pane palette-pane from-left absolute left-2.5 z-20 w-[240px]"
+                style={{ top: paneTop, bottom: 10 }}
+                aria-label="Components"
             >
-                {/* Palette search */}
-                <div className="shrink-0 px-2 pb-1.5 pt-2.5">
-                    <div className="relative">
-                        <Search
-                            size={11}
-                            className="dlx-faint pointer-events-none absolute left-2 top-1/2 -translate-y-1/2"
-                        />
-                        <input
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Find"
-                            aria-label="Search components"
-                            className="dlx-input h-7 pl-6 pr-1.5 text-[10px] font-medium"
-                        />
-                    </div>
+                <div className="flex shrink-0 items-center gap-2 px-3 pb-2 pl-4 pt-3.5">
+                    <span className="headline flex-1">Components</span>
+                    <button
+                        type="button"
+                        onClick={() => setPaletteOpen(false)}
+                        className="btn btn-ghost btn-sm btn-icon"
+                        aria-label="Hide components"
+                        title="Hide components"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+                <div className="search-field shrink-0 px-3 pb-1">
+                    <Search size={13} style={{ left: 22 }} />
+                    <input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Find a component"
+                        aria-label="Search components"
+                        className="input"
+                    />
                 </div>
 
-                <div className="custom-scrollbar flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto px-1.5 pb-2">
+                <div className="scroll-soft min-h-0 flex-1 px-1.5 pb-2">
                     {visibleGroups.length === 0 && (
-                        <p className="dlx-faint px-1 pt-6 text-center text-[10px] leading-relaxed">
-                            No components match “{query}”.
-                        </p>
+                        <p className="hint px-3 pt-6 text-center">No components match “{query}”.</p>
                     )}
 
                     {visibleGroups.map((group) => (
-                        <React.Fragment key={group.id}>
-                            <div className="dlx-faint mb-0.5 mt-2 w-full px-1 text-[8.5px] font-bold uppercase tracking-[0.09em]">
-                                {group.label}
-                            </div>
-
+                        <div key={group.id} className="px-1 pt-2.5">
+                            <div className="h-section px-2 pb-1">{group.label}</div>
                             {group.items.map((item) => (
                                 <ResourceCard
                                     key={`${group.id}-${item.label}`}
@@ -309,123 +314,68 @@ export const Sidebar = () => {
                                     collapsed
                                 />
                             ))}
-
-                            {/* Creating a tool is the natural next step after placing an
-                                agent/task, so the action sits with them rather than at
-                                the far bottom of the rail. */}
-                            {group.id === 'agents' && !query && (
-                                <button
-                                    onClick={() => openLibraryModal('tools')}
-                                    title="Create a new tool"
-                                    data-tone="tool"
-                                    className="dlx-tile"
-                                >
-                                    <span
-                                        className="dlx-glyph h-9 w-9"
-                                        style={{ borderStyle: 'dashed', backgroundColor: 'transparent' }}
-                                    >
-                                        <Plus size={15} strokeWidth={2.4} />
-                                    </span>
-                                    <span className="dlx-tile-label">New</span>
-                                </button>
-                            )}
-                        </React.Fragment>
+                        </div>
                     ))}
                 </div>
 
-                {/* Library, pinned to the bottom */}
-                <div
-                    className="flex shrink-0 flex-col items-center px-1.5 pb-2.5 pt-2"
-                    style={{ borderTop: '1px solid var(--border-subtle)' }}
-                >
+                <div className="flex shrink-0 items-center gap-1.5 px-3 pb-3 pt-2.5" style={{ boxShadow: '0 -1px 0 var(--line)' }}>
                     <button
+                        type="button"
                         onClick={() => setLibraryOpen((open) => !open)}
-                        title="Saved library — workflows, agents, tools"
-                        data-tone="workflow"
-                        className="dlx-tile"
+                        className="btn btn-sm flex-1"
+                        aria-expanded={libraryOpen}
+                        title="Saved workflows, agents and tools"
                     >
-                        <span
-                            className="dlx-glyph relative h-9 w-9"
-                            style={
-                                libraryOpen
-                                    ? {
-                                        backgroundColor: 'var(--accent)',
-                                        borderColor: 'var(--accent)',
-                                        color: 'var(--text-on-accent)',
-                                    }
-                                    : undefined
-                            }
-                        >
-                            <FolderOpen size={15} />
-                            {savedCount > 0 && !libraryOpen && (
-                                <span
-                                    className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold"
-                                    style={{
-                                        backgroundColor: 'var(--accent)',
-                                        color: 'var(--text-on-accent)',
-                                    }}
-                                >
-                                    {savedCount}
-                                </span>
-                            )}
-                        </span>
-                        <span className="dlx-tile-label">Library</span>
+                        <FolderOpen size={13} />
+                        Saved{savedCount > 0 ? ` · ${savedCount}` : ''}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => openLibraryModal('tools')}
+                        className="btn btn-sm btn-icon"
+                        title="Create a tool in the Library"
+                        aria-label="Create a tool"
+                    >
+                        <Plus size={13} />
                     </button>
                 </div>
             </aside>
 
-            {/* Library flyout — overlays the canvas on demand instead of consuming layout width */}
+            {/* Saved items open beside the palette, over the canvas, on demand. */}
             {libraryOpen && (
-                <div
-                    className="absolute bottom-0 left-[80px] top-0 z-10 flex w-[310px] flex-col"
-                    style={{
-                        backgroundColor: 'var(--surface-1)',
-                        borderRight: '1px solid var(--border-default)',
-                        boxShadow: 'var(--shadow-xl)',
-                    }}
+                <aside
+                    className="glass-pane from-left absolute z-20 w-[300px]"
+                    style={{ top: paneTop, bottom: 10, left: 260 }}
+                    aria-label="Saved items"
                 >
-                    <div
-                        className="flex shrink-0 items-center justify-between px-4 py-3"
-                        style={{ borderBottom: '1px solid var(--border-subtle)' }}
-                    >
-                        <div>
-                            <div className="dlx-text text-sm font-bold">Library</div>
-                            <div className="dlx-muted text-[11px]">
+                    <div className="flex shrink-0 items-start justify-between gap-2 px-4 pb-2.5 pt-3.5">
+                        <div className="min-w-0">
+                            <div className="headline">Saved</div>
+                            <div className="hint">
                                 {savedWorkflows.length} workflows · {savedAgents.length} agents · {savedTools.length} tools
                             </div>
                         </div>
                         <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => openLibraryModal('browse')}
-                                className="dlx-btn dlx-btn-secondary px-2 py-1 text-[11px]"
-                                title="Open the full library"
-                            >
-                                Browse all
+                            <button type="button" onClick={() => openLibraryModal('browse')} className="btn btn-sm" title="Open the Library">
+                                Library
                             </button>
-                            <button
-                                onClick={() => setLibraryOpen(false)}
-                                className="dlx-btn dlx-btn-ghost p-1.5"
-                                title="Close library"
-                            >
-                                <X size={15} />
+                            <button type="button" onClick={() => setLibraryOpen(false)} className="btn btn-ghost btn-sm btn-icon" aria-label="Close saved items">
+                                <X size={14} />
                             </button>
                         </div>
                     </div>
 
-                    <div className="custom-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto p-3">
+                    <div className="scroll-soft min-h-0 flex-1 space-y-4 px-2 pb-3">
                         {savedCount === 0 && (
-                            <div
-                                className="dlx-muted rounded-xl p-4 text-center text-xs"
-                                style={{ border: '1px dashed var(--border-default)' }}
-                            >
-                                Nothing saved yet. Build on the canvas and hit Save, or open Browse all
-                                to add something from the library.
+                            <div className="empty-state">
+                                <div className="headline">Nothing saved yet</div>
+                                <p className="hint">Build on the canvas and choose Save, or add something in the Library.</p>
                             </div>
                         )}
 
                         {savedWorkflows.length > 0 && (
-                            <div className="space-y-1.5">
-                                {flyoutSectionHeader('Workflows', <GitBranch size={10} />)}
+                            <div>
+                                {flyoutSectionHeader('Workflows')}
                                 {savedWorkflows.map(w => (
                                     <SidebarItem
                                         key={w.id}
@@ -443,8 +393,8 @@ export const Sidebar = () => {
                         )}
 
                         {savedAgents.length > 0 && (
-                            <div className="space-y-1.5">
-                                {flyoutSectionHeader('Agents', <Bot size={10} />, 'agents')}
+                            <div>
+                                {flyoutSectionHeader('Agents', 'agents')}
                                 {savedAgents.map(a => (
                                     <SidebarItem
                                         key={a.id}
@@ -462,8 +412,8 @@ export const Sidebar = () => {
                         )}
 
                         {savedTools.length > 0 && (
-                            <div className="space-y-1.5">
-                                {flyoutSectionHeader('Tools', <Wrench size={10} />, 'tools')}
+                            <div>
+                                {flyoutSectionHeader('Tools', 'tools')}
                                 {savedTools.map(t => (
                                     <SidebarItem
                                         key={t.id}
@@ -478,8 +428,8 @@ export const Sidebar = () => {
                             </div>
                         )}
                     </div>
-                </div>
+                </aside>
             )}
-        </div>
+        </>
     );
 };

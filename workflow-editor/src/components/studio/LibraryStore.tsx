@@ -218,7 +218,7 @@ export const LibraryStore = ({
                     className={`dlx-btn mb-1 w-full justify-start gap-2 px-2.5 py-2 text-xs ${
                         activeCategory === 'all' ? 'dlx-btn-secondary' : 'dlx-btn-ghost'
                     }`}
-                    style={activeCategory === 'all' ? { borderColor: 'var(--accent-border)' } : undefined}
+                    aria-pressed={activeCategory === 'all'}
                 >
                     <LayoutGrid size={13} />
                     <span className="flex-1 text-left">All</span>
@@ -236,7 +236,7 @@ export const LibraryStore = ({
                             className={`dlx-btn mb-1 w-full justify-start gap-2 px-2.5 py-2 text-xs ${
                                 selected ? 'dlx-btn-secondary' : 'dlx-btn-ghost'
                             }`}
-                            style={selected ? { borderColor: 'var(--tone-border)' } : undefined}
+                            aria-pressed={selected}
                             title={category.blurb}
                         >
                             <Icon size={13} style={{ color: 'var(--tone-fg)' }} />

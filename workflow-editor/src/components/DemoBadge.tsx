@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Github, Info, X } from 'lucide-react';
+import { BookOpen, Github, X } from 'lucide-react';
 
 const REPO_URL = 'https://github.com/mubinui/delaxis';
 const INTRO_SEEN_KEY = 'delaxis-demo-intro-seen';
@@ -34,20 +34,19 @@ export const DemoBadge = () => {
         <>
             <button
                 onClick={() => setOpen(true)}
-                className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3.5 py-1.5 text-xs font-semibold text-amber-600 shadow-lg backdrop-blur transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+                className="toast liquid fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 !py-1.5 !pr-4"
                 title="About this demo"
             >
-                <Info size={13} />
-                Demo mode — no backend
+                <span className="sg" data-shape="warn" aria-hidden="true" />
+                Demo — no backend
             </button>
 
             {open && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-                    <div className="dlx-surface max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-6"
-                        style={{ backgroundColor: 'var(--surface-1)', borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-xl)' }}>
+                <div className="sheet-backdrop !z-[70]">
+                    <div className="sheet max-h-[85vh] w-full max-w-lg overflow-y-auto p-6" role="dialog" aria-modal="true" aria-label="About this demo">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <h2 className="dlx-text text-lg font-bold">You're in the Delaxis demo</h2>
+                                <h2 className="title-1">You’re in the Delaxis demo</h2>
                                 <p className="dlx-muted mt-1 text-[13px] leading-relaxed">
                                     This is the real Studio running against an in-browser stub of the API, so
                                     everything is clickable without a server, a database, or an API key.
@@ -59,11 +58,11 @@ export const DemoBadge = () => {
                         </div>
 
                         <div className="mt-5">
-                            <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--status-ready)' }}>What works</div>
+                            <div className="h-section">What works</div>
                             <ul className="mt-2 space-y-1.5">
                                 {WORKS.map((item) => (
                                     <li key={item} className="dlx-text-secondary flex gap-2 text-[13px] leading-relaxed">
-                                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full" style={{ backgroundColor: 'var(--status-ready)' }} />
+                                        <span className="sg mt-[5px]" data-shape="ok" />
                                         {item}
                                     </li>
                                 ))}
@@ -71,11 +70,11 @@ export const DemoBadge = () => {
                         </div>
 
                         <div className="mt-5">
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-amber-400">What doesn't</div>
+                            <div className="h-section">What doesn’t</div>
                             <ul className="mt-2 space-y-1.5">
                                 {DOESNT.map((item) => (
                                     <li key={item} className="dlx-muted flex gap-2 text-[13px] leading-relaxed">
-                                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-amber-400" />
+                                        <span className="sg mt-[5px]" data-shape="idle" />
                                         {item}
                                     </li>
                                 ))}

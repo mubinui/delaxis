@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, Shield, Key, CheckCircle2, AlertCircle, RefreshCw, Plus, Trash2, Copy } from 'lucide-react';
+import { X, Key, CheckCircle2, AlertCircle, RefreshCw, Plus, Trash2, Copy } from 'lucide-react';
 import { api } from '../api/client';
+import { errorText } from '../utils/apiErrors';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -77,7 +78,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             });
             if (!response.ok) {
                 const body = await response.json().catch(() => ({}));
-                throw new Error(body?.detail || `Login failed (HTTP ${response.status})`);
+                throw new Error(errorText(body?.detail, `Login failed (HTTP ${response.status})`));
             }
             const data = await response.json();
             sessionStorage.setItem(TOKEN_KEY, data.access_token);
@@ -126,44 +127,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity">
-            <div className="bg-white dark:bg-[#0b111b] border border-gray-200 dark:border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="sheet-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+            <div className="sheet flex w-full max-w-md flex-col" role="dialog" aria-modal="true" aria-label="Account and API keys">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800/80 flex items-center justify-between bg-gray-50/50 dark:bg-slate-900/30">
-                    <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-xs font-bold text-gray-900 dark:text-white uppercase tracking-wider">
-                            Account & API Keys
-                        </span>
-                    </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                        <X className="w-4 h-4" />
+                <div className="flex items-center justify-between gap-3 px-6 pb-3 pt-5">
+                    <h2 className="title-2">Account</h2>
+                    <button onClick={onClose} className="btn btn-ghost btn-icon" aria-label="Close" title="Close">
+                        <X size={15} />
                     </button>
                 </div>
 
-                {/* Tabs Strip */}
-                <div className="flex border-b border-gray-100 dark:border-slate-800/60 bg-gray-50/20 dark:bg-slate-950/20 text-xs">
-                    {(['login', 'keys'] as const).map((tab) => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`flex-1 py-2.5 font-semibold text-center border-b-2 transition-all ${activeTab === tab
-                                ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-900/40'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                                }`}
-                        >
-                            {tab === 'login' ? 'Sign In' : 'API Keys'}
-                        </button>
-                    ))}
+                <div className="px-6">
+                    <div className="segmented is-wide" role="tablist" aria-label="Account">
+                        {(['login', 'keys'] as const).map((tab) => (
+                            <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}>
+                                {tab === 'login' ? 'Sign in' : 'API keys'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Status Message Alert */}
                 {status.msg && (
                     <div
-                        className={`mx-6 mt-4 p-3 rounded-xl text-xs flex items-start gap-2 border transition-all ${status.type === 'success'
-                            ? 'bg-green-50 dark:bg-emerald-950/30 text-green-700 dark:text-emerald-300 border-green-200 dark:border-emerald-800'
-                            : 'bg-red-50 dark:bg-rose-950/30 text-red-700 dark:text-rose-300 border-red-200 dark:border-rose-800'
-                            }`}
+                        className="mx-6 mt-4 flex items-start gap-2 rounded-xl p-3 text-[12.5px]"
+                        style={status.type === 'success' ? { background: 'var(--sage-wash)', color: 'var(--sage)' } : { background: 'var(--clay-wash)', color: 'var(--clay)' }}
                     >
                         {status.type === 'success' ? (
                             <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
@@ -206,7 +194,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                                         onChange={(e) => setUsername(e.target.value)}
                                         required
                                         autoComplete="username"
-                                        className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="input text-[12.5px]"
                                     />
                                 </div>
                                 <div>
@@ -217,7 +205,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
                                         autoComplete="current-password"
-                                        className="w-full px-3 py-2 text-xs rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="input text-[12.5px]"
                                     />
                                 </div>
                                 <button

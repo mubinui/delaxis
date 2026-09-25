@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, Circle, RotateCcw, X } from 'lucide-react';
+import { useEffect } from 'react';
+import { Play, RotateCcw, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { API_BASE_URL } from '../api/client';
 import { useWorkflowStore } from '../stores/workflowStore';
+import { useUiStore } from '../stores/uiStore';
+import { StatusGlyph } from './shell/StatusGlyph';
+import type { StatusShape } from './shell/StatusGlyph';
 
 const readSse = async (
     response: Response,
@@ -29,8 +32,15 @@ const readSse = async (
     }
 };
 
+const SHAPE: Record<string, StatusShape> = { running: 'busy', success: 'ok', error: 'bad', info: 'idle' };
+
+/**
+ * The run timeline hangs from the activity capsule, the way a build log hangs
+ * from Xcode's activity view: every agent handoff and tool call, in order.
+ */
 export const ExecutionTimeline = () => {
-    const [isOpen, setIsOpen] = useState(false);
+    const isOpen = useUiStore((state) => state.timelineOpen);
+    const setIsOpen = useUiStore((state) => state.setTimelineOpen);
     const {
         currentWorkflowId,
         executionTimeline,
@@ -74,66 +84,59 @@ export const ExecutionTimeline = () => {
         }
     };
 
-    const iconFor = (status: string) => {
-        if (status === 'running') return <Activity size={14} className="text-blue-500 animate-pulse" />;
-        if (status === 'success') return <CheckCircle2 size={14} className="text-emerald-500" />;
-        if (status === 'error') return <AlertTriangle size={14} className="text-red-500" />;
-        return <Circle size={14} className="ag-faint" />;
-    };
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setIsOpen(false); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isOpen, setIsOpen]);
 
-    if (!isOpen) {
-        return (
-            <button
-                onClick={() => setIsOpen(true)}
-                className="group absolute left-16 bottom-5 z-40 flex items-center gap-2 h-11 px-4 ag-surface-raised border rounded-full shadow-lg hover:shadow-xl transition-all"
-                title="Execution timeline"
-            >
-                <Activity size={16} className={liveRunActive ? 'text-blue-500 animate-pulse' : 'ag-muted'} />
-                <span className="text-xs font-semibold ag-text-secondary">Timeline</span>
-                {executionTimeline.length > 0 && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-primary)] px-1 text-[9px] font-bold text-white">
-                        {executionTimeline.length}
-                    </span>
-                )}
-            </button>
-        );
-    }
+    if (!isOpen) return null;
+
+    const started = executionTimeline[0] ? new Date(executionTimeline[0].timestamp).getTime() : 0;
 
     return (
-        <div className="absolute left-16 bottom-5 z-40 w-[360px] max-h-[46vh] ag-surface-raised border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-150">
-            <div className="px-4 py-3 ag-surface-subtle border-b border-[var(--color-ui-border)] flex items-center justify-between shrink-0">
-                <div className="min-w-0">
-                    <div className="text-sm font-bold ag-text">Live Execution</div>
-                    <div className="text-xs ag-muted truncate">{liveRunActive ? 'Running workflow…' : 'Agent and tool sequence'}</div>
+        <div
+            className="glass-strong absolute z-40 flex flex-col overflow-hidden"
+            style={{
+                left: '50%', translate: '-50% 0', top: 'calc(var(--toolbar-h) + 4px)',
+                width: 'min(520px, calc(100% - 32px))', maxHeight: 'min(440px, 62vh)',
+                borderRadius: 'var(--r-lg)', transformOrigin: 'top center', animation: 'pop .2s var(--ease-out) both',
+            }}
+            role="dialog"
+            aria-label="Run timeline"
+        >
+            <div className="flex shrink-0 items-center gap-2 py-2.5 pl-4 pr-2.5">
+                <div className="min-w-0 flex-1">
+                    <div className="headline">Run timeline</div>
+                    <div className="hint truncate">{liveRunActive ? 'Running the workflow…' : 'Every handoff and tool call, in order'}</div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={resetExecution} className="p-2 ag-muted hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors" title="Reset">
-                        <RotateCcw size={14} />
-                    </button>
-                    <button
-                        onClick={runLive}
-                        disabled={liveRunActive}
-                        className="px-3 py-1.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg text-xs font-semibold disabled:opacity-50 transition-colors"
-                    >
-                        Run Live
-                    </button>
-                    <button onClick={() => setIsOpen(false)} className="p-2 ag-muted hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors" title="Close">
-                        <X size={14} />
-                    </button>
-                </div>
+                <button onClick={resetExecution} className="btn btn-ghost btn-icon" title="Clear the timeline" aria-label="Clear the timeline">
+                    <RotateCcw size={14} />
+                </button>
+                <button onClick={runLive} disabled={liveRunActive} className="btn btn-sm">
+                    <Play size={10} fill="currentColor" /> Run live
+                </button>
+                <button onClick={() => setIsOpen(false)} className="btn btn-ghost btn-icon" title="Close" aria-label="Close the timeline">
+                    <X size={14} />
+                </button>
             </div>
-            <div className="overflow-y-auto p-3 space-y-2 min-h-0">
+            <div className="scroll-soft min-h-0 pb-1.5">
                 {executionTimeline.length === 0 ? (
-                    <div className="text-xs ag-muted p-3 ag-surface-subtle rounded-lg">Run a workflow to see every agent transfer and tool call in order.</div>
+                    <p className="hint px-4 pb-3">Run a workflow to see every agent transfer and tool call in order.</p>
                 ) : (
                     executionTimeline.map((item) => (
-                        <div key={item.id} className="flex gap-2 p-2 rounded-lg border ag-surface">
-                            <div className="pt-0.5">{iconFor(item.status)}</div>
+                        <div key={item.id} className="flex gap-2.5 px-4 py-2" style={{ boxShadow: '0 -1px 0 var(--line)' }}>
+                            <span className="pt-[4px]"><StatusGlyph shape={SHAPE[item.status] ?? 'idle'} /></span>
                             <div className="min-w-0 flex-1">
-                                <div className="text-xs font-semibold ag-text truncate">{item.label}</div>
-                                <div className="text-[10px] ag-muted">{new Date(item.timestamp).toLocaleTimeString()}</div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="min-w-0 flex-1 truncate text-[12.5px]">{item.label}</span>
+                                    <span className="mono text-dim">
+                                        {started ? `+${((new Date(item.timestamp).getTime() - started) / 1000).toFixed(1)} s` : ''}
+                                    </span>
+                                </div>
                                 {(item.type.includes('tool') || item.type === 'error' || item.type === 'node_input' || item.type === 'node_output') && (
-                                    <pre className="mt-2 text-[10px] bg-slate-950 text-slate-100 p-2 rounded overflow-auto max-h-28">{JSON.stringify(item.payload, null, 2)}</pre>
+                                    <pre className="well mono mt-1.5 max-h-28 overflow-auto whitespace-pre-wrap p-2 text-[11px]" style={{ color: 'var(--muted)' }}>{JSON.stringify(item.payload, null, 2)}</pre>
                                 )}
                             </div>
                         </div>
@@ -141,9 +144,9 @@ export const ExecutionTimeline = () => {
                 )}
             </div>
             {liveResponse && (
-                <div className="border-t border-[var(--color-ui-border)] p-3 ag-surface-subtle shrink-0">
-                    <div className="text-[10px] font-bold uppercase ag-faint mb-1">Response</div>
-                    <div className="text-xs ag-text-secondary max-h-24 overflow-y-auto whitespace-pre-wrap">{liveResponse}</div>
+                <div className="shrink-0 px-4 py-3" style={{ boxShadow: '0 -1px 0 var(--line)' }}>
+                    <div className="h-section mb-1">Response</div>
+                    <div className="max-h-24 overflow-y-auto whitespace-pre-wrap text-[12.5px]">{liveResponse}</div>
                 </div>
             )}
         </div>
