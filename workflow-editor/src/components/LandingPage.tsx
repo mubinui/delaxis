@@ -10,9 +10,13 @@ import { StatusGlyph } from './shell/StatusGlyph';
 import { MoreMenu } from './shell/Toolbar';
 import { useBackendStatus } from '../hooks/useBackendStatus';
 import { useUiStore } from '../stores/uiStore';
+import { DEMO_ENABLED } from '#demo';
 
 const REPO_URL = 'https://github.com/mubinui/delaxis';
-const COMMAND = 'docker compose up';
+// The install command is for people who do not have Delaxis yet, so it only
+// appears on the public demo site. A copy serving this page is already running.
+// `docker run` needs no clone, unlike `docker compose up`.
+const COMMAND = 'docker run -p 8000:8000 ghcr.io/mubinui/delaxis:latest';
 
 const lane = (kind: string) => ({ '--lane': `var(--k-${kind})` } as CSSProperties);
 
@@ -227,7 +231,7 @@ export const LandingPage = () => {
                         API reference <ArrowRight size={15} />
                     </a>
                 </div>
-                <div className="mt-5"><CopyCommand /></div>
+                {DEMO_ENABLED && <div className="mt-5"><CopyCommand /></div>}
             </header>
 
             {/* The product on a desktop: the one place a wallpaper shows, as it
@@ -290,12 +294,13 @@ export const LandingPage = () => {
             </section>
 
             <section className="mx-auto flex max-w-[1080px] flex-col items-center px-5 pt-32 text-center md:pt-40">
-                <h2 className="landing-h2">Run it on your machine.</h2>
+                <h2 className="landing-h2">{DEMO_ENABLED ? 'Run it on your machine.' : 'Everything runs here.'}</h2>
                 <p className="landing-p mt-4 max-w-[640px] !text-[19px]">
-                    One container serves the API, the Studio and every deployed chatbot. SQLite by default; add
-                    Postgres, Qdrant or Redis when you need them.
+                    {DEMO_ENABLED
+                        ? 'One container serves the API, the Studio and every deployed chatbot. SQLite by default; add Postgres, Qdrant or Redis when you need them.'
+                        : 'This one server holds the API, the Studio and every chatbot you deploy.'}
                 </p>
-                <div className="mt-8"><CopyCommand /></div>
+                {DEMO_ENABLED && <div className="mt-8"><CopyCommand /></div>}
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                     <button type="button" className="btn btn-primary btn-lg" onClick={() => go('studio')}>Open the Studio</button>
                     <a className="btn btn-lg" href={REPO_URL} target="_blank" rel="noreferrer">View on GitHub</a>
