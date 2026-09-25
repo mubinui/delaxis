@@ -13,6 +13,7 @@ import contextlib
 import inspect
 import os
 import time
+import typing
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -33,6 +34,38 @@ logger = structlog.get_logger(__name__)
 # model that cannot do that emits the call as plain text instead of running it.
 DEFAULT_FALLBACK_MODEL = "openrouter/google/gemini-3.5-flash-lite"
 
+
+
+def knowledge_embedder() -> dict[str, Any]:
+    """The embedder crewai uses for knowledge sources: the retrieval service's own.
+
+    Left unset, crewai embeds knowledge with OpenAI using ``OPENAI_API_KEY`` —
+    which fails outright when that key belongs to another provider (an
+    OpenRouter key) and needlessly requires one otherwise. Handing it the
+    embedder the RAG service already uses keeps knowledge and retrieval on the
+    same vectors, and needs no key with the default local embeddings.
+    """
+    from chromadb.api.types import EmbeddingFunction as ChromaEmbeddingFunction
+    from crewai.rag.embeddings.providers.custom.embedding_callable import CustomEmbeddingFunction
+
+    from src.rag.service import get_rag_service
+
+    # Both bases: crewai's Agent validates the spec against chromadb's
+    # EmbeddingFunction, while its provider class expects its own.
+    class DelaxisEmbeddings(CustomEmbeddingFunction, ChromaEmbeddingFunction):
+        @staticmethod
+        def name() -> str:
+            # Chroma records this on the collection; a stable name is what lets
+            # the next run reuse it instead of refusing a "new" embedder.
+            return "delaxis-rag"
+
+        def __call__(self, input: Any) -> Any:  # noqa: A002 - crewai's parameter name
+            import numpy as np
+
+            vectors = get_rag_service().embedder.embed([str(text) for text in input])
+            return [np.asarray(vector, dtype=np.float32) for vector in vectors]
+
+    return {"provider": "custom", "config": {"embedding_callable": DelaxisEmbeddings}}
 
 @dataclass
 class CrewAIRuntimeResult:
@@ -228,7 +261,11 @@ class CrewAIWorkflowRuntime:
         }
 
         if knowledge_sources:
-            crew_kwargs["knowledge"] = knowledge_sources
+            # A list of sources is `knowledge_sources`; crewai's `knowledge` field
+            # takes a single Knowledge object and rejected the list outright, so
+            # every workflow with knowledge enabled failed to build its crew.
+            crew_kwargs["knowledge_sources"] = knowledge_sources
+            crew_kwargs["embedder"] = knowledge_embedder()
 
         if getattr(workflow, "planning", False):
             crew_kwargs["planning"] = True
@@ -526,6 +563,7 @@ class CrewAIWorkflowRuntime:
             agent_kwargs["memory"] = True
         if knowledge_sources:
             agent_kwargs["knowledge_sources"] = knowledge_sources
+            agent_kwargs["embedder"] = knowledge_embedder()
 
         return agent_cls(**agent_kwargs)
 
@@ -798,9 +836,20 @@ class CrewAIWorkflowRuntime:
         # typed argument schema (e.g. web_search's `query`). Without this the
         # wrapper is `(**kwargs)`, the schema is empty, and the model calls the
         # tool with no arguments — every plain-function tool silently fails.
+        #
+        # The hints are resolved in the tool's own module first. A module using
+        # `from __future__ import annotations` stores them as strings, and copied
+        # verbatim they would be resolved here instead — where `Optional` and the
+        # tool's own types are not defined — failing every workflow that uses the
+        # tool ("`Rag_Query` is not fully defined; you should define `Optional`").
         try:
-            run_tool.__signature__ = inspect.signature(func)
-            run_tool.__annotations__ = dict(getattr(func, "__annotations__", {}))
+            try:
+                run_tool.__signature__ = inspect.signature(func, eval_str=True)
+                run_tool.__annotations__ = typing.get_type_hints(func)
+            except (NameError, AttributeError, SyntaxError):
+                # A hint that cannot be resolved even at home: keep it as written.
+                run_tool.__signature__ = inspect.signature(func)
+                run_tool.__annotations__ = dict(getattr(func, "__annotations__", {}))
         except (ValueError, TypeError):
             pass
         return tool_decorator(tool_def.name)(run_tool)
