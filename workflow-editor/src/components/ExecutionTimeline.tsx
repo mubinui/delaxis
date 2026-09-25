@@ -1,36 +1,11 @@
 import { useEffect } from 'react';
 import { Play, RotateCcw, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { API_BASE_URL } from '../api/client';
 import { useWorkflowStore } from '../stores/workflowStore';
+import { runWorkflowLive } from '../utils/liveRun';
 import { useUiStore } from '../stores/uiStore';
 import { StatusGlyph } from './shell/StatusGlyph';
 import type { StatusShape } from './shell/StatusGlyph';
-
-const readSse = async (
-    response: Response,
-    onEvent: (event: Record<string, any>) => void,
-) => {
-    if (!response.body) throw new Error('No stream body returned');
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const frames = buffer.split('\n\n');
-        buffer = frames.pop() ?? '';
-        for (const frame of frames) {
-            const dataLine = frame.split('\n').find((line) => line.startsWith('data: '));
-            if (!dataLine) continue;
-            const raw = dataLine.slice(6);
-            if (raw === '[DONE]') continue;
-            onEvent(JSON.parse(raw));
-        }
-    }
-};
 
 const SHAPE: Record<string, StatusShape> = { running: 'busy', success: 'ok', error: 'bad', info: 'idle' };
 
@@ -47,7 +22,6 @@ export const ExecutionTimeline = () => {
         liveRunActive,
         liveResponse,
         resetExecution,
-        applyExecutionEvent,
     } = useWorkflowStore(
         useShallow((state) => ({
             currentWorkflowId: state.currentWorkflowId,
@@ -55,33 +29,17 @@ export const ExecutionTimeline = () => {
             liveRunActive: state.liveRunActive,
             liveResponse: state.liveResponse,
             resetExecution: state.resetExecution,
-            applyExecutionEvent: state.applyExecutionEvent,
         })),
     );
 
     const runLive = async () => {
         if (!currentWorkflowId) {
-            alert('Save or load a workflow before running live.');
+            alert('Save or open a workflow before running it live.');
             return;
         }
         const message = prompt('Live run input:', 'Hello');
         if (!message) return;
-        resetExecution();
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/v1/workflows/${currentWorkflowId}/execute/stream`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, metadata: { source: 'canvas_live_run' }, timeout_seconds: 120 }),
-            });
-            if (!response.ok) throw new Error(await response.text());
-            await readSse(response, applyExecutionEvent);
-        } catch (error) {
-            applyExecutionEvent({
-                type: 'error',
-                payload: { error_message: (error as Error).message },
-                timestamp: new Date().toISOString(),
-            });
-        }
+        await runWorkflowLive(currentWorkflowId, message);
     };
 
     useEffect(() => {

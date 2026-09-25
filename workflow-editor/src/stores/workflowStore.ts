@@ -61,8 +61,57 @@ interface WorkflowState {
     resetExecution: () => void;
     applyExecutionEvent: (event: Record<string, any>) => void;
     applyNodeIo: (nodeIo?: Record<string, any> | null, toolIo?: Record<string, any> | null) => void;
+    /** Start a run's flow at these nodes (triggers): their outgoing wires start moving. */
+    beginFlow: (fromNodeIds?: string[]) => void;
+    /** End a run: wires still moving turn green, or red if the run failed. */
+    finishFlow: (ok: boolean) => void;
     setNodeDragging: (dragging: boolean) => void;
 }
+
+/** Where a run has reached on a wire: moving, arrived, or failed. */
+export type EdgeFlow = 'running' | 'success' | 'error';
+
+// Nodes that never report events of their own; a run passes straight through
+// them, so a wire into a node they feed is lit back through them as well.
+const PASS_THROUGH = new Set(['trigger', 'router', 'workflow']);
+
+const RANK: Record<EdgeFlow, number> = { running: 1, success: 2, error: 3 };
+
+const withFlow = (edge: VisualEdge, flow: EdgeFlow | undefined): VisualEdge => {
+    const style = { ...(edge.style ?? {}) } as Record<string, unknown>;
+    delete style.stroke;
+    return { ...edge, animated: false, style, data: { ...(edge.data ?? {}), flow } } as VisualEdge;
+};
+
+const flowOf = (edge: VisualEdge): EdgeFlow | undefined => (edge.data as { flow?: EdgeFlow } | undefined)?.flow;
+
+/**
+ * Light the wires that lead into a node, and — through triggers and routers,
+ * which report nothing themselves — the wires that lead into those. A wire only
+ * moves forward: running, then success; error wins over both.
+ */
+const paintInto = (edges: VisualEdge[], nodes: VisualNode[], nodeId: string, flow: EdgeFlow): VisualEdge[] => {
+    const typeOf = new Map(nodes.map((node) => [node.id, node.type]));
+    const targets = new Set<string>([nodeId]);
+    const queue = [nodeId];
+    while (queue.length) {
+        const current = queue.shift()!;
+        for (const edge of edges) {
+            if (edge.target !== current) continue;
+            if (PASS_THROUGH.has(String(typeOf.get(edge.source))) && !targets.has(edge.source)) {
+                targets.add(edge.source);
+                queue.push(edge.source);
+            }
+        }
+    }
+    return edges.map((edge) => {
+        const touches = targets.has(edge.target) || (edge.source === nodeId && edge.sourceHandle === 'attach');
+        if (!touches) return edge;
+        const current = flowOf(edge);
+        if (current && RANK[current] > RANK[flow]) return edge;
+        return withFlow(edge, flow);
+    });
+};
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     nodes: [],
@@ -181,12 +230,27 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                 delete data.lastOutput;
                 return { ...node, data };
             }),
-            edges: get().edges.map((edge) => ({
-                ...edge,
-                animated: false,
-                style: { ...(edge.style ?? {}), stroke: 'var(--wire)' },
-            })),
+            edges: get().edges.map((edge) => withFlow(edge, undefined)),
         });
+    },
+
+    beginFlow: (fromNodeIds?: string[]) => {
+        const nodes = get().nodes;
+        const starts = new Set(fromNodeIds?.length ? fromNodeIds : nodes.filter((node) => node.type === 'trigger').map((node) => node.id));
+        set({ edges: get().edges.map((edge) => (starts.has(edge.source) ? withFlow(edge, 'running') : edge)) });
+    },
+
+    finishFlow: (ok: boolean) => {
+        const nodes = get().nodes;
+        let edges = get().edges.map((edge) => (flowOf(edge) === 'running' ? withFlow(edge, ok ? 'success' : 'error') : edge));
+        if (ok) {
+            // The answer reports nothing either: light the wires into it from any
+            // node the run actually reached.
+            const reached = new Set(edges.filter((edge) => flowOf(edge) === 'success').map((edge) => edge.target));
+            const outputs = new Set(nodes.filter((node) => node.type === 'output').map((node) => node.id));
+            edges = edges.map((edge) => (outputs.has(edge.target) && reached.has(edge.source) ? withFlow(edge, 'success') : edge));
+        }
+        set({ edges });
     },
 
     // Populate per-node run data from a completed run's metadata (node_io keyed
@@ -196,8 +260,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         if (!nodeIo && !toolIo) return;
         const timestamp = new Date().toISOString();
         const toolEntries = Object.values(toolIo ?? {}) as Array<Record<string, any>>;
-        set({
-            nodes: get().nodes.map((node) => {
+        const ran: string[] = [];
+        const nextNodes = get().nodes.map((node) => {
                 const config = node.data?.config ?? {};
                 const runData: Record<string, unknown> = {};
 
@@ -224,9 +288,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                 }
 
                 if (Object.keys(runData).length === 0) return node;
+                ran.push(node.id);
                 return { ...node, data: { ...node.data, ...runData } };
-            }),
-        });
+            });
+        // Every node that produced data was reached: its wires turn green.
+        let edges = get().edges;
+        for (const id of ran) edges = paintInto(edges, nextNodes, id, 'success');
+        set({ nodes: nextNodes, edges });
     },
 
     applyExecutionEvent: (event: Record<string, any>) => {
@@ -245,7 +313,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         const exactNode = payload.node_id
             ? nodes.find((candidate) => candidate.id === payload.node_id)
             : undefined;
-        const node = exactNode ?? nodes.find((candidate) => {
+        // Only look a node up by name when the event names one: otherwise an
+        // undefined name "matched" the first node without an id, and events like
+        // `start` or an early `error` were pinned on an arbitrary node.
+        const node = exactNode ?? (!targetName && !agentId ? undefined : nodes.find((candidate) => {
             const config = candidate.data?.config ?? {};
             return (
                 candidate.id === targetName ||
@@ -257,7 +328,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                 config.id === agentId ||
                 config.agent_id === agentId
             );
-        });
+        }));
 
         const status =
             eventType === 'error' ? 'error' :
@@ -320,18 +391,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                     },
                 };
             }),
-            edges: get().edges.map((edge) => {
-                if (!node || (edge.source !== node.id && edge.target !== node.id)) return edge;
-                return {
-                    ...edge,
-                    animated: status === 'running',
-                    style: {
-                        ...(edge.style ?? {}),
-                        stroke: status === 'error' ? 'var(--clay)' : 'var(--text)',
-                    },
-                };
-            }),
+            edges: node
+                ? paintInto(get().edges, nodes, node.id, status === 'error' ? 'error' : status === 'success' ? 'success' : 'running')
+                : get().edges,
         });
+        // A run that ends (or fails) without naming a node settles every wire.
+        if (eventType === 'done') get().finishFlow(true);
+        if (eventType === 'error' && !node) get().finishFlow(false);
     },
 }));
 

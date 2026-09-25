@@ -28,9 +28,11 @@ export const kindForTool = (config: Record<string, any> | undefined): NodeKind =
  * The glyph a node shows. A healthy node shows nothing, so the canvas stays
  * quiet; a run, a problem or a failure earns a mark.
  */
-export const nodeStatusShape = (status: unknown, health: 'ready' | 'warning' | 'error'): StatusShape | null => {
+export const nodeStatusShape = (status: unknown, health: 'ready' | 'warning' | 'error', ran = false): StatusShape | null => {
     if (status === 'running') return 'busy';
     if (status === 'error' || health === 'error') return 'bad';
+    // After a run, a node that produced output says so, as n8n's green tick does.
+    if (ran) return 'ok';
     if (health === 'warning') return 'warn';
     return null;
 };

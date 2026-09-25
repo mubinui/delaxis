@@ -6,7 +6,7 @@ import { Play, MessageSquare, Link } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import type { WorkflowNodeData } from '../../types/workflow';
 import { useWorkflowStore } from '../../stores/workflowStore';
-import { api } from '../../api/client';
+import { runWorkflowLive } from '../../utils/liveRun';
 import { laneStyle } from '../../utils/nodeTheme';
 import { StatusGlyph } from '../shell/StatusGlyph';
 
@@ -51,51 +51,24 @@ export const TriggerNode = memo(({ id, data, selected }: NodeProps<Node<Workflow
         setLocalStatus('running');
         setExecutingTrigger(id, null);
 
-        try {
-            // Create a session and send a test message
-            const sessionData = await api<{ session_id: string }>('/api/v1/sessions', {
-                method: 'POST',
-                body: JSON.stringify({
-                    workflow_id: targetWorkflowId,
-                    user_id: 'trigger-test-user',
-                    metadata: { source: 'trigger_node', trigger_type: config?.trigger_type || 'manual' }
-                }),
-            });
-            const sessionId = sessionData.session_id;
+        // Streamed, so the run plays on the canvas: this trigger's wire starts
+        // moving, each wire lights as the run reaches the node it feeds, and the
+        // path settles green — or red where it failed.
+        const outcome = await runWorkflowLive(
+            targetWorkflowId,
+            config?.trigger_type === 'chat'
+                ? String(config?.test_message || 'Hello, trigger test!')
+                : '{"trigger": "manual", "source": "workflow_editor"}',
+            { source: 'trigger_node', fromNodeIds: [id] },
+        );
 
-            // Send a test message to trigger the workflow
-            const result = await api(`/api/v1/sessions/${sessionId}/messages`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    message: config?.trigger_type === 'chat'
-                        ? 'Hello, trigger test!'
-                        : '{"trigger": "manual", "source": "workflow_editor"}',
-                    max_turns: 10,
-                    metadata: { triggered_from: 'canvas' }
-                }),
-            });
-            console.log('Trigger execution result:', result);
-
-            setLocalStatus('success');
-            setExecutingTrigger(id, 'success');
-
-            // Reset after 3 seconds
-            setTimeout(() => {
-                setLocalStatus('idle');
-                setExecutingTrigger(null, null);
-            }, 3000);
-
-        } catch (err) {
-            console.error('Trigger execution error:', err);
-            setLocalStatus('error');
-            setExecutingTrigger(id, 'error');
-
-            // Reset after 3 seconds
-            setTimeout(() => {
-                setLocalStatus('idle');
-                setExecutingTrigger(null, null);
-            }, 3000);
-        }
+        setLocalStatus(outcome);
+        setExecutingTrigger(id, outcome);
+        // The trigger's own mark clears; the wires keep the last run until the next.
+        setTimeout(() => {
+            setLocalStatus('idle');
+            setExecutingTrigger(null, null);
+        }, 3000);
     };
 
     const shape = isExecuting ? 'busy' : showSuccess ? 'ok' : showError ? 'bad' : null;

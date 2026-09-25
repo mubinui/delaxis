@@ -195,6 +195,10 @@ export const ChatPanel = () => {
         setInput('');
         setIsLoading(true);
         setError(null);
+        // The canvas plays the run: wires leave the trigger now, and the path
+        // turns green with the reply — or red if the workflow fails.
+        useWorkflowStore.getState().resetExecution();
+        useWorkflowStore.getState().beginFlow();
 
         let activeSessionId = sessionId;
         let outbound = userMessage;
@@ -260,8 +264,10 @@ export const ChatPanel = () => {
 
             // Surface per-node/tool run data on the canvas (badges + Data tab).
             applyNodeIo(result.metadata?.node_io, result.metadata?.tool_io);
+            useWorkflowStore.getState().finishFlow(true);
 
         } catch (err) {
+            useWorkflowStore.getState().finishFlow(false);
             const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
 
             // Auto-recovery: If session not found, expire it immediately and notify user

@@ -36,7 +36,7 @@ export const AgentNode = memo(({ id, data, selected }: NodeProps<Node<WorkflowNo
         state.edges.filter((edge) => edge.target === id && edge.targetHandle).map((edge) => edge.targetHandle).sort().join(','),
     );
 
-    const shape = nodeStatusShape(data.status, summary.health);
+    const shape = nodeStatusShape(data.status, summary.health, Boolean(data.lastOutput) && data.status !== 'error');
     const state = data.status === 'error' ? 'is-error' : data.status === 'running' ? 'is-running' : '';
     const sub = summary.isSelector ? `Selector · ${summary.model}` : summary.model;
     const hasMeta = summary.toolCount > 0 || summary.humanInput !== 'NEVER' || data.lastInput || data.lastOutput;

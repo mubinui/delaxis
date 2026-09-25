@@ -57,9 +57,12 @@ const WorkflowCanvasContent = () => {
         const decorate = (edge: (typeof edges)[number]) => {
             const attachment = Boolean(edge.targetHandle && edge.sourceHandle === 'attach');
             const touches = selectedId && (edge.source === selectedId || edge.target === selectedId);
+            // A run's path stays visible whatever is selected.
+            const flow = (edge.data as { flow?: string } | undefined)?.flow;
             const classes = [
                 attachment ? 'is-attachment' : '',
-                selectedId ? (touches ? 'is-active' : 'is-muted') : '',
+                flow ? `is-flow-${flow}` : '',
+                selectedId && !flow ? (touches ? 'is-active' : 'is-muted') : '',
             ].filter(Boolean).join(' ');
             return classes ? { ...edge, className: classes } : edge;
         };

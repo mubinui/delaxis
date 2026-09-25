@@ -64,7 +64,7 @@ export const ToolNode = memo(({ data, selected }: NodeProps<Node<WorkflowNodeDat
 
     const ids: string[] = Array.isArray(data.config?.tool_ids) ? data.config.tool_ids.map(String) : [];
     const Icon = ALL_ICONS[iconKey(summary.type, ids)];
-    const shape = nodeStatusShape(data.status, summary.health);
+    const shape = nodeStatusShape(data.status, summary.health, Boolean(data.lastOutput) && data.status !== 'error');
     const state = data.status === 'error' ? 'is-error' : data.status === 'running' ? 'is-running' : '';
 
     const caption = summary.issues[0]

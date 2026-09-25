@@ -1124,6 +1124,12 @@ select.dlx-input, select.input {
 .react-flow__edge.is-attachment .react-flow__edge-path { stroke-dasharray: 4 5; }
 .react-flow__edge.is-active .react-flow__edge-path { stroke: var(--text); stroke-width: 2; }
 .react-flow__edge.is-muted { opacity: .35; }
+/* A run on the canvas: the wire moves while the run is on its way, turns green
+   when the node it feeds has run, and red where the run failed. */
+.react-flow__edge.is-flow-running .react-flow__edge-path { stroke: var(--text); stroke-width: 2; stroke-dasharray: 6 5; animation: flow-dash .6s linear infinite; }
+.react-flow__edge.is-flow-success .react-flow__edge-path { stroke: var(--sage); stroke-width: 2; }
+.react-flow__edge.is-flow-error .react-flow__edge-path { stroke: var(--clay); stroke-width: 2; }
+@keyframes flow-dash { to { stroke-dashoffset: -11; } }
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:hover .react-flow__edge-path { stroke: var(--text); stroke-width: 2; }
 .react-flow__connection-path { stroke: var(--text); stroke-width: 1.5; }
