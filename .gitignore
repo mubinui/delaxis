@@ -77,3 +77,6 @@ data/provider_secrets.json
 # because a hundred megabytes of recordings and a synthesiser are not part of
 # the product.
 video/
+
+# The product film: its sources, renders and the finished video stay local.
+film/
