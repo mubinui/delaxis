@@ -51,10 +51,13 @@ const CopyCommand = () => {
 /* The canvas in miniature, drawn with the Studio's own node classes. */
 const DesignFragment = () => (
     <div
-        className="relative h-[440px] overflow-hidden rounded-[28px]"
+        className="@container relative h-[440px] overflow-hidden rounded-[28px]"
         style={{ background: 'var(--glass)', backgroundImage: 'radial-gradient(var(--grid-dot) 1px, transparent 1.3px)', backgroundSize: '22px 22px' }}
         aria-hidden="true"
     >
+        {/* Where the chapter is narrow the palette steps aside and the canvas
+            slides over and scales down, so no node is cut off. */}
+        <div className="absolute inset-0 origin-[0_50%] @max-[680px]:-translate-x-[190px] @max-[680px]:scale-[.85]">
         <svg className="absolute inset-0" width="100%" height="100%" style={{ overflow: 'visible' }}>
             <path d="M298 196 C312 196 312 196 326 196" stroke="var(--wire)" strokeWidth="1.5" fill="none" />
             <path d="M558 196 C582 196 588 196 612 196" stroke="var(--text)" strokeWidth="2" fill="none" />
@@ -77,7 +80,8 @@ const DesignFragment = () => (
             <Flag size={20} strokeWidth={1.7} />
             <span className="node-caption"><span className="node-title">Answer</span><span className="node-sub">Result</span></span>
         </div>
-        <div className="glass-pane absolute" style={{ left: 20, top: 20, bottom: 20, width: 190 }}>
+        </div>
+        <div className="glass-pane absolute @max-[680px]:hidden" style={{ left: 20, top: 20, bottom: 20, width: 190 }}>
             <div className="headline px-4 pb-2 pt-3.5">Components</div>
             {([
                 ['Start', [['trigger', Play, 'Manual'], ['trigger', MessageSquare, 'Chat']]],
@@ -100,9 +104,30 @@ const DesignFragment = () => (
     </div>
 );
 
+const PROVIDERS = [
+    ['OpenRouter', 'ok', 'Set'],
+    ['Google Gemini', 'ok', 'Set'],
+    ['OpenAI', 'ok', 'Set'],
+    ['Anthropic Claude', 'warn', 'Rejected'],
+    ['xAI Grok', 'idle', 'No key'],
+    ['Ollama (Local)', 'idle', 'Not running'],
+] as const;
+
+/* The Test chat beside the model tester. Sized by its own width, not the
+   viewport's: the two panes sit side by side only where both fit, and the
+   tester steps aside when the chapter is narrow. */
 const TestFragment = () => (
-    <div className="grid h-[440px] grid-cols-[360px_minmax(0,1fr)] gap-6 rounded-[28px] p-7" style={{ background: 'var(--glass)' }} aria-hidden="true">
-        <div className="flex flex-col justify-end gap-3 rounded-[22px] p-4" style={{ background: 'var(--window)', boxShadow: '0 0 0 .5px var(--lg-edge), var(--shadow-md)' }}>
+    <div className="@container rounded-[28px] p-7" style={{ background: 'var(--glass)' }} aria-hidden="true">
+        <div className="grid h-[384px] grid-cols-1 gap-6 @min-[600px]:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-3 rounded-[22px] p-4" style={{ background: 'var(--window)', boxShadow: '0 0 0 .5px var(--lg-edge), var(--shadow-md)' }}>
+            <div className="flex items-center gap-2.5 pb-1">
+                <span className="text-[14px] font-semibold tracking-[-0.01em]">Test</span>
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-[12px]" style={{ color: 'var(--dim)' }}>
+                    <StatusGlyph shape="ok" /><span className="truncate">Support Triage</span>
+                </span>
+            </div>
+            <div className="msg-bot" style={{ color: 'var(--muted)' }}>Hi. I can search the web, answer from your documents, or work out the numbers.</div>
+            <div className="flex-1" />
             <div className="msg-user">What is 18% of 2,450?</div>
             <div className="trace">
                 <div><StatusGlyph shape="ok" /><span>Routed to <b style={{ color: 'var(--text)', fontWeight: 600 }}>calculator_agent</b></span><span className="trace-t">0.3 s</span></div>
@@ -116,22 +141,30 @@ const TestFragment = () => (
                 </div>
             </div>
         </div>
-        <div className="flex min-w-0 flex-col gap-3.5">
-            <div className="figures rounded-[18px] p-4" style={{ background: 'var(--window)' }}>
-                <div className="figure"><b>872<small>ms</small></b><span>Latency</span></div>
-                <div className="figure"><b>209</b><span>Tokens</span></div>
-                <div className="figure"><b>$0.000013</b><span>Cost</span></div>
+        <div className="hidden min-w-0 flex-col gap-3.5 @min-[600px]:flex">
+            <div className="figures rounded-[18px] px-4 py-3.5" style={{ background: 'var(--window)' }}>
+                {/* Cells sized by their figures, so a long cost is never squeezed into a third. */}
+                <div className="figure" style={{ flex: 'auto' }}><b>872<small>ms</small></b><span>Latency</span></div>
+                <div className="figure" style={{ flex: 'auto' }}><b>209</b><span>Tokens</span></div>
+                <div className="figure" style={{ flex: 'auto' }}><b>$0.000013</b><span>Cost</span></div>
             </div>
-            <div className="table-box flex-1">
+            <div className="table-box flex flex-1 flex-col">
                 <table className="mtable">
                     <thead><tr><th>Provider</th><th>Key</th></tr></thead>
                     <tbody>
-                        {([['OpenRouter', 'ok', 'Set'], ['Google Gemini', 'ok', 'Set'], ['Anthropic Claude', 'warn', 'Rejected'], ['Ollama (Local)', 'idle', 'Not running']] as const).map(([name, shape, text]) => (
-                            <tr key={name}><td><span className="row-title">{name}</span></td><td><span className="row-status"><StatusGlyph shape={shape} />{text}</span></td></tr>
+                        {PROVIDERS.map(([name, shape, text]) => (
+                            <tr key={name}>
+                                <td><span className="row-title block truncate">{name}</span></td>
+                                <td className="whitespace-nowrap"><span className="row-status"><StatusGlyph shape={shape} />{text}</span></td>
+                            </tr>
                         ))}
                     </tbody>
                 </table>
+                <div className="mt-auto px-3 py-2.5 text-[11.5px]" style={{ color: 'var(--dim)', borderTop: '1px solid var(--line)' }}>
+                    Keys stay on the server.
+                </div>
             </div>
+        </div>
         </div>
     </div>
 );
