@@ -3,8 +3,8 @@
 <!-- The mark inverts with the reader's GitHub theme, the same way the favicon
      and the Studio header do. -->
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="workflow-editor/svg/delaxis-tile-paper-blue-dark.svg">
-  <img src="workflow-editor/svg/delaxis-tile-paper-blue-light.svg" alt="Delaxis" width="88" height="88">
+  <source media="(prefers-color-scheme: dark)" srcset="workflow-editor/svg/delaxis-tile-graphite-dark.svg">
+  <img src="workflow-editor/svg/delaxis-tile-graphite-light.svg" alt="Delaxis" width="88" height="88">
 </picture>
 
 # Delaxis
@@ -68,9 +68,9 @@ Everything is configuration-driven. Agents, workflows, tools, prompts, and provi
 
 ## Screenshots
 
-| Live LLM tester | Deployment hub |
+| Model tester | Deployments |
 |---|---|
-| ![Live LLM tester](docs/images/llm-tester.png) | ![Deployments](docs/images/deployments.png) |
+| ![Model tester](docs/images/llm-tester.png) | ![Deployments](docs/images/deployments.png) |
 
 Every screenshot above is from the [live demo](https://mubinui.github.io/delaxis/) — click through it yourself before installing anything.
 
@@ -232,7 +232,7 @@ The global `LLM_MODEL` is only the default. Each agent can override it in the St
 | `base_url` | Point this agent at a different OpenAI-compatible endpoint |
 | `api_key_env` | Name of an environment variable to read this agent's key from |
 
-Use the **Live API** tester in the Studio to verify a key, model, latency, and cost before wiring it into an agent.
+Use the **Model tester** in the Studio to verify a key, model, latency, and cost before wiring it into an agent.
 
 ## Live voice
 
@@ -240,7 +240,7 @@ You can talk to a chatbot instead of typing, powered by the **Gemini Live** real
 
 - the Studio's test panel — a mic next to Send, so you can hear a workflow before deploying it
 - the Studio's **Builder** — talk through what you want to build; see [The Builder](#the-builder)
-- a deployed page at `/d/<name>/` — enable **Live voice** in the Launchpad's Deploy tab
+- a deployed page at `/d/<name>/` — enable **Live voice** in the Builder's Deploy tab
 
 Setup is one key:
 
