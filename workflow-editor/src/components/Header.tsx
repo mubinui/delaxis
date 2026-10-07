@@ -117,6 +117,9 @@ export const Header: React.FC = () => {
             name: workflowName,
             nodes: useWorkflowStore.getState().nodes,
             edges,
+            existing: currentWorkflowId
+                ? savedWorkflows.find((item) => item.id === currentWorkflowId)?.config ?? null
+                : null,
         });
 
         try {

@@ -267,3 +267,17 @@ def test_step_text_carries_no_session_identifiers_or_boilerplate() -> None:
     text = Runtime._task_description("Outline the piece.", final=False)
     for leaked in ("Session Trace", "Identity Context", "Runtime Parameters", "exhaustive"):
         assert leaked not in text
+
+
+# --- An agent is its instructions ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("system_message", [None, "", "   ", "You are a helpful AI assistant."])
+def test_agents_without_real_instructions_are_refused(client: TestClient, system_message) -> None:
+    body = {"id": "probe_no_instructions", "type": "conversable", "name": "Probe"}
+    if system_message is not None:
+        body["system_message"] = system_message
+    response = client.post("/api/v1/agents", json=body)
+    assert response.status_code == 422, response.text
+    assert "instructions" in response.text
+    assert client.get("/api/v1/agents/probe_no_instructions").status_code == 404

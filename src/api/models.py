@@ -164,7 +164,11 @@ class AgentConfigCreateRequest(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9_]+$", description="Unique agent identifier")
     type: str = Field(description="Agent type")
     name: str = Field(description="Agent display name (no spaces allowed)")
-    system_message: str | None = Field(default="You are a helpful AI assistant.")
+    system_message: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("system_message", "instruction"),
+        description="What the agent is for and how it behaves; required, no stand-in text",
+    )
     llm_config: dict[str, Any] | bool | None = None
     human_input_mode: str = Field(default="NEVER")
     code_execution_config: dict[str, Any] | bool | None = False

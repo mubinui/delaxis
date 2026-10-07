@@ -181,7 +181,9 @@ const itemToAgentCreate = (item: Partial<LibraryItem>) => {
         id,
         type,
         name,
-        system_message: String(config.instruction ?? config.system_message ?? 'You are a helpful AI assistant.'),
+        // No stand-in text: an agent without instructions is reported by the
+        // diagnostics and refused by the API, never quietly given a generic one.
+        system_message: String(config.instruction ?? config.system_message ?? ''),
         llm_config,
         agent_settings: Object.keys(agent_settings).length > 0 ? agent_settings : null,
         is_selector: Boolean(config.is_selector),

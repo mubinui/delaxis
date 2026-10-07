@@ -159,14 +159,58 @@ const restyleEdge = (edge: VisualEdge): VisualEdge => {
     } as VisualEdge;
 };
 
+/**
+ * The task a saved workflow assigns to each node, keyed by node id. A node's
+ * canvas config carries it as `task`/`expected_output`, which is exactly what
+ * the payload builder reads back, so the curated wording survives a save
+ * instead of being regenerated from the agent's description.
+ */
+function tasksByNode(config: Record<string, any> | undefined): Map<string, { task: string; expected_output?: string }> {
+    const map = new Map<string, { task: string; expected_output?: string }>();
+    for (const task of (Array.isArray(config?.tasks) ? config!.tasks : []) as any[]) {
+        const nodeId = String(task?.node_id ?? '');
+        const description = String(task?.description ?? '').trim();
+        if (!nodeId || !description) continue;
+        map.set(nodeId, {
+            task: description,
+            ...(task?.expected_output ? { expected_output: String(task.expected_output) } : {}),
+        });
+    }
+    return map;
+}
+
+function withTasks(nodes: VisualNode[], tasks: Map<string, { task: string; expected_output?: string }>): VisualNode[] {
+    if (tasks.size === 0) return nodes;
+    return nodes.map((node) => {
+        const task = node.type === 'agent' ? tasks.get(node.id) : undefined;
+        if (!task) return node;
+        const config = node.data?.config ?? {};
+        // The node's own edits win; the saved task only fills what is unset.
+        return {
+            ...node,
+            data: {
+                ...node.data,
+                config: {
+                    ...config,
+                    task: config.task ?? task.task,
+                    ...(task.expected_output && config.expected_output === undefined
+                        ? { expected_output: task.expected_output }
+                        : {}),
+                },
+            },
+        } as VisualNode;
+    });
+}
+
 export function workflowToCanvas(input: CanvasBuildInput): CanvasGraph {
     const { config, agents = [], tools = [] } = input;
     const topology = config?.topology ?? {};
     const canvas = config?.metadata?.visual_canvas ?? config;
+    const tasks = tasksByNode(config);
 
     if (hasVisualCanvas(canvas)) {
         const restoredEdges: VisualEdge[] = Array.isArray(canvas.edges) ? canvas.edges.map(restyleEdge) : [];
-        return { nodes: canvas.nodes as VisualNode[], edges: restoredEdges, generated: false };
+        return { nodes: withTasks(canvas.nodes as VisualNode[], tasks), edges: restoredEdges, generated: false };
     }
 
     const agentById = new Map(agents.map((agent) => [agent.id, agent]));
@@ -331,5 +375,5 @@ export function workflowToCanvas(input: CanvasBuildInput): CanvasGraph {
             .forEach((node, index) => edges.push(flowEdge(node.id, 'guardrail-final', 500 + index)));
     }
 
-    return { nodes, edges, generated: true };
+    return { nodes: withTasks(nodes, tasks), edges, generated: true };
 }

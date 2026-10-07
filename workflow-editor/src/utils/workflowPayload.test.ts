@@ -268,3 +268,56 @@ describe('buildWorkflowPayload memory and knowledge settings', () => {
         expect(create.knowledge).toEqual({ enabled: true, collections: ['handbook'], top_k: 8 });
     });
 });
+
+describe('re-saving an existing workflow', () => {
+    const graph = () => ({
+        nodes: [trigger('t1'), agent('a1', 'Helper')],
+        edges: [flowEdge('t1', 'a1')],
+    });
+
+    it('keeps the description, deployment setting, limits and metadata the file already had', () => {
+        const existing = {
+            description: 'Answers from the handbook and nothing else.',
+            deployment_auth_mode: 'public',
+            max_turns: 25,
+            enabled: false,
+            execution_config: { max_turns: 25, timeout_seconds: 180 },
+            metadata: { use_case: 'handbook questions', setup: ['Index the handbook'] },
+        };
+        const { create, update } = buildWorkflowPayload({ id: 'docs_qa', name: 'Docs', ...graph(), existing });
+        expect(create.description).toBe(existing.description);
+        expect(create.deployment_auth_mode).toBe('public');
+        expect(create.max_turns).toBe(25);
+        expect(create.enabled).toBe(false);
+        expect(create.execution_config).toEqual(existing.execution_config);
+        expect(create.metadata.use_case).toBe('handbook questions');
+        expect(create.metadata.setup).toEqual(['Index the handbook']);
+        expect(create.metadata.visual_canvas.nodes).toHaveLength(2);
+        expect(update.description).toBe(existing.description);
+        expect(update.deployment_auth_mode).toBe('public');
+        expect(update.metadata.use_case).toBe('handbook questions');
+    });
+
+    it('replaces a generated description instead of keeping it forever', () => {
+        const { create } = buildWorkflowPayload({
+            name: 'X', ...graph(), existing: { description: 'Workflow with 5 nodes and 4 edges' },
+        });
+        expect(create.description).toBe('Workflow with 2 nodes and 1 edges');
+    });
+
+    it('uses defaults for a brand-new workflow', () => {
+        const { create } = buildWorkflowPayload({ name: 'New', ...graph() });
+        expect(create.deployment_auth_mode).toBe('private');
+        expect(create.max_turns).toBe(10);
+        expect(create.enabled).toBe(true);
+        expect(create.execution_config).toBeUndefined();
+    });
+
+    it("keeps a node's saved task wording through the canvas round trip", () => {
+        const node = agent('a1', 'Helper');
+        node.data.config = { ...node.data.config, task: 'Answer strictly from the handbook.', expected_output: 'A cited answer.' };
+        const { create } = buildWorkflowPayload({ name: 'Docs', nodes: [trigger('t1'), node], edges: [flowEdge('t1', 'a1')] });
+        expect(create.tasks[0].description).toBe('Answer strictly from the handbook.');
+        expect(create.tasks[0].expected_output).toBe('A cited answer.');
+    });
+});

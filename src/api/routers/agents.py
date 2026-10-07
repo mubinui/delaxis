@@ -25,6 +25,27 @@ def _get_agents_config_path() -> Path:
     return Path("configs") / "agents.json"
 
 
+PLACEHOLDER_INSTRUCTIONS = {"you are a helpful ai assistant.", "you are a helpful assistant."}
+
+
+def _require_instructions(system_message: str | None) -> None:
+    """An agent is its instructions; refuse to store one without them.
+
+    Generic stand-in text is refused too: it used to be the default, so every
+    agent created without thought silently became "a helpful AI assistant".
+    """
+    text = (system_message or "").strip()
+    if not text or text.lower() in PLACEHOLDER_INSTRUCTIONS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "type": "validation_error",
+                "message": "The agent needs instructions: say what it is for and how it should "
+                "behave (system_message).",
+            },
+        )
+
+
 def _load_agents_config() -> dict:
     """Load agents configuration from file using config loader."""
     try:
@@ -79,6 +100,8 @@ async def create_agent_config(
         request_id=request_id,
         agent_id=body.id,
     )
+
+    _require_instructions(body.system_message)
 
     try:
         # Load existing config
@@ -278,6 +301,8 @@ async def update_agent_config(
         # Update agent
         agent = config["agents"][agent_idx]
         update_data = body.model_dump(exclude_unset=True)
+        if "system_message" in update_data:
+            _require_instructions(update_data["system_message"])
 
         # Validate tool references if tools are being updated
         if "tools" in update_data:

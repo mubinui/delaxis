@@ -183,12 +183,27 @@ const taskForNode = (node: VisualNode, index: number) => {
     };
 };
 
+const GENERATED_DESCRIPTION = /^Workflow with \d+ nodes? and \d+ edges?$/;
+
+/** A description written by a person, or nothing. Generated placeholders don't count. */
+const keptDescription = (existing: Record<string, any> | null | undefined): string | null => {
+    const text = String(existing?.description ?? '').trim();
+    return text && !GENERATED_DESCRIPTION.test(text) ? text : null;
+};
+
 export function buildWorkflowPayload(options: {
     id?: string | null;
     name: string;
     nodes: VisualNode[];
     edges: VisualEdge[];
+    /**
+     * The saved workflow being re-saved, if any. Its description, deployment
+     * setting, limits and metadata are carried through; the canvas only
+     * decides the graph. Without this every save reset them to defaults.
+     */
+    existing?: Record<string, any> | null;
 }) {
+    const existing = options.existing ?? null;
     const id = slugify(options.id || options.name, 'workflow');
     const agentNodes = options.nodes.filter((node) => node.type === 'agent');
     const links = compileFlowLinks(options.nodes, options.edges);
@@ -294,11 +309,12 @@ export function buildWorkflowPayload(options: {
     const create = {
         id,
         name: options.name,
-        description: `Workflow with ${options.nodes.length} nodes and ${options.edges.length} edges`,
+        description: keptDescription(existing)
+            ?? `Workflow with ${options.nodes.length} nodes and ${options.edges.length} edges`,
         pattern,
         entry_agent_id: entryNode ? agentIdForNode(entryNode) : backendNodes[0]?.agent_id ?? '',
-        max_turns: 10,
-        enabled: true,
+        max_turns: Number(existing?.max_turns ?? 10),
+        enabled: existing?.enabled ?? true,
         workflow_type: pattern === 'single' ? 'chatbot' : pattern,
         persistence: pattern === 'single' ? 'mongo_only' : 'postgres',
         topology,
@@ -334,10 +350,12 @@ export function buildWorkflowPayload(options: {
         event_listeners: [],
         mcp_servers: [],
         output_schema: outputSchema,
-        deployment_auth_mode: 'private',
+        deployment_auth_mode: String(existing?.deployment_auth_mode ?? 'private'),
+        ...(existing?.execution_config ? { execution_config: existing.execution_config } : {}),
         nodes: backendNodes,
         connections,
         metadata: {
+            ...(existing?.metadata ?? {}),
             visual_canvas: {
                 nodes: options.nodes,
                 edges: options.edges,
@@ -365,6 +383,7 @@ export function buildWorkflowPayload(options: {
         mcp_servers: create.mcp_servers,
         output_schema: create.output_schema,
         deployment_auth_mode: create.deployment_auth_mode,
+        ...(existing?.execution_config ? { execution_config: existing.execution_config } : {}),
         metadata: create.metadata,
     };
 

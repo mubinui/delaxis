@@ -174,3 +174,64 @@ describe('workflowToCanvas', () => {
         expect(edges).toEqual([]);
     });
 });
+
+describe('saved tasks', () => {
+    const saved = {
+        id: 'docs_qa',
+        name: 'Docs',
+        topology: {
+            type: 'single',
+            entry_node: 'rag_assistant',
+            nodes: [{ id: 'rag_assistant', agent_id: 'rag_assistant' }],
+            edges: [],
+        },
+        tasks: [
+            {
+                id: 'answer',
+                node_id: 'rag_assistant',
+                agent_id: 'rag_assistant',
+                description: 'Answer strictly from the indexed documents.',
+                expected_output: 'A cited answer.',
+            },
+        ],
+    };
+
+    it('puts each saved task on its node so a re-save does not regenerate it', () => {
+        const { nodes } = workflowToCanvas({ config: saved });
+        const node = nodes.find((n) => n.id === 'rag_assistant')!;
+        expect(node.data.config?.task).toBe('Answer strictly from the indexed documents.');
+        expect(node.data.config?.expected_output).toBe('A cited answer.');
+    });
+
+    it('does the same for a canvas the Studio saved', () => {
+        const config = {
+            ...saved,
+            metadata: {
+                visual_canvas: {
+                    nodes: [
+                        { id: 'trigger-chat', type: 'trigger', position: { x: 0, y: 0 }, data: { label: 'On Chat', config: {} } },
+                        { id: 'rag_assistant', type: 'agent', position: { x: 300, y: 0 }, data: { label: 'RAG', config: { id: 'rag_assistant' } } },
+                    ],
+                    edges: [],
+                },
+            },
+        };
+        const { nodes, generated } = workflowToCanvas({ config });
+        expect(generated).toBe(false);
+        expect(nodes.find((n) => n.id === 'rag_assistant')?.data.config?.task).toBe('Answer strictly from the indexed documents.');
+    });
+
+    it("never overrides wording the node already carries", () => {
+        const config = {
+            ...saved,
+            metadata: {
+                visual_canvas: {
+                    nodes: [{ id: 'rag_assistant', type: 'agent', position: { x: 0, y: 0 }, data: { label: 'RAG', config: { task: 'Edited on the canvas.' } } }],
+                    edges: [],
+                },
+            },
+        };
+        const { nodes } = workflowToCanvas({ config });
+        expect(nodes[0]?.data.config?.task).toBe('Edited on the canvas.');
+    });
+});
