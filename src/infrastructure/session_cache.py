@@ -1,13 +1,10 @@
 """Session caching layer using Redis."""
 
-import json
 import logging
-from typing import Optional
 from uuid import UUID
-from datetime import datetime
 
 from src.infrastructure.cache import RedisCache
-from src.memory.models import ConversationState, Message, AgentNote, MessageRole, AgentType
+from src.memory.models import ConversationState
 
 logger = logging.getLogger(__name__)
 
@@ -54,19 +51,19 @@ class SessionCache:
             JSON-compatible dictionary
         """
         # Convert Pydantic model to dict with JSON-compatible types
-        data = session.model_dump(mode='json')
-        
+        data = session.model_dump(mode="json")
+
         # Ensure UUIDs are strings
-        data['session_id'] = str(data['session_id'])
-        
+        data["session_id"] = str(data["session_id"])
+
         # Convert message IDs to strings
-        for msg in data.get('messages', []):
-            msg['id'] = str(msg['id'])
-        
+        for msg in data.get("messages", []):
+            msg["id"] = str(msg["id"])
+
         # Convert agent note IDs to strings
-        for note in data.get('agent_notes', []):
-            note['id'] = str(note['id'])
-        
+        for note in data.get("agent_notes", []):
+            note["id"] = str(note["id"])
+
         return data
 
     def _deserialize_session(self, data: dict) -> ConversationState:
@@ -80,11 +77,11 @@ class SessionCache:
         """
         # Convert string timestamps back to datetime objects if needed
         # Pydantic will handle this automatically in most cases
-        
+
         # Reconstruct the ConversationState from the dict
         return ConversationState(**data)
 
-    def get(self, session_id: UUID) -> Optional[ConversationState]:
+    def get(self, session_id: UUID) -> ConversationState | None:
         """Get session from cache.
 
         Args:
@@ -94,7 +91,7 @@ class SessionCache:
             Cached session or None if not found
         """
         key = self._session_key(session_id)
-        
+
         try:
             data = self.redis_cache.get_json(key)
             if data:
@@ -111,7 +108,7 @@ class SessionCache:
     def set(
         self,
         session: ConversationState,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> bool:
         """Set session in cache.
 
@@ -124,7 +121,7 @@ class SessionCache:
         """
         key = self._session_key(session.session_id)
         ttl = ttl or self.session_ttl
-        
+
         try:
             data = self._serialize_session(session)
             result = self.redis_cache.set_json(key, data, ttl)
@@ -145,7 +142,7 @@ class SessionCache:
             True if deleted, False otherwise
         """
         key = self._session_key(session_id)
-        
+
         try:
             result = self.redis_cache.delete(key)
             if result:
@@ -167,7 +164,7 @@ class SessionCache:
         key = self._session_key(session_id)
         return self.redis_cache.exists(key)
 
-    def refresh_ttl(self, session_id: UUID, ttl: Optional[int] = None) -> bool:
+    def refresh_ttl(self, session_id: UUID, ttl: int | None = None) -> bool:
         """Refresh TTL for a cached session.
 
         Args:
@@ -179,7 +176,7 @@ class SessionCache:
         """
         key = self._session_key(session_id)
         ttl = ttl or self.session_ttl
-        
+
         try:
             result = self.redis_cache.expire(key, ttl)
             if result:
@@ -228,7 +225,7 @@ class SessionCache:
             logger.error(f"Failed to clear sessions: {e}", exc_info=True)
             return 0
 
-    def get_session_metadata(self, session_id: UUID) -> Optional[dict]:
+    def get_session_metadata(self, session_id: UUID) -> dict | None:
         """Get only session metadata without full session data.
 
         Args:

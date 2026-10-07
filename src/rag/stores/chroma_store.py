@@ -83,14 +83,16 @@ class ChromaVectorStore:
         metadatas = (result.get("metadatas") or [[]])[0]
         for index, identifier in enumerate(ids):
             distance = distances[index] if index < len(distances) else 0.0
-            hits.append(SearchHit(
-                id=identifier,
-                text=documents[index] if index < len(documents) else "",
-                # Chroma reports cosine *distance*; the rest of this system
-                # ranks on similarity, where larger is better.
-                score=1.0 - float(distance),
-                metadata=dict(metadatas[index] or {}) if index < len(metadatas) else {},
-            ))
+            hits.append(
+                SearchHit(
+                    id=identifier,
+                    text=documents[index] if index < len(documents) else "",
+                    # Chroma reports cosine *distance*; the rest of this system
+                    # ranks on similarity, where larger is better.
+                    score=1.0 - float(distance),
+                    metadata=dict(metadatas[index] or {}) if index < len(metadatas) else {},
+                )
+            )
         return hits
 
     def delete(
@@ -125,8 +127,14 @@ class ChromaVectorStore:
     def stats(self, collection: str) -> dict[str, Any]:
         handle = self._collection(collection, create=False)
         if handle is None:
-            return {"collection": collection, "chunks": 0, "documents": 0,
-                    "dimensions": 0, "characters": 0, "backend": self.name}
+            return {
+                "collection": collection,
+                "chunks": 0,
+                "documents": 0,
+                "dimensions": 0,
+                "characters": 0,
+                "backend": self.name,
+            }
         rows = handle.get(include=["metadatas", "documents"])
         documents = rows.get("documents") or []
         metadatas = rows.get("metadatas") or []

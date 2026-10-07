@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +25,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def secrets_path() -> Path:
     """Location of the secret store, honouring the DELAXIS_DATA_DIR override."""
-    data_dir = Path(env("DELAXIS_DATA_DIR", str(_PROJECT_ROOT / "data")) or str(_PROJECT_ROOT / "data"))
+    data_dir = Path(
+        env("DELAXIS_DATA_DIR", str(_PROJECT_ROOT / "data")) or str(_PROJECT_ROOT / "data")
+    )
     return data_dir / "provider_secrets.json"
 
 
@@ -78,7 +80,7 @@ def set_secret(provider_id: str, api_key: str) -> None:
     payload = _load()
     payload["secrets"][str(provider_id)] = {
         "api_key": str(api_key),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     _save(payload)
 

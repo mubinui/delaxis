@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -10,16 +10,28 @@ repos:
       - id: check-toml
       - id: check-merge-conflict
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+  # Run the tools from the project's own lockfile so pre-commit, CI and a
+  # developer's shell all use the same versions.
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        name: ruff
+        entry: uv run --no-sync ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types: [python]
       - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.1
-    hooks:
+        name: ruff format
+        entry: uv run --no-sync ruff format
+        language: system
+        types: [python]
       - id: mypy
-        additional_dependencies: [types-all]
-        args: [--ignore-missing-imports]
+        name: mypy
+        entry: uv run --no-sync mypy src
+        language: system
+        pass_filenames: false
+        files: ^src/
+      - id: eslint
+        name: eslint (studio)
+        entry: bash -c 'cd workflow-editor && npx eslint --max-warnings 0 "$@"' --
+        language: system
+        files: ^workflow-editor/src/.*\.(ts|tsx)$

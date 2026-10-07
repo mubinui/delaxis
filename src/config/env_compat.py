@@ -48,7 +48,7 @@ def env(name: str, default: str | None = None) -> str | None:
         return value
 
     if name.startswith(_PREFIX):
-        legacy = _LEGACY_PREFIX + name[len(_PREFIX):]
+        legacy = _LEGACY_PREFIX + name[len(_PREFIX) :]
         value = os.environ.get(legacy)
         if value is not None:
             _warn_once(legacy, name)

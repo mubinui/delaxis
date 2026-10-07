@@ -1,7 +1,6 @@
 """Configuration loader service for dynamic JSON configs."""
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -9,9 +8,9 @@ from dotenv import load_dotenv
 from pydantic import ValidationError
 
 from src.audit_logging import get_logger
+from src.config.agent_models import AgentsConfig
 from src.config.dynamic_models import APIProvidersConfig, PromptTemplatesConfig
 from src.config.tool_models import ToolsConfig
-from src.config.agent_models import AgentsConfig
 
 logger = get_logger(__name__)
 
@@ -69,11 +68,9 @@ class ConfigurationLoader:
             )
 
             if not self._providers_file.exists():
-                raise ConfigurationError(
-                    f"API providers config not found: {self._providers_file}"
-                )
+                raise ConfigurationError(f"API providers config not found: {self._providers_file}")
 
-            with open(self._providers_file, "r") as f:
+            with open(self._providers_file) as f:
                 data = json.load(f)
 
             config = APIProvidersConfig(**data)
@@ -88,17 +85,11 @@ class ConfigurationLoader:
             return config
 
         except json.JSONDecodeError as e:
-            raise ConfigurationError(
-                f"Invalid JSON in {self._providers_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Invalid JSON in {self._providers_file}: {e}") from e
         except ValidationError as e:
-            raise ConfigurationError(
-                f"Validation failed for {self._providers_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Validation failed for {self._providers_file}: {e}") from e
         except Exception as e:
-            raise ConfigurationError(
-                f"Failed to load providers config: {e}"
-            ) from e
+            raise ConfigurationError(f"Failed to load providers config: {e}") from e
 
     def load_prompts(self, use_cache: bool = True) -> PromptTemplatesConfig:
         """
@@ -124,11 +115,9 @@ class ConfigurationLoader:
             )
 
             if not self._prompts_file.exists():
-                raise ConfigurationError(
-                    f"Prompt templates config not found: {self._prompts_file}"
-                )
+                raise ConfigurationError(f"Prompt templates config not found: {self._prompts_file}")
 
-            with open(self._prompts_file, "r") as f:
+            with open(self._prompts_file) as f:
                 data = json.load(f)
 
             config = PromptTemplatesConfig(**data)
@@ -142,17 +131,11 @@ class ConfigurationLoader:
             return config
 
         except json.JSONDecodeError as e:
-            raise ConfigurationError(
-                f"Invalid JSON in {self._prompts_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Invalid JSON in {self._prompts_file}: {e}") from e
         except ValidationError as e:
-            raise ConfigurationError(
-                f"Validation failed for {self._prompts_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Validation failed for {self._prompts_file}: {e}") from e
         except Exception as e:
-            raise ConfigurationError(
-                f"Failed to load prompts config: {e}"
-            ) from e
+            raise ConfigurationError(f"Failed to load prompts config: {e}") from e
 
     def load_tools(self, use_cache: bool = True) -> ToolsConfig:
         """
@@ -178,11 +161,9 @@ class ConfigurationLoader:
             )
 
             if not self._tools_file.exists():
-                raise ConfigurationError(
-                    f"Tools config not found: {self._tools_file}"
-                )
+                raise ConfigurationError(f"Tools config not found: {self._tools_file}")
 
-            with open(self._tools_file, "r") as f:
+            with open(self._tools_file) as f:
                 data = json.load(f)
 
             config = ToolsConfig(**data)
@@ -198,17 +179,11 @@ class ConfigurationLoader:
             return config
 
         except json.JSONDecodeError as e:
-            raise ConfigurationError(
-                f"Invalid JSON in {self._tools_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Invalid JSON in {self._tools_file}: {e}") from e
         except ValidationError as e:
-            raise ConfigurationError(
-                f"Validation failed for {self._tools_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Validation failed for {self._tools_file}: {e}") from e
         except Exception as e:
-            raise ConfigurationError(
-                f"Failed to load tools config: {e}"
-            ) from e
+            raise ConfigurationError(f"Failed to load tools config: {e}") from e
 
     def load_agents(self, use_cache: bool = True) -> AgentsConfig:
         """
@@ -234,11 +209,9 @@ class ConfigurationLoader:
             )
 
             if not self._agents_file.exists():
-                raise ConfigurationError(
-                    f"Agents config not found: {self._agents_file}"
-                )
+                raise ConfigurationError(f"Agents config not found: {self._agents_file}")
 
-            with open(self._agents_file, "r") as f:
+            with open(self._agents_file) as f:
                 data = json.load(f)
 
             config = AgentsConfig(**data)
@@ -252,17 +225,11 @@ class ConfigurationLoader:
             return config
 
         except json.JSONDecodeError as e:
-            raise ConfigurationError(
-                f"Invalid JSON in {self._agents_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Invalid JSON in {self._agents_file}: {e}") from e
         except ValidationError as e:
-            raise ConfigurationError(
-                f"Validation failed for {self._agents_file}: {e}"
-            ) from e
+            raise ConfigurationError(f"Validation failed for {self._agents_file}: {e}") from e
         except Exception as e:
-            raise ConfigurationError(
-                f"Failed to load agents config: {e}"
-            ) from e
+            raise ConfigurationError(f"Failed to load agents config: {e}") from e
 
     def reload_all(self) -> tuple[APIProvidersConfig, PromptTemplatesConfig, ToolsConfig]:
         """

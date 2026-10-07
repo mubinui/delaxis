@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import structlog
 
@@ -106,7 +107,8 @@ class ExecutionEventEmitter:
         output_payload: dict[str, Any] = {
             "raw": raw,
             "agent": getattr(task_output, "agent", None),
-            "expected_output": getattr(task_output, "expected_output", None) or meta.expected_output,
+            "expected_output": getattr(task_output, "expected_output", None)
+            or meta.expected_output,
             "description": description,
         }
         if truncated:
@@ -187,7 +189,9 @@ class ExecutionEventEmitter:
         payload: dict[str, Any] = {
             "name": name,
             "tool_id": tool_id,
-            "result": _truncate(result if isinstance(result, str) else str(result) if result is not None else None)[0],
+            "result": _truncate(
+                result if isinstance(result, str) else str(result) if result is not None else None
+            )[0],
             "duration_ms": duration_ms,
         }
         if error:

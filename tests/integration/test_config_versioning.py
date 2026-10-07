@@ -1,9 +1,10 @@
 """Integration tests for configuration versioning API."""
 
-import pytest
 from datetime import datetime
+from unittest.mock import MagicMock, Mock
+
+import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, MagicMock
 
 from src.api.main import app
 from src.config.versioned_service import ConfigVersion
@@ -24,22 +25,22 @@ def mock_auth():
     mock_current_user.user_id = "test_user"
     mock_current_user.username = "testuser"
     mock_current_user.role = "admin"
-    
+
     return mock_current_user
 
 
 @pytest.fixture
 def client(mock_auth, mock_versioned_service):
     """Create test client with mocked authentication and services."""
-    from src.api.routers.configs import require_user, require_admin, get_versioned_config_service
-    
+    from src.api.routers.configs import get_versioned_config_service, require_admin, require_user
+
     # Override dependencies
     app.dependency_overrides[require_user] = lambda: mock_auth
     app.dependency_overrides[require_admin] = lambda: mock_auth
     app.dependency_overrides[get_versioned_config_service] = lambda: mock_versioned_service
-    
+
     yield TestClient(app)
-    
+
     # Clean up
     app.dependency_overrides.clear()
 
@@ -55,10 +56,10 @@ def test_get_config_success(client, mock_versioned_service, mock_auth):
         updated_by="user1",
     )
     mock_versioned_service.get_config.return_value = (config_data, version_info)
-    
+
     # Make request
     response = client.get("/api/v1/configs/agent/test_agent")
-    
+
     # Assertions
     assert response.status_code == 200
     data = response.json()
@@ -75,10 +76,10 @@ def test_get_config_not_found(client, mock_versioned_service, mock_auth):
     """Test retrieving a non-existent configuration."""
     # Setup mock
     mock_versioned_service.get_config.return_value = (None, None)
-    
+
     # Make request
     response = client.get("/api/v1/configs/agent/nonexistent")
-    
+
     # Assertions
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
@@ -89,7 +90,7 @@ def test_update_config_success(client, mock_versioned_service, mock_auth):
     # Setup mock for update
     new_etag = "new_etag_456"
     mock_versioned_service.update_config.return_value = (True, new_etag, None)
-    
+
     # Setup mock for get (after update)
     updated_config = {"name": "Updated Agent", "type": "conversable"}
     version_info = ConfigVersion(
@@ -99,7 +100,7 @@ def test_update_config_success(client, mock_versioned_service, mock_auth):
         updated_by="test_user",
     )
     mock_versioned_service.get_config.return_value = (updated_config, version_info)
-    
+
     # Make request
     response = client.put(
         "/api/v1/configs/agent/test_agent",
@@ -109,7 +110,7 @@ def test_update_config_success(client, mock_versioned_service, mock_auth):
         },
         headers={"If-Match": "3"},
     )
-    
+
     # Assertions
     assert response.status_code == 200
     data = response.json()
@@ -141,7 +142,7 @@ def test_update_config_version_conflict(client, mock_versioned_service, mock_aut
         },
     }
     mock_versioned_service.update_config.return_value = (False, None, conflict_response)
-    
+
     # Make request
     response = client.put(
         "/api/v1/configs/agent/test_agent",
@@ -151,7 +152,7 @@ def test_update_config_version_conflict(client, mock_versioned_service, mock_aut
         },
         headers={"If-Match": "3"},  # Stale version
     )
-    
+
     # Assertions
     assert response.status_code == 409
     data = response.json()
@@ -183,7 +184,7 @@ def test_update_config_etag_conflict(client, mock_versioned_service, mock_auth):
         },
     }
     mock_versioned_service.update_config.return_value = (False, None, conflict_response)
-    
+
     # Make request
     response = client.put(
         "/api/v1/configs/agent/test_agent",
@@ -192,7 +193,7 @@ def test_update_config_etag_conflict(client, mock_versioned_service, mock_auth):
         },
         headers={"If-Match": "stale_etag_xyz"},  # Stale etag
     )
-    
+
     # Assertions
     assert response.status_code == 409
     data = response.json()
@@ -206,7 +207,7 @@ def test_update_config_without_if_match_header(client, mock_versioned_service, m
     # Setup mock
     new_etag = "new_etag"
     mock_versioned_service.update_config.return_value = (True, new_etag, None)
-    
+
     updated_config = {"name": "Updated Agent"}
     version_info = ConfigVersion(
         version=2,
@@ -215,13 +216,13 @@ def test_update_config_without_if_match_header(client, mock_versioned_service, m
         updated_by="test_user",
     )
     mock_versioned_service.get_config.return_value = (updated_config, version_info)
-    
+
     # Make request without If-Match header
     response = client.put(
         "/api/v1/configs/agent/test_agent",
         json={"config_data": updated_config},
     )
-    
+
     # Assertions
     assert response.status_code == 200
     # Verify update was called with None version_token
@@ -259,10 +260,10 @@ def test_get_config_history_success(client, mock_versioned_service, mock_auth):
         },
     ]
     mock_versioned_service.get_config_history.return_value = history
-    
+
     # Make request
     response = client.get("/api/v1/configs/agent/test_agent/history?limit=10")
-    
+
     # Assertions
     assert response.status_code == 200
     data = response.json()
@@ -289,10 +290,10 @@ def test_get_config_history_with_limit(client, mock_versioned_service, mock_auth
         },
     ]
     mock_versioned_service.get_config_history.return_value = history
-    
+
     # Make request with limit
     response = client.get("/api/v1/configs/agent/test_agent/history?limit=1")
-    
+
     # Assertions
     assert response.status_code == 200
     data = response.json()
@@ -307,7 +308,7 @@ def test_rollback_config_success(client, mock_versioned_service, mock_auth):
     # Setup mock for rollback
     new_etag = "rollback_etag"
     mock_versioned_service.rollback_config.return_value = (True, new_etag)
-    
+
     # Setup mock for get (after rollback)
     rolled_back_config = {"name": "Agent v2", "value": 200}
     version_info = ConfigVersion(
@@ -317,13 +318,13 @@ def test_rollback_config_success(client, mock_versioned_service, mock_auth):
         updated_by="test_user",
     )
     mock_versioned_service.get_config.return_value = (rolled_back_config, version_info)
-    
+
     # Make request
     response = client.post(
         "/api/v1/configs/agent/test_agent/rollback",
         json={"target_version": 2},
     )
-    
+
     # Assertions
     assert response.status_code == 200
     data = response.json()
@@ -341,13 +342,13 @@ def test_rollback_config_target_not_found(client, mock_versioned_service, mock_a
     """Test rollback when target version doesn't exist."""
     # Setup mock
     mock_versioned_service.rollback_config.return_value = (False, "Version 99 not found")
-    
+
     # Make request
     response = client.post(
         "/api/v1/configs/agent/test_agent/rollback",
         json={"target_version": 99},
     )
-    
+
     # Assertions
     assert response.status_code == 400
     assert "not found" in response.json()["detail"].lower()
@@ -356,7 +357,7 @@ def test_rollback_config_target_not_found(client, mock_versioned_service, mock_a
 def test_concurrent_update_scenario(client, mock_versioned_service, mock_auth):
     """Test realistic concurrent update scenario."""
     # Scenario: Two users try to update the same config simultaneously
-    
+
     # User A gets config (version 5)
     config_v5 = {"name": "Agent v5", "value": 500}
     version_info_v5 = ConfigVersion(
@@ -366,16 +367,16 @@ def test_concurrent_update_scenario(client, mock_versioned_service, mock_auth):
         updated_by="user_a",
     )
     mock_versioned_service.get_config.return_value = (config_v5, version_info_v5)
-    
+
     response_a = client.get("/api/v1/configs/agent/test_agent")
     assert response_a.status_code == 200
     assert response_a.json()["version"] == 5
-    
+
     # User B also gets config (version 5)
     response_b = client.get("/api/v1/configs/agent/test_agent")
     assert response_b.status_code == 200
     assert response_b.json()["version"] == 5
-    
+
     # User B updates successfully (version 5 -> 6)
     mock_versioned_service.update_config.return_value = (True, "etag_v6", None)
     config_v6 = {"name": "Agent v6 by B", "value": 600}
@@ -386,7 +387,7 @@ def test_concurrent_update_scenario(client, mock_versioned_service, mock_auth):
         updated_by="user_b",
     )
     mock_versioned_service.get_config.return_value = (config_v6, version_info_v6)
-    
+
     response_b_update = client.put(
         "/api/v1/configs/agent/test_agent",
         json={"config_data": config_v6},
@@ -394,7 +395,7 @@ def test_concurrent_update_scenario(client, mock_versioned_service, mock_auth):
     )
     assert response_b_update.status_code == 200
     assert response_b_update.json()["version"] == 6
-    
+
     # User A tries to update with stale version (conflict)
     conflict_response = {
         "status": "conflict",
@@ -415,7 +416,7 @@ def test_concurrent_update_scenario(client, mock_versioned_service, mock_auth):
         },
     }
     mock_versioned_service.update_config.return_value = (False, None, conflict_response)
-    
+
     response_a_update = client.put(
         "/api/v1/configs/agent/test_agent",
         json={"config_data": {"name": "Agent v6 by A", "value": 650}},
@@ -455,18 +456,18 @@ def test_conflict_response_format(client, mock_versioned_service, mock_auth):
         },
     }
     mock_versioned_service.update_config.return_value = (False, None, conflict_response)
-    
+
     # Make request
     response = client.put(
         "/api/v1/configs/agent/test_agent",
         json={"config_data": {"name": "Updated Agent", "value": 800}},
         headers={"If-Match": "8"},
     )
-    
+
     # Assertions
     assert response.status_code == 409
     conflict = response.json()["detail"]
-    
+
     # Verify all required fields are present
     assert conflict["status"] == "conflict"
     assert "current_version" in conflict
@@ -474,7 +475,7 @@ def test_conflict_response_format(client, mock_versioned_service, mock_auth):
     assert "current_config" in conflict
     assert "provided_version" in conflict
     assert "diff" in conflict
-    
+
     # Verify diff structure
     diff = conflict["diff"]
     assert "added" in diff
@@ -508,17 +509,17 @@ def test_history_retrieval_endpoint(client, mock_versioned_service, mock_auth):
         },
     ]
     mock_versioned_service.get_config_history.return_value = history
-    
+
     # Make request
     response = client.get("/api/v1/configs/workflow/test_workflow/history")
-    
+
     # Assertions
     assert response.status_code == 200
     data = response.json()
     assert data["config_type"] == "workflow"
     assert data["config_id"] == "test_workflow"
     assert len(data["history"]) == 2
-    
+
     # Verify history entry structure
     entry = data["history"][0]
     assert "version" in entry
@@ -533,7 +534,7 @@ def test_rollback_endpoint(client, mock_versioned_service, mock_auth):
     """Test rollback endpoint creates new version."""
     # Setup mock
     mock_versioned_service.rollback_config.return_value = (True, "new_etag_after_rollback")
-    
+
     # Config after rollback (new version with old data)
     rolled_back_config = {"name": "Agent v3", "value": 300}
     version_info = ConfigVersion(
@@ -543,13 +544,13 @@ def test_rollback_endpoint(client, mock_versioned_service, mock_auth):
         updated_by="test_user",
     )
     mock_versioned_service.get_config.return_value = (rolled_back_config, version_info)
-    
+
     # Make request
     response = client.post(
         "/api/v1/configs/tool/test_tool/rollback",
         json={"target_version": 3},
     )
-    
+
     # Assertions
     assert response.status_code == 200
     data = response.json()

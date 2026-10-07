@@ -16,7 +16,7 @@ import hashlib
 import os
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -59,8 +59,14 @@ class RagConfig:
 
     def fingerprint(self) -> tuple:
         """Identity for caching — a change here means rebuilding the service."""
-        return (self.backend, self.embedding_provider, self.embedding_model,
-                self.embedding_base_url, self.chunk_chars, self.overlap_chars)
+        return (
+            self.backend,
+            self.embedding_provider,
+            self.embedding_model,
+            self.embedding_base_url,
+            self.chunk_chars,
+            self.overlap_chars,
+        )
 
 
 @dataclass
@@ -129,7 +135,7 @@ class RagService:
         name = self.collection_for(collection)
         base = {
             "source": source,
-            "ingested_at": datetime.now(timezone.utc).isoformat(),
+            "ingested_at": datetime.now(UTC).isoformat(),
             **(metadata or {}),
         }
 
@@ -140,8 +146,13 @@ class RagService:
             metadata=base,
         )
         if not chunks:
-            return Ingested(source=source, collection=name, chunks=0, characters=0,
-                            note="nothing to index — the document had no extractable text")
+            return Ingested(
+                source=source,
+                collection=name,
+                chunks=0,
+                characters=0,
+                note="nothing to index — the document had no extractable text",
+            )
 
         # Replace the previous version wholesale. Upserting by id would leave
         # the tail of a document that has since become shorter sitting in the
@@ -156,17 +167,24 @@ class RagService:
                 embedding=vector,
                 metadata={**chunk.metadata, "chunk": index, "chunks": len(chunks)},
             )
-            for index, (chunk, vector) in enumerate(zip(chunks, vectors))
+            for index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=False))
         ]
         self.store.upsert(name, records)
 
         logger.info(
-            "rag_ingested", source=source, collection=name,
-            chunks=len(records), replaced=replaced, backend=self.store.name,
+            "rag_ingested",
+            source=source,
+            collection=name,
+            chunks=len(records),
+            replaced=replaced,
+            backend=self.store.name,
         )
         return Ingested(
-            source=source, collection=name, chunks=len(records),
-            characters=sum(chunk.characters for chunk in chunks), replaced=replaced,
+            source=source,
+            collection=name,
+            chunks=len(records),
+            characters=sum(chunk.characters for chunk in chunks),
+            replaced=replaced,
         )
 
     def ingest_file(
@@ -192,13 +210,18 @@ class RagService:
 
         if not text.strip():
             return Ingested(
-                source=name, collection=self.collection_for(collection), chunks=0,
-                characters=0, extractor=extracted.get("extractor", "none"),
+                source=name,
+                collection=self.collection_for(collection),
+                chunks=0,
+                characters=0,
+                extractor=extracted.get("extractor", "none"),
                 note=extracted.get("note") or "no text could be extracted from this file",
             )
 
         result = self.ingest_text(
-            text, source=name, collection=collection,
+            text,
+            source=name,
+            collection=collection,
             metadata={**(metadata or {}), "path": str(target), "bytes": target.stat().st_size},
         )
         result.extractor = extracted.get("extractor", "")

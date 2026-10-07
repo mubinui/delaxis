@@ -1,9 +1,7 @@
 """Authentication and authorization module for Delaxis."""
 
-import hashlib
-import secrets
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from uuid import UUID
 
 import structlog
@@ -14,6 +12,13 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from src.config.settings import get_settings
+from src.infrastructure.database.auth_store import (
+    ACCEPTED_API_KEY_PREFIXES,
+    AuthStore,
+    generate_api_key,
+    get_auth_store,
+    hash_api_key,
+)
 from src.infrastructure.secrets import get_global_credential_manager
 
 logger = structlog.get_logger(__name__)
@@ -25,19 +30,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)
 
 
-from enum import Enum
-
-from src.infrastructure.database.auth_store import (
-    ACCEPTED_API_KEY_PREFIXES,
-    AuthStore,
-    generate_api_key,
-    get_auth_store,
-    hash_api_key,
-)
-
-
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     """User roles enum."""
+
     ADMIN = "admin"
     USER = "user"
     READONLY = "readonly"
@@ -45,45 +40,50 @@ class UserRole(str, Enum):
 
 class APIKeyCreate(BaseModel):
     """Request payload for creating an API key."""
+
     name: str = ""
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     role: UserRole = UserRole.USER
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
 
 
 class APIKeyResponse(BaseModel):
     """API key response — includes the plaintext key exactly once (at creation/rotation)."""
+
     id: UUID
     name: str
     key: str
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     role: UserRole
     active: bool = True
     created_at: datetime
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
 
 
 class APIKeyInfo(BaseModel):
     """API key metadata (never includes the key itself)."""
+
     id: UUID
     name: str
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     role: UserRole
     active: bool = True
     created_at: datetime
-    expires_at: Optional[datetime] = None
+    expires_at: datetime | None = None
 
 
 class UserCreate(BaseModel):
     """Request payload for creating a user."""
+
     username: str
     password: str
-    email: Optional[str] = None
+    email: str | None = None
     role: UserRole = UserRole.USER
 
 
 class UserResponse(BaseModel):
     """Public user representation."""
+
     id: UUID
     username: str
     role: UserRole
@@ -92,6 +92,7 @@ class UserResponse(BaseModel):
 
 class Token(BaseModel):
     """Model for JWT tokens."""
+
     access_token: str
     token_type: str
     expires_in: int
@@ -99,26 +100,28 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     """Model for token data."""
-    user_id: Optional[UUID] = None
-    username: Optional[str] = None
-    role: Optional[UserRole] = None
+
+    user_id: UUID | None = None
+    username: str | None = None
+    role: UserRole | None = None
 
 
 class CurrentUser(BaseModel):
     """Model for current authenticated user."""
-    user_id: Optional[UUID] = None
-    username: Optional[str] = None
-    api_key_id: Optional[UUID] = None
+
+    user_id: UUID | None = None
+    username: str | None = None
+    api_key_id: UUID | None = None
     role: UserRole
-    roles: Optional[list[str]] = None  # Multiple roles from x-client-ref header
+    roles: list[str] | None = None  # Multiple roles from x-client-ref header
     auth_method: str  # "api_key", "jwt", "keycloak", or "development"
-    raw_token: Optional[str] = None  # Raw JWT token for forwarding to external services
+    raw_token: str | None = None  # Raw JWT token for forwarding to external services
 
 
 # Re-export for backwards compatibility
 __all__ = [
     "APIKeyCreate",
-    "APIKeyInfo", 
+    "APIKeyInfo",
     "APIKeyResponse",
     "CurrentUser",
     "Token",
@@ -141,21 +144,21 @@ __all__ = [
 credential_manager = get_global_credential_manager()
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
     settings = get_settings()
     to_encode = data.copy()
-    
+
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.security.access_token_expire_minutes)
-    
+        expire = datetime.now(UTC) + timedelta(
+            minutes=settings.security.access_token_expire_minutes
+        )
+
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
-        to_encode, 
-        settings.security.secret_key, 
-        algorithm=settings.security.algorithm
+        to_encode, settings.security.secret_key, algorithm=settings.security.algorithm
     )
     return encoded_jwt
 
@@ -165,33 +168,31 @@ def verify_token(token: str) -> TokenData:
     settings = get_settings()
     try:
         payload = jwt.decode(
-            token, 
-            settings.security.secret_key, 
-            algorithms=[settings.security.algorithm]
+            token, settings.security.secret_key, algorithms=[settings.security.algorithm]
         )
         user_id: str = payload.get("sub")
         username: str = payload.get("username")
         role: str = payload.get("role")
-        
+
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
         token_data = TokenData(
             user_id=UUID(user_id) if user_id else None,
             username=username,
-            role=UserRole(role) if role else None
+            role=UserRole(role) if role else None,
         )
         return token_data
-    except JWTError:
+    except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
 
 
 async def authenticate_api_key(
@@ -221,7 +222,7 @@ async def authenticate_api_key(
         )
 
     # Check if key is expired
-    if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+    if api_key.expires_at and api_key.expires_at < datetime.now(UTC):
         logger.warning("api_key_expired", api_key_id=str(api_key.id))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -284,11 +285,12 @@ async def authenticate_jwt(
 
 
 async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> CurrentUser:
     """Get current authenticated user (supports Keycloak, API key, and JWT)."""
     # First check if user was already authenticated by Keycloak middleware
     from src.api.context import get_request_user
+
     keycloak_user = get_request_user()
     if keycloak_user is not None:
         logger.debug(
@@ -297,7 +299,7 @@ async def get_current_user(
             auth_method=keycloak_user.auth_method,
         )
         return keycloak_user
-    
+
     # In development mode, allow access without authentication
     settings = get_settings()
     if settings.app.environment == "development" and credentials is None:
@@ -306,16 +308,16 @@ async def get_current_user(
             user_id=UUID("00000000-0000-0000-0000-000000000000"),
             username="development",
             role=UserRole.ADMIN,
-            auth_method="development"
+            auth_method="development",
         )
-    
+
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Try API key authentication first
     if credentials.credentials.startswith(ACCEPTED_API_KEY_PREFIXES):
         return await authenticate_api_key(credentials)
@@ -326,25 +328,24 @@ async def get_current_user(
 
 def require_role(required_role: UserRole):
     """Dependency factory for role-based access control."""
+
     async def role_checker(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
         # Admin can access everything
         if current_user.role == UserRole.ADMIN:
             return current_user
-        
+
         # Check specific role requirements
         if required_role == UserRole.ADMIN and current_user.role != UserRole.ADMIN:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin access required"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
             )
         elif required_role == UserRole.USER and current_user.role == UserRole.READONLY:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User access required"
+                status_code=status.HTTP_403_FORBIDDEN, detail="User access required"
             )
-        
+
         return current_user
-    
+
     return role_checker
 
 
@@ -357,7 +358,7 @@ require_readonly = require_role(UserRole.READONLY)
 class UserManager:
     """Manages local user accounts backed by the SQL database."""
 
-    def __init__(self, store: Optional[AuthStore] = None):
+    def __init__(self, store: AuthStore | None = None):
         self.store = store or get_auth_store()
 
     def create_user(self, user_data: UserCreate) -> UserResponse:
@@ -381,7 +382,7 @@ class UserManager:
             created_at=user.created_at,
         )
 
-    def authenticate_user(self, username: str, password: str) -> Optional[UserResponse]:
+    def authenticate_user(self, username: str, password: str) -> UserResponse | None:
         """Verify username/password; return the user or None."""
         user = self.store.get_user_by_username(username)
         if user is None or not user.active:
@@ -400,7 +401,7 @@ class UserManager:
 class APIKeyManager:
     """Manages API keys backed by the SQL database."""
 
-    def __init__(self, store: Optional[AuthStore] = None):
+    def __init__(self, store: AuthStore | None = None):
         self.store = store or get_auth_store()
 
     def create_api_key(self, api_key_data: APIKeyCreate) -> APIKeyResponse:
@@ -425,7 +426,7 @@ class APIKeyManager:
             expires_at=api_key.expires_at,
         )
 
-    def list_api_keys(self, user_id: Optional[str] = None) -> list[APIKeyInfo]:
+    def list_api_keys(self, user_id: str | None = None) -> list[APIKeyInfo]:
         """List active API keys, optionally filtered by owner."""
         parsed_user_id = UUID(user_id) if user_id else None
         return [
@@ -448,7 +449,7 @@ class APIKeyManager:
             logger.info("api_key_revoked", api_key_id=str(api_key_id))
         return revoked
 
-    def rotate_api_key(self, api_key_id: UUID) -> Optional[APIKeyResponse]:
+    def rotate_api_key(self, api_key_id: UUID) -> APIKeyResponse | None:
         """Replace an API key's secret; the new plaintext key is returned only here."""
         plaintext = generate_api_key()
         api_key = self.store.rotate_api_key(api_key_id, hash_api_key(plaintext))

@@ -17,4 +17,6 @@ async def stream_crewai_result(
         yield builder.delta(ResponseDeltaType.REASONING_DELTA, step)
     if result.get("response"):
         yield builder.delta(ResponseDeltaType.TOKEN, {"text": result["response"]})
-    yield builder.delta(ResponseDeltaType.DONE, {"runtime": "crewai", "metadata": result.get("metadata", {})})
+    yield builder.delta(
+        ResponseDeltaType.DONE, {"runtime": "crewai", "metadata": result.get("metadata", {})}
+    )

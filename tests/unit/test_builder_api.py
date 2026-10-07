@@ -34,7 +34,9 @@ class _FakeAsyncClient:
 
 def test_call_llm_sync_raises_for_empty_message_content(monkeypatch):
     response = _FakeResponse({"choices": [{"message": {"content": None}}]})
-    monkeypatch.setattr(builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response))
+    monkeypatch.setattr(
+        builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response)
+    )
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(
@@ -52,7 +54,9 @@ def test_call_llm_sync_raises_for_empty_message_content(monkeypatch):
 
 def test_call_llm_sync_returns_message_content(monkeypatch):
     response = _FakeResponse({"choices": [{"message": {"content": "<html></html>"}}]})
-    monkeypatch.setattr(builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response))
+    monkeypatch.setattr(
+        builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response)
+    )
 
     content, truncated = asyncio.run(
         builder._call_llm_sync(
@@ -71,9 +75,18 @@ def test_call_llm_sync_reports_token_truncation(monkeypatch):
     """finish_reason=length means the document is unfinished — callers must not
     deploy it, because a cut-off page leaves an unterminated ```html fence."""
     response = _FakeResponse(
-        {"choices": [{"message": {"content": "```html\n<!doctype html><html>"}, "finish_reason": "length"}]}
+        {
+            "choices": [
+                {
+                    "message": {"content": "```html\n<!doctype html><html>"},
+                    "finish_reason": "length",
+                }
+            ]
+        }
     )
-    monkeypatch.setattr(builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response))
+    monkeypatch.setattr(
+        builder.httpx, "AsyncClient", lambda timeout=120: _FakeAsyncClient(response)
+    )
 
     _content, truncated = asyncio.run(
         builder._call_llm_sync(

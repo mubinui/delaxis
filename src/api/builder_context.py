@@ -35,15 +35,26 @@ _SUMMARY_CHARS = 160
 # Category order is deliberate: the families a chatbot most often needs come
 # first, so the most relevant tools are nearest the top of a long prompt.
 _CATEGORY_ORDER = [
-    "research", "knowledge", "files", "context", "data",
-    "privacy", "security", "audit", "integrations", "identity", "utilities",
+    "research",
+    "knowledge",
+    "files",
+    "context",
+    "data",
+    "privacy",
+    "security",
+    "audit",
+    "integrations",
+    "identity",
+    "utilities",
 ]
 
 
 def _config_dir() -> Path:
     from src.config.env_compat import env
 
-    return Path(env("DELAXIS_CONFIG_DIR", str(_PROJECT_ROOT / "configs")) or str(_PROJECT_ROOT / "configs"))
+    return Path(
+        env("DELAXIS_CONFIG_DIR", str(_PROJECT_ROOT / "configs")) or str(_PROJECT_ROOT / "configs")
+    )
 
 
 def _load(name: str) -> dict[str, Any]:
@@ -110,7 +121,9 @@ def agent_inventory() -> list[dict[str, str]]:
             {
                 "id": agent.get("id", ""),
                 "name": agent.get("name", ""),
-                "description": _summarise(agent.get("description") or agent.get("system_message", "")),
+                "description": _summarise(
+                    agent.get("description") or agent.get("system_message", "")
+                ),
                 "tools": ", ".join(agent.get("tools") or []) or "none",
             }
         )
@@ -175,7 +188,10 @@ def render_tool_catalogue(include_config_state: bool = True) -> str:
 
     ordered = sorted(
         grouped.items(),
-        key=lambda item: (_CATEGORY_ORDER.index(item[0]) if item[0] in _CATEGORY_ORDER else 99, item[0]),
+        key=lambda item: (
+            _CATEGORY_ORDER.index(item[0]) if item[0] in _CATEGORY_ORDER else 99,
+            item[0],
+        ),
     )
 
     lines = []
@@ -203,7 +219,8 @@ def render_workflow_catalogue() -> str:
     if not workflows:
         return "No workflows exist yet."
     return "\n".join(
-        f"  {w['id']} — {w['name']} | pattern: {w['pattern']}, {w['nodes']} node(s)" for w in workflows
+        f"  {w['id']} — {w['name']} | pattern: {w['pattern']}, {w['nodes']} node(s)"
+        for w in workflows
     )
 
 

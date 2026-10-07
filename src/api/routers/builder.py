@@ -2,15 +2,15 @@
 
 import json
 import re
-from typing import Any, AsyncGenerator, Literal
+from collections.abc import AsyncGenerator
+from typing import Any, Literal
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from src.api.auth import require_user, CurrentUser
 from src.api.builder_models import BuilderTask, ModelChoice, choose_model
 from src.api.builder_prompts import get_builder_prompt
 from src.api.chatbot_page import (
@@ -39,6 +39,7 @@ FRONTEND_MAX_TOKENS = 16384
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
@@ -47,8 +48,12 @@ class ChatMessage(BaseModel):
 class BuilderChatRequest(BaseModel):
     builder_type: BuilderType = Field(description="What to build: agent, tool, function, workflow")
     message: str = Field(description="The user's latest message")
-    history: list[ChatMessage] = Field(default_factory=list, description="Previous conversation turns")
-    provider_id: str = Field(default="openrouter", description="Provider ID from api-providers config")
+    history: list[ChatMessage] = Field(
+        default_factory=list, description="Previous conversation turns"
+    )
+    provider_id: str = Field(
+        default="openrouter", description="Provider ID from api-providers config"
+    )
     # Empty means "let the server pick the best available" — see builder_models.
     model_id: str = Field(default="", description="Model ID; empty selects the best available")
 
@@ -62,7 +67,9 @@ class BuilderGenerateRequest(BaseModel):
 
 class BuilderGenerateResponse(BaseModel):
     builder_type: BuilderType
-    config: dict | str = Field(description="Generated config (dict for agent/tool/workflow, str for function code)")
+    config: dict | str = Field(
+        description="Generated config (dict for agent/tool/workflow, str for function code)"
+    )
     raw: str = Field(description="Raw LLM output")
 
 
@@ -128,6 +135,7 @@ class FrontendGenerateResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _resolve_builder_model(body: Any, task: BuilderTask) -> ModelChoice:
     """Fill in ``provider_id``/``model_id`` for a builder task.
@@ -365,7 +373,11 @@ def _fallback_plan(prompt: str) -> dict:
                 "name": agent_id,
                 "description": prompt[:240],
                 "system_message": f"You are a helpful chatbot for this goal: {prompt}",
-                "llm_config": {"provider_id": "openrouter", "model": "openai/gpt-oss-20b", "temperature": 0.4},
+                "llm_config": {
+                    "provider_id": "openrouter",
+                    "model": "openai/gpt-oss-20b",
+                    "temperature": 0.4,
+                },
                 "human_input_mode": "NEVER",
                 "tools": [],
                 "max_consecutive_auto_reply": 10,
@@ -390,7 +402,12 @@ def _fallback_plan(prompt: str) -> dict:
             "metadata": {"builder_prompt": prompt},
         },
         "triggers": [
-            {"type": "chat", "name": "Public chat", "auth_mode": "public", "greeting": "Hi, how can I help?"}
+            {
+                "type": "chat",
+                "name": "Public chat",
+                "auth_mode": "public",
+                "greeting": "Hi, how can I help?",
+            }
         ],
         "missing_secrets": ["OPENROUTER_API_KEY"],
     }
@@ -403,17 +420,33 @@ def _coerce_tool_config(config: dict, raw_api: str, specification: str) -> dict:
         settings.get("api_url")
         or config.get("api_url")
         or config.get("url")
-        or (re.search(r"https?://[^\s'\"`]+", raw_api).group(0) if re.search(r"https?://[^\s'\"`]+", raw_api) else "")
+        or (
+            re.search(r"https?://[^\s'\"`]+", raw_api).group(0)
+            if re.search(r"https?://[^\s'\"`]+", raw_api)
+            else ""
+        )
     )
     method = (
         settings.get("http_method")
         or config.get("http_method")
         or config.get("method")
-        or (re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", raw_api, re.I).group(1).upper() if re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", raw_api, re.I) else "GET")
+        or (
+            re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", raw_api, re.I).group(1).upper()
+            if re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", raw_api, re.I)
+            else "GET"
+        )
     )
     name = config.get("name") or config.get("operation_id") or "normalized_api_tool"
-    tool_id = config.get("id") or re.sub(r"[^a-z0-9_]+", "_", str(name).lower()).strip("_") or "normalized_api_tool"
-    description = config.get("description") or specification or "Normalized API tool generated from raw input."
+    tool_id = (
+        config.get("id")
+        or re.sub(r"[^a-z0-9_]+", "_", str(name).lower()).strip("_")
+        or "normalized_api_tool"
+    )
+    description = (
+        config.get("description")
+        or specification
+        or "Normalized API tool generated from raw input."
+    )
     metadata = settings.get("_swagger_metadata") or config.get("_swagger_metadata") or {}
     if "parameters" not in metadata and config.get("parameters"):
         metadata["parameters"] = config["parameters"]
@@ -440,6 +473,7 @@ def _coerce_tool_config(config: dict, raw_api: str, specification: str) -> dict:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @router.post("/chat")
 async def builder_chat(
@@ -527,7 +561,7 @@ async def builder_generate(
         code = _extract_python_from_text(raw)
         if code is None:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Could not extract a Python code block from the LLM response. Try asking the builder to write the function first.",
             )
         return BuilderGenerateResponse(builder_type=body.builder_type, config=code, raw=raw)
@@ -535,7 +569,7 @@ async def builder_generate(
         config = _extract_json_from_text(raw)
         if config is None:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Could not extract a JSON config from the LLM response. Continue the conversation until the config is complete.",
             )
         return BuilderGenerateResponse(builder_type=body.builder_type, config=config, raw=raw)
@@ -579,7 +613,7 @@ def _digest_text(graph: GraphDigest) -> str:
     for node in graph.nodes:
         model = f" using {node.provider_id}/{node.model}" if node.model else ""
         tools = f" tools=[{', '.join(node.tools)}]" if node.tools else ""
-        lines.append(f"  - {node.id} ({node.type}) \"{node.label}\"{model}{tools}")
+        lines.append(f'  - {node.id} ({node.type}) "{node.label}"{model}{tools}')
     if graph.edges:
         lines.append("Connections:")
         lines.extend(f"  - {e.get('source', '?')} -> {e.get('target', '?')}" for e in graph.edges)
@@ -614,7 +648,11 @@ async def explain_diagnostic(request: Request, body: DiagnosticExplainRequest) -
         user = f"Workflow:\n{digest}\n\nQuestion: {body.question or 'What does this workflow do?'}"
     else:
         finding = body.diagnostic or {}
-        verb = "Explain what this means and why it matters" if body.mode == "explain" else "Give the exact steps to fix this"
+        verb = (
+            "Explain what this means and why it matters"
+            if body.mode == "explain"
+            else "Give the exact steps to fix this"
+        )
         user = (
             f"Workflow:\n{digest}\n\n"
             f"Finding [{finding.get('severity', 'error')}] {finding.get('code', '')}: "
@@ -720,9 +758,7 @@ def _render_themed_frontend(
     title = str(design.get("title") or body.title)[:80]
     greeting = str(design.get("greeting") or body.greeting)[:400]
     suggestions = [
-        str(item).strip()[:120]
-        for item in (design.get("suggestions") or [])
-        if str(item).strip()
+        str(item).strip()[:120] for item in (design.get("suggestions") or []) if str(item).strip()
     ][:4]
 
     config = {
@@ -776,7 +812,9 @@ async def _generate_design(
     design_base_url, design_api_key = base_url, api_key
     if design_model.model_id and design_model.provider_id != body.provider_id:
         try:
-            design_base_url, design_api_key, ready = _get_provider_credentials(design_model.provider_id)
+            design_base_url, design_api_key, ready = _get_provider_credentials(
+                design_model.provider_id
+            )
             if not ready:
                 design_base_url, design_api_key, model_id = base_url, api_key, body.model_id
         except HTTPException:
@@ -789,7 +827,9 @@ async def _generate_design(
 
 
 @router.post("/frontend/generate", response_model=FrontendGenerateResponse)
-async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequest) -> FrontendGenerateResponse:
+async def generate_chatbot_frontend(
+    request: Request, body: FrontendGenerateRequest
+) -> FrontendGenerateResponse:
     """Generate a deployable chatbot frontend.
 
     ``themed`` (the default) restyles the page that ships with the product, so
@@ -831,7 +871,11 @@ async def generate_chatbot_frontend(request: Request, body: FrontendGenerateRequ
             summary=(
                 f"Styled the built-in chat page: {applied['theme']} theme"
                 + (f" with {len(applied['brand'])} custom colours" if applied["brand"] else "")
-                + (f" and {len(applied['suggestions'])} starter prompts" if applied["suggestions"] else "")
+                + (
+                    f" and {len(applied['suggestions'])} starter prompts"
+                    if applied["suggestions"]
+                    else ""
+                )
                 + ". Sessions, history and the composer are the tested ones."
                 + (
                     f" Kept the theme's colour for {len(applied['contrast_notes'])} value(s) that "
@@ -1047,7 +1091,13 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
     covered = {str(n.get("agent_id") or n.get("id")) for n in nodes}
     for agent in agents:
         if agent["id"] not in covered:
-            nodes.append({"id": agent["id"], "agent_id": agent["id"], "description": agent.get("description", "")})
+            nodes.append(
+                {
+                    "id": agent["id"],
+                    "agent_id": agent["id"],
+                    "description": agent.get("description", ""),
+                }
+            )
 
     for node in nodes:
         node.setdefault("id", node.get("agent_id"))
@@ -1064,7 +1114,9 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
     topology["entry_node"] = entry
     topology.setdefault("edges", [])
     pattern = _coerce_pattern(workflow.get("pattern"), len(nodes))
-    topology["type"] = "single" if pattern == "single" else "sequential" if pattern == "sequential" else "graph"
+    topology["type"] = (
+        "single" if pattern == "single" else "sequential" if pattern == "sequential" else "graph"
+    )
 
     workflow["pattern"] = pattern
     workflow["topology"] = topology
@@ -1140,7 +1192,9 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
     raw, _truncated = await _call_llm_sync(base_url, api_key, body.model_id, messages)
     plan = _extract_json_from_text(raw)
     if plan is None:
-        raise HTTPException(status_code=422, detail="Could not extract a JSON chatbot plan from the model response")
+        raise HTTPException(
+            status_code=422, detail="Could not extract a JSON chatbot plan from the model response"
+        )
     normalized = _normalize_plan(plan, body.prompt)
     # Report the model that was actually used, so an escalated choice is visible
     # rather than silent.
@@ -1159,23 +1213,30 @@ async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> d
         api_url = guessed_url.group(0) if guessed_url else "https://api.example.com/path"
         method_match = re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", body.raw_api, re.I)
         method = method_match.group(1).upper() if method_match else "GET"
-        return _coerce_tool_config({
-            "id": "normalized_api_tool",
-            "name": "normalized_api_tool",
-            "description": body.specification or "Normalized API tool generated from raw input.",
-            "entrypoint": "src.tools.api_tool_executor:execute_api_tool",
-            "enabled": True,
-            "settings": {
-                "type": "api",
-                "api_url": api_url,
-                "http_method": method,
-                "auth_type": "none",
-                "timeout": 30,
-                "forward_user_context": False,
-                "_raw_source": body.raw_api,
+        return _coerce_tool_config(
+            {
+                "id": "normalized_api_tool",
+                "name": "normalized_api_tool",
+                "description": body.specification
+                or "Normalized API tool generated from raw input.",
+                "entrypoint": "src.tools.api_tool_executor:execute_api_tool",
+                "enabled": True,
+                "settings": {
+                    "type": "api",
+                    "api_url": api_url,
+                    "http_method": method,
+                    "auth_type": "none",
+                    "timeout": 30,
+                    "forward_user_context": False,
+                    "_raw_source": body.raw_api,
+                },
+                "warnings": [
+                    "Model API key was not configured, so only a heuristic normalization was used."
+                ],
             },
-            "warnings": ["Model API key was not configured, so only a heuristic normalization was used."],
-        }, body.raw_api, body.specification)
+            body.raw_api,
+            body.specification,
+        )
 
     messages = [
         {
@@ -1185,12 +1246,17 @@ async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> d
                 "Return only JSON matching /api/v1/tools schema. Include detailed parameter metadata in settings._swagger_metadata."
             ),
         },
-        {"role": "user", "content": f"Specification:\n{body.specification}\n\nRaw API:\n{body.raw_api}"},
+        {
+            "role": "user",
+            "content": f"Specification:\n{body.specification}\n\nRaw API:\n{body.raw_api}",
+        },
     ]
     raw, _truncated = await _call_llm_sync(base_url, api_key, body.model_id, messages)
     config = _extract_json_from_text(raw)
     if config is None:
-        raise HTTPException(status_code=422, detail="Could not extract a JSON tool config from the model response")
+        raise HTTPException(
+            status_code=422, detail="Could not extract a JSON tool config from the model response"
+        )
     coerced = _coerce_tool_config(config, body.raw_api, body.specification)
     coerced["model_id"] = body.model_id
     coerced["provider_id"] = body.provider_id
@@ -1200,15 +1266,17 @@ async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> d
 @router.post("/apply")
 async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dict:
     """Apply a generated plan by creating agents, tools, functions, and workflow config."""
-    from src.api.routers.agents import create_agent_config
+    from src.api.models import (
+        AgentConfigCreateRequest,
+        AgentConfigUpdateRequest,
+        ToolRegisterRequest,
+        WorkflowCreateRequest,
+        WorkflowUpdateRequest,
+    )
+    from src.api.routers.agents import create_agent_config, update_agent_config
+    from src.api.routers.functions import FunctionToolCreateRequest, create_function_tool
     from src.api.routers.tools import register_tool
-    from src.api.routers.functions import create_function_tool, FunctionToolCreateRequest
-    from src.api.routers.workflows import create_workflow
-    from src.api.models import AgentConfigCreateRequest, ToolRegisterRequest, WorkflowCreateRequest
-
-    from src.api.routers.agents import update_agent_config
-    from src.api.routers.workflows import update_workflow
-    from src.api.models import AgentConfigUpdateRequest, WorkflowUpdateRequest
+    from src.api.routers.workflows import create_workflow, update_workflow
 
     created: dict[str, list[str]] = {"agents": [], "tools": [], "functions": [], "workflows": []}
     updated: dict[str, list[str]] = {"agents": [], "tools": [], "workflows": []}
@@ -1216,7 +1284,9 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
     # Normalize here as well as at plan time: a plan can arrive edited by hand
     # or from an older session, and a missing derived field (entry_agent_id, a
     # pattern outside the enum) would otherwise fail the whole apply.
-    plan = _normalize_plan(body.plan, str((body.plan.get("workflow") or {}).get("description") or ""))
+    plan = _normalize_plan(
+        body.plan, str((body.plan.get("workflow") or {}).get("description") or "")
+    )
 
     def already_exists(exc: Exception) -> bool:
         return getattr(exc, "status_code", None) == status.HTTP_409_CONFLICT
@@ -1233,8 +1303,12 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
                 errors.append(f"agent {agent_id}: {exc}")
                 continue
             try:
-                payload = {k: v for k, v in agent.items() if k in AgentConfigUpdateRequest.model_fields}
-                await update_agent_config(request, str(agent_id), AgentConfigUpdateRequest(**payload))
+                payload = {
+                    k: v for k, v in agent.items() if k in AgentConfigUpdateRequest.model_fields
+                }
+                await update_agent_config(
+                    request, str(agent_id), AgentConfigUpdateRequest(**payload)
+                )
                 updated["agents"].append(str(agent_id))
             except Exception as update_exc:
                 errors.append(f"agent {agent_id}: {update_exc}")
@@ -1268,7 +1342,9 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
         except Exception as exc:
             if already_exists(exc):
                 try:
-                    payload = {k: v for k, v in workflow.items() if k in WorkflowUpdateRequest.model_fields}
+                    payload = {
+                        k: v for k, v in workflow.items() if k in WorkflowUpdateRequest.model_fields
+                    }
                     await update_workflow(request, workflow_id, WorkflowUpdateRequest(**payload))
                     updated["workflows"].append(workflow_id)
                 except Exception as update_exc:

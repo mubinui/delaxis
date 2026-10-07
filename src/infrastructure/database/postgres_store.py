@@ -1,7 +1,6 @@
 """PostgreSQL implementation of ConversationStore."""
 
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,10 +9,8 @@ from src.infrastructure.database import schema
 from src.infrastructure.database.connection import DatabaseConnectionManager
 from src.memory.models import (
     AgentNote,
-    AgentType,
     ConversationState,
     Message,
-    MessageRole,
 )
 from src.memory.store import ConversationStore
 
@@ -57,8 +54,8 @@ class PostgreSQLConversationStore(ConversationStore):
             db_session_obj = schema.Session(
                 turn_count=0,
                 active=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
                 session_metadata={},
             )
             db_session.add(db_session_obj)
@@ -68,7 +65,7 @@ class PostgreSQLConversationStore(ConversationStore):
             # Convert to ConversationState
             return self._db_session_to_conversation_state(db_session_obj)
 
-    async def get_session(self, session_id: UUID) -> Optional[ConversationState]:
+    async def get_session(self, session_id: UUID) -> ConversationState | None:
         """Retrieve a conversation session by ID.
 
         Args:
@@ -95,9 +92,7 @@ class PostgreSQLConversationStore(ConversationStore):
         """
         with self.db_manager.get_session() as db_session:
             # Get existing session
-            stmt = select(schema.Session).where(
-                schema.Session.session_id == state.session_id
-            )
+            stmt = select(schema.Session).where(schema.Session.session_id == state.session_id)
             db_session_obj = db_session.execute(stmt).scalar_one_or_none()
 
             if db_session_obj is None:
@@ -106,7 +101,7 @@ class PostgreSQLConversationStore(ConversationStore):
             # Update session fields
             db_session_obj.turn_count = state.turn_count
             db_session_obj.active = state.active
-            db_session_obj.updated_at = datetime.utcnow()
+            db_session_obj.updated_at = datetime.now(UTC)
             db_session_obj.session_metadata = state.metadata
 
             # Get existing message and note IDs

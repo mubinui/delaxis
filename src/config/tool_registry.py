@@ -6,24 +6,29 @@ Tools are passed directly to agent constructors via the tools parameter.
 
 import importlib
 import inspect
-from typing import Any, Callable, Optional, TYPE_CHECKING
-
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from src.config.loader import ConfigurationError
     from src.infrastructure.providers import ProviderAdapter
+
 
 # Lazy import to avoid circular dependency
 def _get_logger():
     from src.audit_logging import get_logger
+
     return get_logger(__name__)
+
 
 def _get_loader():
     from src.config.loader import get_loader
+
     return get_loader()
+
 
 def _get_configuration_error():
     from src.config.loader import ConfigurationError
+
     return ConfigurationError
 
 
@@ -34,10 +39,10 @@ class ToolDefinition:
         self,
         tool_id: str,
         function: Callable,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        is_async: Optional[bool] = None,
-        factory: Optional[Any] = None,
+        name: str | None = None,
+        description: str | None = None,
+        is_async: bool | None = None,
+        factory: Any | None = None,
     ) -> None:
         """
         Initialize a tool definition.
@@ -96,7 +101,7 @@ class ToolRegistry:
     def __init__(self, provider_adapter: Optional["ProviderAdapter"] = None) -> None:
         """
         Initialize the tool registry.
-        
+
         Args:
             provider_adapter: Optional provider adapter for unified client management
         """
@@ -107,9 +112,9 @@ class ToolRegistry:
         self,
         tool_id: str,
         function: Callable,
-        description: Optional[str] = None,
-        name: Optional[str] = None,
-        is_async: Optional[bool] = None,
+        description: str | None = None,
+        name: str | None = None,
+        is_async: bool | None = None,
     ) -> None:
         """
         Register a tool function.
@@ -159,8 +164,8 @@ class ToolRegistry:
         self,
         tool_id: str,
         settings: dict[str, Any],
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> None:
         """
         Register an API tool by creating a bound function.
@@ -180,14 +185,14 @@ class ToolRegistry:
         """
         try:
             from src.tools.api_tool_executor import create_api_tool_function
-            
+
             # Create the bound function
             function = create_api_tool_function(
                 tool_id=tool_id,
                 settings=settings,
                 description=description or f"API tool: {tool_id}",
             )
-            
+
             # Register the function
             self.register_tool(
                 tool_id=tool_id,
@@ -195,31 +200,29 @@ class ToolRegistry:
                 description=description,
                 name=name,
             )
-            
+
             _get_logger().info(
                 "Registered API tool",
                 tool_id=tool_id,
                 api_url=settings.get("api_url"),
             )
-            
+
         except Exception as e:
             _get_logger().error(
                 "Failed to register API tool",
                 tool_id=tool_id,
                 error=str(e),
             )
-            raise ValueError(
-                f"Failed to register API tool {tool_id}: {e}"
-            ) from e
+            raise ValueError(f"Failed to register API tool {tool_id}: {e}") from e
 
     def register_tool_from_entrypoint(
         self,
         tool_id: str,
         entrypoint: str,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        settings: Optional[dict[str, Any]] = None,
-        is_async: Optional[bool] = None,
+        name: str | None = None,
+        description: str | None = None,
+        settings: dict[str, Any] | None = None,
+        is_async: bool | None = None,
     ) -> None:
         """
         Register a tool by importing from an entrypoint.
@@ -254,7 +257,6 @@ class ToolRegistry:
         from src.tools.runtime_tool_factories import create_runtime_factory, is_factory_tool_type
 
         if is_factory_tool_type(tool_type):
-
             factory = create_runtime_factory(
                 tool_type=tool_type,
                 tool_id=tool_id,
@@ -276,13 +278,11 @@ class ToolRegistry:
             )
             return
 
-
         try:
             # Parse entrypoint
             if ":" not in entrypoint:
                 raise ValueError(
-                    f"Invalid entrypoint format: {entrypoint}. "
-                    "Expected 'module.path:function_name'"
+                    f"Invalid entrypoint format: {entrypoint}. Expected 'module.path:function_name'"
                 )
 
             module_path, function_name = entrypoint.split(":", 1)
@@ -313,11 +313,9 @@ class ToolRegistry:
                 entrypoint=entrypoint,
                 error=str(e),
             )
-            raise ValueError(
-                f"Failed to register tool {tool_id} from {entrypoint}: {e}"
-            ) from e
+            raise ValueError(f"Failed to register tool {tool_id} from {entrypoint}: {e}") from e
 
-    def get_tool(self, tool_id: str) -> Optional[ToolDefinition]:
+    def get_tool(self, tool_id: str) -> ToolDefinition | None:
         """
         Get tool definition by ID.
 
@@ -328,25 +326,25 @@ class ToolRegistry:
             ToolDefinition or None if not found
         """
         return self._tools.get(tool_id)
-    
+
     def get_tools_for_crewai_agent(
         self,
         tool_ids: list[str],
     ) -> list[Callable]:
         """
         Get tool functions for a CrewAI agent.
-        
+
         Args:
             tool_ids: List of tool identifiers
-            
+
         Returns:
             List of raw callables
-            
+
         Raises:
             ValueError: If a tool is not found
         """
         tools: list[Callable] = []
-        
+
         for tool_id in tool_ids:
             tool_def = self.get_tool(tool_id)
             if tool_def is None:
@@ -355,16 +353,16 @@ class ToolRegistry:
                     tool_id=tool_id,
                 )
                 continue
-            
+
             tools.append(tool_def.function)
-            
+
             _get_logger().debug(
                 "Added tool for CrewAI agent",
                 tool_id=tool_id,
                 tool_name=tool_def.name,
                 is_async=inspect.iscoroutinefunction(tool_def.function),
             )
-        
+
         return tools
 
     def get_tools_for_agent(self, tool_ids: list[str]) -> list[Callable]:
@@ -526,7 +524,7 @@ class ToolRegistry:
 
 
 # Singleton instance
-_tool_registry: Optional[ToolRegistry] = None
+_tool_registry: ToolRegistry | None = None
 
 
 def get_tool_registry() -> ToolRegistry:

@@ -15,7 +15,8 @@ import contextlib
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from src.audit_logging import get_logger
 
@@ -43,6 +44,7 @@ class RuntimeToolFactory(ABC):
 # ---------------------------------------------------------------------------
 # MCP
 # ---------------------------------------------------------------------------
+
 
 class McpToolFactory(RuntimeToolFactory):
     """One Delaxis tool config == one MCP server; expands into that server's tools."""
@@ -115,7 +117,9 @@ class McpToolFactory(RuntimeToolFactory):
                 {
                     "name": t.name,
                     "description": t.description,
-                    "args_schema": t.args_schema.model_json_schema() if getattr(t, "args_schema", None) else {},
+                    "args_schema": t.args_schema.model_json_schema()
+                    if getattr(t, "args_schema", None)
+                    else {},
                 }
                 for t in adapter.tools
             ]
@@ -147,11 +151,13 @@ class McpToolFactory(RuntimeToolFactory):
 # Database (NL2SQL)
 # ---------------------------------------------------------------------------
 
+
 def _make_delaxis_nl2sql_class() -> type:
     """Build the DelaxisNL2SQLTool class lazily so importing this module never
     requires crewai_tools/sqlalchemy."""
     from crewai_tools import NL2SQLTool
-    from sqlalchemy import create_engine, inspect as sa_inspect
+    from sqlalchemy import create_engine
+    from sqlalchemy import inspect as sa_inspect
 
     class DelaxisNL2SQLTool(NL2SQLTool):
         """Dialect-neutral NL2SQL: introspects schema via sqlalchemy.inspect().
@@ -169,7 +175,8 @@ def _make_delaxis_nl2sql_class() -> type:
             try:
                 inspector = sa_inspect(engine)
                 names = [
-                    n for n in inspector.get_table_names()
+                    n
+                    for n in inspector.get_table_names()
                     if not self.allowed_tables or n in self.allowed_tables
                 ]
                 self.tables = [{"table_name": n} for n in names]
@@ -236,6 +243,7 @@ class DatabaseToolFactory(RuntimeToolFactory):
 # Gmail
 # ---------------------------------------------------------------------------
 
+
 class GmailToolFactory(RuntimeToolFactory):
     def _capabilities(self) -> list[str]:
         return list(self.settings.get("capabilities") or ["send", "search", "read"])
@@ -250,20 +258,27 @@ class GmailToolFactory(RuntimeToolFactory):
         tools: list[Any] = []
 
         if "send" in self._capabilities():
+
             def send_email(to: str, subject: str, body: str, cc: str = "", bcc: str = "") -> str:
                 """Send an email from the connected Gmail account. 'to', 'cc' and 'bcc' accept comma-separated addresses. Returns the sent message id."""
-                return gmail_tool.send_email(account_email, to=to, subject=subject, body=body, cc=cc, bcc=bcc)
+                return gmail_tool.send_email(
+                    account_email, to=to, subject=subject, body=body, cc=cc, bcc=bcc
+                )
 
             tools.append(crewai_tool(f"{self.name}_send_email")(send_email))
 
         if "search" in self._capabilities():
+
             def search_emails(query: str, max_results: int = 10) -> str:
                 """Search the connected Gmail mailbox with Gmail query syntax (e.g. 'from:alice subject:invoice newer_than:7d is:unread'). Returns a JSON array of {id, threadId, date, from, to, subject, snippet}."""
-                return gmail_tool.search_emails(account_email, query=query, max_results=min(max_results, max_results_cap))
+                return gmail_tool.search_emails(
+                    account_email, query=query, max_results=min(max_results, max_results_cap)
+                )
 
             tools.append(crewai_tool(f"{self.name}_search_emails")(search_emails))
 
         if "read" in self._capabilities():
+
             def read_email(message_id: str) -> str:
                 """Read one email in full by its Gmail message id (obtained from search results). Returns JSON with headers and the plain-text body."""
                 return gmail_tool.read_email(account_email, message_id=message_id)
@@ -306,6 +321,7 @@ class GmailToolFactory(RuntimeToolFactory):
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
+
 
 def _database_factories() -> dict[str, type[RuntimeToolFactory]]:
     """Imported lazily: database_factories imports this module for the base class."""

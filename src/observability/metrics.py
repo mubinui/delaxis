@@ -1,7 +1,5 @@
 """Prometheus metrics for Delaxis."""
 
-from typing import Optional
-
 from prometheus_client import (
     REGISTRY,
     Counter,
@@ -244,4 +242,6 @@ def track_worker_pool_utilization(utilization: float) -> None:
 
 def track_execution_time(execution_type: str, workflow_id: str, duration: float) -> None:
     """Track execution time."""
-    execution_time_seconds.labels(execution_type=execution_type, workflow_id=workflow_id).observe(duration)
+    execution_time_seconds.labels(execution_type=execution_type, workflow_id=workflow_id).observe(
+        duration
+    )

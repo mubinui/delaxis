@@ -16,9 +16,7 @@ class OpenRouterConfig(BaseSettings):
 
     api_key: str = Field(default="mock_api_key_for_testing", alias="OPENROUTER_API_KEY")
     model: str = Field(default="openai/gpt-oss-20b", alias="OPENROUTER_MODEL")
-    base_url: str = Field(
-        default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL"
-    )
+    base_url: str = Field(default="https://openrouter.ai/api/v1", alias="OPENROUTER_BASE_URL")
 
 
 class ApplicationConfig(BaseSettings):
@@ -78,13 +76,13 @@ class TelemetryConfig(BaseSettings):
     enable_telemetry: bool = Field(default=True, alias="ENABLE_TELEMETRY")
     enable_metrics: bool = Field(default=True, alias="ENABLE_METRICS")
     prometheus_port: int = Field(default=9090, alias="PROMETHEUS_PORT")
-    
+
     # Debug mode configuration
     debug_mode: bool = Field(default=False, alias="DEBUG_MODE")
     log_llm_prompts: bool = Field(default=False, alias="LOG_LLM_PROMPTS")
     log_llm_responses: bool = Field(default=False, alias="LOG_LLM_RESPONSES")
     log_agent_state: bool = Field(default=False, alias="LOG_AGENT_STATE")
-    
+
     # Tracing configuration
     enable_tracing: bool = Field(default=True, alias="ENABLE_TRACING")
     trace_sampling_rate: float = Field(default=1.0, alias="TRACE_SAMPLING_RATE")
@@ -97,7 +95,7 @@ class SecurityConfig(BaseSettings):
     algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     encryption_key: str | None = Field(default=None, alias="ENCRYPTION_KEY")
-    
+
     # Rate limiting
     requests_per_minute: int = Field(default=60, alias="REQUESTS_PER_MINUTE")
     requests_per_hour: int = Field(default=1000, alias="REQUESTS_PER_HOUR")
@@ -140,22 +138,22 @@ class KeycloakConfig(BaseSettings):
     def issuer(self) -> str:
         """Expected token issuer."""
         return f"{self.server_url}/realms/{self.realm}"
-    
+
     def get_jwks_uri(self, realm: str | None = None) -> str:
         """Get JWKS URI for a specific realm."""
         realm_name = realm or self.realm
         return f"{self.server_url}/realms/{realm_name}/protocol/openid-connect/certs"
-    
+
     def get_token_endpoint(self, realm: str | None = None) -> str:
         """Get token endpoint for a specific realm."""
         realm_name = realm or self.realm
         return f"{self.server_url}/realms/{realm_name}/protocol/openid-connect/token"
-    
+
     def get_issuer(self, realm: str | None = None) -> str:
         """Get issuer for a specific realm."""
         realm_name = realm or self.realm
         return f"{self.server_url}/realms/{realm_name}"
-    
+
     def get_admin_secret(self, realm: str | None = None) -> str | None:
         """Get admin client secret for a specific realm."""
         return self.admin_client_secret
@@ -206,11 +204,15 @@ class ExternalServicesConfig(BaseSettings):
     service2_enabled: bool = Field(default=False, alias="SERVICE2_ENABLED")
 
     # RAG Pipeline configuration
-    rag_pipeline_base_url: str = Field(default="http://localhost:8003", alias="RAG_PIPELINE_BASE_URL")
+    rag_pipeline_base_url: str = Field(
+        default="http://localhost:8003", alias="RAG_PIPELINE_BASE_URL"
+    )
     rag_pipeline_timeout: int = Field(default=60, alias="RAG_PIPELINE_TIMEOUT")
     rag_pipeline_enabled: bool = Field(default=True, alias="RAG_PIPELINE_ENABLED")
     rag_pipeline_api_key: str | None = Field(default=None, alias="RAG_PIPELINE_API_KEY")
-    rag_pipeline_default_collection: str = Field(default="knowledge_base", alias="RAG_PIPELINE_DEFAULT_COLLECTION")
+    rag_pipeline_default_collection: str = Field(
+        default="knowledge_base", alias="RAG_PIPELINE_DEFAULT_COLLECTION"
+    )
 
 
 class Settings(BaseSettings):
@@ -233,7 +235,7 @@ class Settings(BaseSettings):
     keycloak: KeycloakConfig = Field(default_factory=KeycloakConfig)
     voice: VoiceConfig = Field(default_factory=VoiceConfig)
     external_services: ExternalServicesConfig = Field(default_factory=ExternalServicesConfig)
-    
+
     @property
     def database_url(self) -> str:
         """Database URL for platform persistence (SQLite by default)."""

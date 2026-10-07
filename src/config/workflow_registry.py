@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from src.audit_logging import get_logger
 from src.config.agent_models import AgentsConfig
@@ -24,7 +23,7 @@ class WorkflowValidationError(Exception):
 class WorkflowRegistry:
     """
     Registry for managing workflow configurations.
-    
+
     This class handles:
     - Loading workflow configurations from JSON files
     - Validating workflow configurations
@@ -36,24 +35,24 @@ class WorkflowRegistry:
     def __init__(
         self,
         config_path: str | Path = "configs/workflows.json",
-        agents_config: Optional[AgentsConfig] = None,
+        agents_config: AgentsConfig | None = None,
     ) -> None:
         """
         Initialize the workflow registry.
-        
+
         Args:
             config_path: Path to workflows configuration file
             agents_config: Optional agents configuration for validation
         """
         self.config_path = Path(config_path)
         self.agents_config = agents_config
-        self._workflows_config: Optional[WorkflowsConfig] = None
+        self._workflows_config: WorkflowsConfig | None = None
         self._load_config()
 
     def _load_config(self) -> None:
         """
         Load workflow configuration from file.
-        
+
         Raises:
             FileNotFoundError: If configuration file doesn't exist
             ValueError: If configuration is invalid
@@ -71,11 +70,11 @@ class WorkflowRegistry:
             return
 
         try:
-            with open(self.config_path, "r") as f:
+            with open(self.config_path) as f:
                 config_data = json.load(f)
 
             self._workflows_config = WorkflowsConfig(**config_data)
-            
+
             logger.info(
                 "Loaded workflow configuration",
                 path=str(self.config_path),
@@ -88,7 +87,7 @@ class WorkflowRegistry:
                 path=str(self.config_path),
                 error=str(e),
             )
-            raise ValueError(f"Invalid JSON in workflow configuration: {e}")
+            raise ValueError(f"Invalid JSON in workflow configuration: {e}") from e
         except Exception as e:
             logger.error(
                 "Failed to load workflow configuration",
@@ -102,13 +101,13 @@ class WorkflowRegistry:
         logger.info("Reloading workflow configuration")
         self._load_config()
 
-    def get_workflow(self, workflow_id: str) -> Optional[WorkflowConfig]:
+    def get_workflow(self, workflow_id: str) -> WorkflowConfig | None:
         """
         Get workflow configuration by ID.
-        
+
         Args:
             workflow_id: Workflow identifier
-            
+
         Returns:
             WorkflowConfig or None if not found
         """
@@ -119,19 +118,19 @@ class WorkflowRegistry:
     def list_workflows(self, enabled_only: bool = False) -> list[WorkflowConfig]:
         """
         List all workflow configurations.
-        
+
         Args:
             enabled_only: If True, return only enabled workflows
-            
+
         Returns:
             List of WorkflowConfig objects
         """
         if self._workflows_config is None:
             return []
-        
+
         if enabled_only:
             return self._workflows_config.get_enabled_workflows()
-        
+
         return self._workflows_config.workflows
 
     def validate_workflow(
@@ -141,41 +140,41 @@ class WorkflowRegistry:
     ) -> None:
         """
         Validate a workflow configuration.
-        
+
         Args:
             workflow: Workflow configuration to validate
             check_agent_references: Whether to validate agent references
-            
+
         Raises:
             WorkflowValidationError: If validation fails
         """
         try:
             # Validate pattern-specific configuration
             workflow.validate_pattern_config()
-            
+
             # Validate agent references if agents_config is available
             if check_agent_references and self.agents_config is not None:
                 self._validate_agent_references(workflow)
-            
+
             # Check for circular dependencies in sequential workflows
             if workflow.pattern == ConversationPattern.SEQUENTIAL:
                 self._check_circular_dependencies(workflow)
-            
+
             logger.debug(
                 "Workflow validation passed",
                 workflow_id=workflow.id,
             )
-            
+
         except ValueError as e:
-            raise WorkflowValidationError(f"Workflow validation failed: {e}")
+            raise WorkflowValidationError(f"Workflow validation failed: {e}") from e
 
     def validate_all(self, check_agent_references: bool = True) -> None:
         """
         Validate all workflow configurations.
-        
+
         Args:
             check_agent_references: Whether to validate agent references
-            
+
         Raises:
             WorkflowValidationError: If any validation fails
         """
@@ -185,30 +184,30 @@ class WorkflowRegistry:
         try:
             # Validate root configuration (checks for duplicate IDs)
             self._workflows_config.validate_all()
-            
+
             # Validate each workflow
             for workflow in self._workflows_config.workflows:
                 self.validate_workflow(
                     workflow,
                     check_agent_references=check_agent_references,
                 )
-            
+
             logger.info(
                 "All workflows validated successfully",
                 workflow_count=len(self._workflows_config.workflows),
             )
-            
+
         except (ValueError, WorkflowValidationError) as e:
             logger.error("Workflow validation failed", error=str(e))
-            raise WorkflowValidationError(str(e))
+            raise WorkflowValidationError(str(e)) from e
 
     def _validate_agent_references(self, workflow: WorkflowConfig) -> None:
         """
         Validate that all agent references exist in agent configuration.
-        
+
         Args:
             workflow: Workflow configuration to validate
-            
+
         Raises:
             ValueError: If any agent reference is invalid
         """
@@ -217,7 +216,7 @@ class WorkflowRegistry:
 
         # Get all agent IDs from the workflow
         agent_ids = workflow.get_all_agent_ids()
-        
+
         # Check each agent ID exists
         for agent_id in agent_ids:
             agent_config = self.agents_config.get_agent(agent_id)
@@ -225,7 +224,7 @@ class WorkflowRegistry:
                 raise ValueError(
                     f"Workflow {workflow.id}: Agent '{agent_id}' not found in agent configuration"
                 )
-        
+
         logger.debug(
             "Agent references validated",
             workflow_id=workflow.id,
@@ -257,9 +256,7 @@ class WorkflowRegistry:
             if source is None or target is None:
                 continue
             if source == target:
-                raise ValueError(
-                    f"Workflow {workflow.id}: Self-loop detected on node '{source}'"
-                )
+                raise ValueError(f"Workflow {workflow.id}: Self-loop detected on node '{source}'")
             if (target, source) in edge_pairs:
                 raise ValueError(
                     f"Workflow {workflow.id}: Circular dependency detected between "
@@ -275,7 +272,7 @@ class WorkflowRegistry:
     def set_agents_config(self, agents_config: AgentsConfig) -> None:
         """
         Set the agents configuration for validation.
-        
+
         Args:
             agents_config: Agents configuration
         """
@@ -285,10 +282,10 @@ class WorkflowRegistry:
     def add_workflow(self, workflow: WorkflowConfig) -> None:
         """
         Add a new workflow configuration.
-        
+
         Args:
             workflow: Workflow configuration to add
-            
+
         Raises:
             WorkflowValidationError: If workflow is invalid or ID already exists
         """
@@ -300,25 +297,23 @@ class WorkflowRegistry:
 
         # Check if workflow ID already exists
         if self._workflows_config.get_workflow(workflow.id) is not None:
-            raise WorkflowValidationError(
-                f"Workflow with ID '{workflow.id}' already exists"
-            )
+            raise WorkflowValidationError(f"Workflow with ID '{workflow.id}' already exists")
 
         # Validate the workflow
         self.validate_workflow(workflow)
 
         # Add to configuration
         self._workflows_config.workflows.append(workflow)
-        
+
         logger.info("Added workflow", workflow_id=workflow.id)
 
     def update_workflow(self, workflow: WorkflowConfig) -> None:
         """
         Update an existing workflow configuration.
-        
+
         Args:
             workflow: Workflow configuration to update
-            
+
         Raises:
             WorkflowValidationError: If workflow is invalid or not found
         """
@@ -333,25 +328,23 @@ class WorkflowRegistry:
                 break
 
         if existing_idx is None:
-            raise WorkflowValidationError(
-                f"Workflow with ID '{workflow.id}' not found"
-            )
+            raise WorkflowValidationError(f"Workflow with ID '{workflow.id}' not found")
 
         # Validate the workflow
         self.validate_workflow(workflow)
 
         # Update configuration
         self._workflows_config.workflows[existing_idx] = workflow
-        
+
         logger.info("Updated workflow", workflow_id=workflow.id)
 
     def remove_workflow(self, workflow_id: str) -> bool:
         """
         Remove a workflow configuration.
-        
+
         Args:
             workflow_id: ID of workflow to remove
-            
+
         Returns:
             True if removed, False if not found
         """
@@ -370,7 +363,7 @@ class WorkflowRegistry:
     def save_config(self) -> None:
         """
         Save current configuration to file.
-        
+
         Raises:
             ValueError: If no configuration is loaded
         """
@@ -381,8 +374,8 @@ class WorkflowRegistry:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Convert to dict and save
-        config_dict = self._workflows_config.model_dump(mode='json', exclude_none=True)
-        
+        config_dict = self._workflows_config.model_dump(mode="json", exclude_none=True)
+
         with open(self.config_path, "w") as f:
             json.dump(config_dict, f, indent=2)
 
@@ -394,13 +387,13 @@ class WorkflowRegistry:
 
 
 # Singleton instance
-_workflow_registry: Optional[WorkflowRegistry] = None
+_workflow_registry: WorkflowRegistry | None = None
 
 
 def get_workflow_registry() -> WorkflowRegistry:
     """
     Get the singleton workflow registry instance.
-    
+
     Returns:
         WorkflowRegistry instance
     """
@@ -414,7 +407,7 @@ def get_workflow_registry() -> WorkflowRegistry:
 def set_workflow_registry(registry: WorkflowRegistry) -> None:
     """
     Set the singleton workflow registry instance.
-    
+
     Args:
         registry: WorkflowRegistry instance to use
     """

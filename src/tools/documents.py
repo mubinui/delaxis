@@ -23,7 +23,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,7 @@ def generated_dir() -> Path:
 class Block:
     """One structural piece of a document."""
 
-    kind: str          # heading | paragraph | bullet | number | code | table | blank
+    kind: str  # heading | paragraph | bullet | number | code | table | blank
     text: str = ""
     level: int = 0
     cells: list[str] | None = None
@@ -276,7 +276,7 @@ th { background: #f2f4f7; font-weight: 600; }
 
 def _inline_html(text: str) -> str:
     """Escape, then restore the inline Markdown that is safe to render."""
-    text = (text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", text)
     text = re.sub(r"`(.+?)`", r"<code>\1</code>", text)
@@ -313,7 +313,9 @@ def _render_html(blocks: list[Block], title: str) -> bytes:
             flush_table()
 
         if block.kind == "heading":
-            body.append(f"<h{min(block.level, 6)}>{_inline_html(block.text)}</h{min(block.level, 6)}>")
+            body.append(
+                f"<h{min(block.level, 6)}>{_inline_html(block.text)}</h{min(block.level, 6)}>"
+            )
         elif block.kind in ("bullet", "number"):
             wanted = "ul" if block.kind == "bullet" else "ol"
             if open_list != wanted:
@@ -333,8 +335,8 @@ def _render_html(blocks: list[Block], title: str) -> bytes:
 
     heading = f"<h1>{_inline_html(title)}</h1>" if title else ""
     page = (
-        "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
-        f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        f'<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{_inline_html(title or 'Document')}</title>\n<style>{_HTML_STYLE}</style>\n"
         f"</head>\n<body>\n{heading}\n" + "\n".join(body) + "\n</body>\n</html>\n"
     )
@@ -354,11 +356,11 @@ def _render_csv(blocks: list[Block]) -> bytes:
 def _render_json(blocks: list[Block], title: str) -> bytes:
     payload = {
         "title": title,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "blocks": [
-            {"kind": block.kind, "level": block.level,
-             "text": block.text, "cells": block.cells}
-            for block in blocks if block.kind != "blank"
+            {"kind": block.kind, "level": block.level, "text": block.text, "cells": block.cells}
+            for block in blocks
+            if block.kind != "blank"
         ],
     }
     return json.dumps(payload, indent=2).encode("utf-8")
@@ -393,14 +395,18 @@ def generate_document(
     """
     chosen = (format or "pdf").strip().lower().lstrip(".")
     if chosen not in FORMATS:
-        return {"success": False,
-                "error": f"unknown format {chosen!r}; expected one of {', '.join(FORMATS)}"}
+        return {
+            "success": False,
+            "error": f"unknown format {chosen!r}; expected one of {', '.join(FORMATS)}",
+        }
     if not (content or "").strip():
         return {"success": False, "error": "content is empty"}
     if len(content) > MAX_CONTENT_CHARS:
-        return {"success": False,
-                "error": f"content is {len(content):,} characters, over the "
-                         f"{MAX_CONTENT_CHARS:,} limit"}
+        return {
+            "success": False,
+            "error": f"content is {len(content):,} characters, over the "
+            f"{MAX_CONTENT_CHARS:,} limit",
+        }
 
     blocks = parse_markdown(content)
     try:
@@ -417,10 +423,13 @@ def generate_document(
         elif chosen == "json":
             payload = _render_json(blocks, title)
         else:  # md, txt — the source is already what was asked for
-            header = f"# {title}\n\n" if title and chosen == "md" else (
-                f"{title}\n{'=' * len(title)}\n\n" if title else "")
+            header = (
+                f"# {title}\n\n"
+                if title and chosen == "md"
+                else (f"{title}\n{'=' * len(title)}\n\n" if title else "")
+            )
             payload = (header + content).encode("utf-8")
-    except RuntimeError as exc:                       # a missing optional package
+    except RuntimeError as exc:  # a missing optional package
         return {"success": False, "error": str(exc)}
     except Exception as exc:
         logger.exception("document_generation_failed", format=chosen)
@@ -454,13 +463,15 @@ def list_generated_documents(limit: int = 100) -> list[dict[str, Any]]:
         if not path.is_file():
             continue
         stat = path.stat()
-        items.append({
-            "name": path.name,
-            "format": path.suffix.lstrip("."),
-            "size_bytes": stat.st_size,
-            "created": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
-            "download_url": f"/api/v1/documents/{path.name}",
-        })
+        items.append(
+            {
+                "name": path.name,
+                "format": path.suffix.lstrip("."),
+                "size_bytes": stat.st_size,
+                "created": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
+                "download_url": f"/api/v1/documents/{path.name}",
+            }
+        )
     return sorted(items, key=lambda item: item["created"], reverse=True)[:limit]
 
 

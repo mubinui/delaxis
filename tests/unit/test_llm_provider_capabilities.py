@@ -23,7 +23,9 @@ def test_reasoning_models_expose_reasoning_trace_flag() -> None:
 
 
 def test_audio_models_expose_audio_flags() -> None:
-    capabilities = infer_model_capabilities("openai/gpt-4o-realtime-preview", ProviderType.OPENROUTER)
+    capabilities = infer_model_capabilities(
+        "openai/gpt-4o-realtime-preview", ProviderType.OPENROUTER
+    )
 
     assert capabilities.audio_in is True
     assert capabilities.audio_out is True
@@ -51,6 +53,7 @@ def test_unknown_model_defaults_are_conservative() -> None:
     assert capabilities.vision is False
     assert capabilities.reasoning_trace is False
     assert capabilities.max_context == 8192
+
 
 def test_current_generation_models_support_tool_calling():
     """Family-level markers must keep working as providers ship version bumps —

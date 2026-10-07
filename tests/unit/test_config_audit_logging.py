@@ -1,8 +1,6 @@
 """Tests for configuration audit logging."""
 
-import json
-from datetime import datetime
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -292,7 +290,7 @@ class TestVersionedConfigServiceAuditIntegration:
             database_url="postgresql://test",
             audit_logger=mock_audit_logger,
         )
-        
+
         # Mock database session
         mock_session = MagicMock()
         mock_db_manager.return_value.get_session.return_value.__enter__.return_value = mock_session

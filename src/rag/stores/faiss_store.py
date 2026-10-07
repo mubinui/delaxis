@@ -98,7 +98,9 @@ class FaissVectorStore:
             # copies and return the stale one as a separate hit.
             replacing = [record.id for record in records if record.id in stored]
             if replacing:
-                index.remove_ids(np.asarray([order.index(rid) for rid in replacing], dtype=np.int64))
+                index.remove_ids(
+                    np.asarray([order.index(rid) for rid in replacing], dtype=np.int64)
+                )
 
             row_ids = []
             for record in records:
@@ -177,15 +179,18 @@ class FaissVectorStore:
         scores, rows = index.search(query, min(want, max(1, len(stored))))
 
         hits: list[SearchHit] = []
-        for score, row in zip(scores[0], rows[0]):
+        for score, row in zip(scores[0], rows[0], strict=False):
             if row < 0 or row >= len(order):
                 continue
             rid = order[int(row)]
             record = stored.get(rid)
             if record is None or not matches(record["metadata"], where):
                 continue
-            hits.append(SearchHit(id=rid, text=record["text"],
-                                  score=float(score), metadata=record["metadata"]))
+            hits.append(
+                SearchHit(
+                    id=rid, text=record["text"], score=float(score), metadata=record["metadata"]
+                )
+            )
             if len(hits) >= top_k:
                 break
         return hits
@@ -196,8 +201,14 @@ class FaissVectorStore:
     def stats(self, collection: str) -> dict[str, Any]:
         entry = self._load(collection)
         if entry is None:
-            return {"collection": collection, "chunks": 0, "documents": 0,
-                    "dimensions": 0, "characters": 0, "backend": self.name}
+            return {
+                "collection": collection,
+                "chunks": 0,
+                "documents": 0,
+                "dimensions": 0,
+                "characters": 0,
+                "backend": self.name,
+            }
         index, stored, _ = entry
         return {
             "collection": collection,

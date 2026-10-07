@@ -57,9 +57,16 @@ class TestDeclaration:
 
     def test_covers_the_operations_a_build_conversation_needs(self):
         expected = {
-            "add_agent", "add_tool", "add_trigger", "connect",
-            "set_instruction", "set_model", "remove_node",
-            "describe_canvas", "list_available_tools", "fix_problems",
+            "add_agent",
+            "add_tool",
+            "add_trigger",
+            "connect",
+            "set_instruction",
+            "set_model",
+            "remove_node",
+            "describe_canvas",
+            "list_available_tools",
+            "fix_problems",
         }
         assert expected <= FUNCTION_NAMES
 
@@ -89,9 +96,7 @@ class TestSetupFrame:
         assert "tools" not in frame["setup"]
 
     def test_tools_are_declared_when_passed(self, config):
-        frame = build_setup_frame(
-            config, system_instruction="hi", tools=build_tool_declaration()
-        )
+        frame = build_setup_frame(config, system_instruction="hi", tools=build_tool_declaration())
         declared = frame["setup"]["tools"][0]["functionDeclarations"]
         assert {f["name"] for f in declared} == FUNCTION_NAMES
 
@@ -100,16 +105,19 @@ class TestSetupFrame:
         with_tools = build_setup_frame(
             config, system_instruction="hi", voice_name="Kore", tools=build_tool_declaration()
         )
-        for key in ("model", "generationConfig", "systemInstruction",
-                    "inputAudioTranscription", "outputAudioTranscription"):
+        for key in (
+            "model",
+            "generationConfig",
+            "systemInstruction",
+            "inputAudioTranscription",
+            "outputAudioTranscription",
+        ):
             assert plain["setup"][key] == with_tools["setup"][key]
 
     def test_frame_is_json_serialisable(self, config):
         # It goes onto a WebSocket as JSON; a non-serialisable value would only
         # surface at connection time.
-        frame = build_setup_frame(
-            config, system_instruction="hi", tools=build_tool_declaration()
-        )
+        frame = build_setup_frame(config, system_instruction="hi", tools=build_tool_declaration())
         assert json.loads(json.dumps(frame))["setup"]["tools"]
 
 
@@ -137,4 +145,7 @@ class TestSessionScope:
         from pathlib import Path
 
         source = Path("src/api/routers/voice.py").read_text()
-        assert "tools=build_tool_declaration() if purpose == tickets.PURPOSE_BUILDER else None" in source
+        assert (
+            "tools=build_tool_declaration() if purpose == tickets.PURPOSE_BUILDER else None"
+            in source
+        )

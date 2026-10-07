@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from src.api.chatbot_page import page_defects
 from src.api.routers import builder as builder_router
 from src.api.routers.builder import (
     FrontendGenerateRequest,
@@ -13,7 +14,6 @@ from src.api.routers.builder import (
     _get_provider_credentials,
     _render_themed_frontend,
 )
-from src.api.chatbot_page import page_defects
 from src.config import provider_registry
 
 
@@ -57,23 +57,27 @@ class TestProviderCredentials:
         assert exc_info.value.status_code == 400
 
     def test_keyless_local_provider_is_ready(self, providers_file):
-        providers_file([
-            {"id": "lm-studio", "type": "llm", "base_url": "http://localhost:1234/v1"},
-        ])
+        providers_file(
+            [
+                {"id": "lm-studio", "type": "llm", "base_url": "http://localhost:1234/v1"},
+            ]
+        )
         base_url, api_key, ready = _get_provider_credentials("lm-studio")
         assert base_url == "http://localhost:1234/v1"
         assert api_key == ""
         assert ready is True
 
     def test_key_required_but_missing_is_not_ready(self, providers_file, monkeypatch):
-        providers_file([
-            {
-                "id": "p1",
-                "type": "llm",
-                "base_url": "https://x.example/v1",
-                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
-            }
-        ])
+        providers_file(
+            [
+                {
+                    "id": "p1",
+                    "type": "llm",
+                    "base_url": "https://x.example/v1",
+                    "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+                }
+            ]
+        )
         monkeypatch.delenv("P1_KEY", raising=False)
         _, _, ready = _get_provider_credentials("p1")
         assert ready is False
@@ -90,7 +94,9 @@ class TestThemedFrontend:
     """The themed path renders the shipped page, so its chat always works."""
 
     def _body(self, **overrides):
-        params = dict(prompt="A support bot", workflow_id="wf", title="Support", greeting="Hi there")
+        params = dict(
+            prompt="A support bot", workflow_id="wf", title="Support", greeting="Hi there"
+        )
         params.update(overrides)
         return FrontendGenerateRequest(**params)
 
@@ -131,7 +137,12 @@ class TestThemedFrontend:
     def test_a_design_cannot_inject_css_or_markup(self):
         html, design = _render_themed_frontend(
             self._body(),
-            {"brand": {"accent": "red; } body { display:none", "bg": "</style><script>alert(1)</script>"}},
+            {
+                "brand": {
+                    "accent": "red; } body { display:none",
+                    "bg": "</style><script>alert(1)</script>",
+                }
+            },
         )
         # Both values are dropped rather than written into the stylesheet
         assert design["brand"] == {}
@@ -147,14 +158,16 @@ class TestThemedFrontend:
 
 class TestGenerateEndpointFallback:
     def test_missing_key_returns_a_working_themed_page(self, providers_file, monkeypatch):
-        providers_file([
-            {
-                "id": "p1",
-                "type": "llm",
-                "base_url": "https://x.example/v1",
-                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
-            }
-        ])
+        providers_file(
+            [
+                {
+                    "id": "p1",
+                    "type": "llm",
+                    "base_url": "https://x.example/v1",
+                    "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+                }
+            ]
+        )
         monkeypatch.delenv("P1_KEY", raising=False)
         app = FastAPI()
         app.include_router(builder_router.router)
@@ -228,14 +241,16 @@ class TestCustomGenerationSafety:
 
     @pytest.fixture
     def client(self, providers_file, monkeypatch):
-        providers_file([
-            {
-                "id": "p1",
-                "type": "llm",
-                "base_url": "https://x.example/v1",
-                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
-            }
-        ])
+        providers_file(
+            [
+                {
+                    "id": "p1",
+                    "type": "llm",
+                    "base_url": "https://x.example/v1",
+                    "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+                }
+            ]
+        )
         monkeypatch.setenv("P1_KEY", "sk-test")
         app = FastAPI()
         app.include_router(builder_router.router)
@@ -254,7 +269,9 @@ class TestCustomGenerationSafety:
         return response.json()
 
     def test_truncated_output_falls_back_to_the_working_page(self, client, monkeypatch):
-        body = self._generate(client, monkeypatch, "```html\n<!doctype html><html><body>half", truncated=True)
+        body = self._generate(
+            client, monkeypatch, "```html\n<!doctype html><html><body>half", truncated=True
+        )
         assert body["used_fallback"] is True
         assert body["mode"] == "themed"
         assert page_defects(body["html"]) == []
@@ -297,7 +314,7 @@ class TestCustomGenerationSafety:
     def test_a_cdn_dependency_is_rejected(self, client, monkeypatch):
         cdn_page = (
             "<!doctype html><html><head>"
-            "<script src=\"https://cdn.jsdelivr.net/npm/marked/marked.min.js\"></script>"
+            '<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>'
             "</head><body><textarea></textarea>"
             "<script>const cfg = window.CHATBOT_CONFIG;"
             "document.addEventListener('submit', () => fetch(cfg.api_url + '/api/v1/sessions/x/messages'));"

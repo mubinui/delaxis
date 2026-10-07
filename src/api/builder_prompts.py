@@ -223,9 +223,7 @@ def get_builder_prompt(builder_type: str) -> str:
     """Assemble the system prompt for one builder type, with the live inventory."""
     role = _ROLES.get(builder_type)
     if role is None:
-        raise ValueError(
-            f"Unknown builder type: {builder_type!r}. Must be one of: {list(_ROLES)}"
-        )
+        raise ValueError(f"Unknown builder type: {builder_type!r}. Must be one of: {list(_ROLES)}")
 
     intro, schema = role
 

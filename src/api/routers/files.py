@@ -11,6 +11,7 @@ through this router or any other caller.
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
@@ -100,7 +101,7 @@ async def list_files(
 ) -> dict[str, Any]:
     """List uploaded files, newest first."""
     directory = uploads_dir()
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from src.tools.context_tree import _human_size
     from src.tools.file_analysis import IMAGE_SUFFIXES
@@ -130,7 +131,7 @@ async def list_files(
                 "size": _human_size(stat.st_size),
                 "size_bytes": stat.st_size,
                 "kind": "image" if item.suffix.lower() in IMAGE_SUFFIXES else "document",
-                "uploaded": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+                "uploaded": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
             }
         )
 

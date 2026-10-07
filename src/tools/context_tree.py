@@ -24,6 +24,7 @@ import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 
@@ -33,18 +34,75 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Directories that are never useful as agent context and are expensive to walk.
 DEFAULT_IGNORES: tuple[str, ...] = (
-    ".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", "venv",
-    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".idea", ".vscode",
-    "dist", "build", ".next", ".cache", "htmlcov", ".DS_Store",
+    ".git",
+    ".hg",
+    ".svn",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".idea",
+    ".vscode",
+    "dist",
+    "build",
+    ".next",
+    ".cache",
+    "htmlcov",
+    ".DS_Store",
 )
 
-TEXT_SUFFIXES: frozenset[str] = frozenset({
-    ".txt", ".md", ".markdown", ".rst", ".json", ".jsonl", ".yaml", ".yml",
-    ".toml", ".ini", ".cfg", ".conf", ".env", ".csv", ".tsv", ".xml", ".html",
-    ".htm", ".css", ".scss", ".js", ".jsx", ".ts", ".tsx", ".py", ".rb", ".go",
-    ".rs", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".sh",
-    ".bash", ".zsh", ".sql", ".graphql", ".proto", ".log", ".tex", ".srt",
-})
+TEXT_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".txt",
+        ".md",
+        ".markdown",
+        ".rst",
+        ".json",
+        ".jsonl",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".env",
+        ".csv",
+        ".tsv",
+        ".xml",
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".js",
+        ".jsx",
+        ".ts",
+        ".tsx",
+        ".py",
+        ".rb",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".c",
+        ".h",
+        ".cpp",
+        ".hpp",
+        ".cs",
+        ".php",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".sql",
+        ".graphql",
+        ".proto",
+        ".log",
+        ".tex",
+        ".srt",
+    }
+)
 
 MAX_READ_BYTES = 256_000
 MAX_SEARCH_FILES = 2_000
@@ -212,9 +270,13 @@ def _walk_tree(
             lines.append(f"{prefix}{connector}{entry.name}/")
             if depth < max_depth:
                 _walk_tree(
-                    entry, depth + 1, max_depth,
+                    entry,
+                    depth + 1,
+                    max_depth,
                     prefix + ("    " if last else "│   "),
-                    ignores, stats, lines,
+                    ignores,
+                    stats,
+                    lines,
                 )
         else:
             stats.files += 1
@@ -503,14 +565,14 @@ def describe_context_file(path: str) -> str:
     except OSError as exc:
         return json.dumps({"error": f"Could not stat '{path}': {exc}"})
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     report: dict[str, Any] = {
         "path": _relative_label(target),
         "size": _human_size(stat.st_size),
         "size_bytes": stat.st_size,
         "suffix": target.suffix.lower() or None,
-        "modified": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "modified": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
     }
 
     if not _is_texty(target):

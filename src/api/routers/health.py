@@ -1,7 +1,7 @@
 """Health check and metrics endpoints."""
 
 import time
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -18,13 +18,13 @@ router = APIRouter(prefix="/api/v1", tags=["health"])
 async def health_check(request: Request) -> HealthResponse:
     """
     Health check endpoint for liveness probes.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         Health status information
-        
+
     Requirements: 6.3, 14.1, 14.2
     """
     return HealthResponse(
@@ -35,47 +35,47 @@ async def health_check(request: Request) -> HealthResponse:
 
 
 @router.get("/health/ready")
-async def readiness_check(request: Request) -> Dict[str, Any]:
+async def readiness_check(request: Request) -> dict[str, Any]:
     """
     Readiness check endpoint for readiness probes.
-    
+
     This endpoint checks if the service is ready to accept traffic
     by verifying that all dependencies are available.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         Readiness status information
-        
+
     Requirements: 6.3, 14.1, 14.2, 16.3, 16.4
     """
     from src.config.settings import get_settings
-    
+
     settings = get_settings()
     checks = {}
-    
+
     # MongoDB removed - no longer required
     # Using PostgreSQL for all storage needs
-    
+
     # Check Redis cache
     if settings.memory.redis_url:
         try:
             from src.infrastructure.cache import get_cache_manager
-            
+
             cache_manager = get_cache_manager()
             checks["redis"] = "ok" if cache_manager.health_check() else "failed"
         except Exception as e:
             logger.error(f"Redis health check failed: {e}")
             checks["redis"] = "failed"
-    
+
     # Determine overall status
     # Fail-fast: if MongoDB is configured and fails, service is not ready
     all_ok = all(status == "ok" for status in checks.values())
-    
+
     if not all_ok:
         logger.warning(f"Readiness check failed: {checks}")
-    
+
     return {
         "status": "ready" if all_ok else "not_ready",
         "service": "delaxis",
@@ -86,19 +86,19 @@ async def readiness_check(request: Request) -> Dict[str, Any]:
 
 
 @router.get("/health/live")
-async def liveness_check(request: Request) -> Dict[str, Any]:
+async def liveness_check(request: Request) -> dict[str, Any]:
     """
     Liveness check endpoint for liveness probes.
-    
+
     This endpoint checks if the service is alive and responding.
     It should return quickly and not depend on external services.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         Liveness status information
-        
+
     Requirements: 6.3, 14.1, 14.2
     """
     return {
@@ -113,20 +113,20 @@ async def liveness_check(request: Request) -> Dict[str, Any]:
 async def metrics(request: Request) -> Response:
     """
     Prometheus metrics endpoint.
-    
+
     This endpoint exposes metrics in Prometheus text format.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         Prometheus metrics in text format
-        
+
     Requirements: 6.3, 14.1, 14.2
     """
     registry = get_metrics_registry()
     metrics_output = generate_latest(registry)
-    
+
     return Response(
         content=metrics_output,
         media_type=CONTENT_TYPE_LATEST,
@@ -134,16 +134,16 @@ async def metrics(request: Request) -> Response:
 
 
 @router.get("/metrics/dashboard")
-async def dashboard_metrics(request: Request) -> Dict[str, Any]:
+async def dashboard_metrics(request: Request) -> dict[str, Any]:
     """
     Dashboard metrics endpoint for frontend UI.
-    
+
     This endpoint provides a JSON structure with key metrics
     for the admin dashboard.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         Dashboard metrics as JSON
     """
@@ -151,15 +151,18 @@ async def dashboard_metrics(request: Request) -> Dict[str, Any]:
     llm_info = {}
     try:
         from src.config.llm_provider import get_provider_config
+
         config = get_provider_config()
         llm_info = {
             "provider": config.provider.value,
             "model": config.model_name,
-            "openrouter_presets": config.get_openrouter_presets() if config.provider.value == "openrouter" else None,
+            "openrouter_presets": config.get_openrouter_presets()
+            if config.provider.value == "openrouter"
+            else None,
         }
     except Exception as e:
         llm_info = {"error": str(e)}
-    
+
     return {
         "total_agents": 0,
         "total_tools": 0,

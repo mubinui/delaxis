@@ -88,9 +88,11 @@ class TestDeploymentVoiceConfig:
 
     def test_malformed_voice_block_returns_none(self, tmp_path, monkeypatch):
         path = tmp_path / "deployments.json"
-        path.write_text(json.dumps({"deployments": [
-            {"id": "b", "voice": {"max_session_seconds": "not-a-number"}}
-        ]}))
+        path.write_text(
+            json.dumps(
+                {"deployments": [{"id": "b", "voice": {"max_session_seconds": "not-a-number"}}]}
+            )
+        )
         monkeypatch.setattr(deployments_router, "CONFIG_PATH", path)
         assert deployment_voice_config("b") is None
 

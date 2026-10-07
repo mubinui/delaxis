@@ -33,7 +33,9 @@ class TestCapabilityFiltering:
     def test_unsupported_params_are_reported_not_silently_passed(self):
         """CrewAI provider classes ignore unknown kwargs, so an unsupported
         setting would look applied while doing nothing."""
-        kept, dropped = filter_llm_params("anthropic", {"seed": 1, "frequency_penalty": 0.5, "top_p": 0.9})
+        kept, dropped = filter_llm_params(
+            "anthropic", {"seed": 1, "frequency_penalty": 0.5, "top_p": 0.9}
+        )
         assert kept == {"top_p": 0.9}
         assert dropped == ["frequency_penalty", "seed"]
 
@@ -71,10 +73,15 @@ class TestSamplingParams:
 class TestAgentParams:
     def test_settings_reach_the_agent_constructor(self, runtime):
         config = AgentConfig(
-            id="a", type="conversable", name="A",
+            id="a",
+            type="conversable",
+            name="A",
             agent_settings=AgentRuntimeSettings(
-                max_iter=3, max_retry_limit=1, max_execution_time=45,
-                respect_context_window=False, allow_delegation=True,
+                max_iter=3,
+                max_retry_limit=1,
+                max_execution_time=45,
+                respect_context_window=False,
+                allow_delegation=True,
             ),
         )
         params = runtime._agent_params(config, runtime._effective_model_config(config))
@@ -96,7 +103,10 @@ class TestAgentParams:
 
     def test_explicit_setting_beats_the_is_selector_default(self, runtime):
         config = AgentConfig(
-            id="a", type="conversable", name="A", is_selector=True,
+            id="a",
+            type="conversable",
+            name="A",
+            is_selector=True,
             agent_settings=AgentRuntimeSettings(allow_delegation=False),
         )
         params = runtime._agent_params(config, runtime._effective_model_config(config))
@@ -105,7 +115,9 @@ class TestAgentParams:
     def test_legacy_model_config_override_still_works(self, runtime):
         """max_iter historically travelled inside the untyped override."""
         config = AgentConfig(
-            id="a", type="conversable", name="A",
+            id="a",
+            type="conversable",
+            name="A",
             model_config={"provider_id": "openai", "model": "gpt-4o", "max_iter": 7},
         )
         params = runtime._agent_params(config, runtime._effective_model_config(config))
@@ -115,10 +127,16 @@ class TestAgentParams:
 class TestEndToEndRoundTrip:
     def test_studio_payload_survives_to_runtime(self, runtime):
         payload = AgentConfigCreateRequest(
-            id="round_trip", type="conversable", name="RoundTrip",
+            id="round_trip",
+            type="conversable",
+            name="RoundTrip",
             llm_config={
-                "provider_id": "gemini", "model": "gemini-3.5-flash",
-                "temperature": 0.2, "max_tokens": 64, "top_p": 0.8, "seed": 11,
+                "provider_id": "gemini",
+                "model": "gemini-3.5-flash",
+                "temperature": 0.2,
+                "max_tokens": 64,
+                "top_p": 0.8,
+                "seed": 11,
             },
             agent_settings={"max_iter": 3, "max_execution_time": 45},
         ).model_dump()
@@ -135,8 +153,12 @@ class TestEndToEndRoundTrip:
     def test_llm_config_sampling_fields_are_not_dropped(self):
         """LLMConfig previously had no home for these, so extra='ignore' ate them."""
         config = LLMConfig(
-            provider_id="openai", model="gpt-4o",
-            top_p=0.5, seed=3, frequency_penalty=0.2, stop=["END"],
+            provider_id="openai",
+            model="gpt-4o",
+            top_p=0.5,
+            seed=3,
+            frequency_penalty=0.2,
+            stop=["END"],
         )
         dumped = config.model_dump(exclude_none=True)
         assert dumped["top_p"] == 0.5

@@ -14,8 +14,9 @@ from, so it gets more care than "every N characters". Two rules drive it:
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 #: Roughly 250-350 words. Large enough to carry an argument, small enough that
 #: an embedding still describes one thing rather than averaging three.
@@ -86,7 +87,7 @@ def _resume_point(text: str, ideal: int, look_ahead: int = 90) -> int:
     """
     if ideal <= 0:
         return 0
-    window = text[ideal:ideal + look_ahead]
+    window = text[ideal : ideal + look_ahead]
     for pattern in (r"(?<=[.!?])\s+(?=[A-Z0-9\"'(\[])", r"\n", r"\s+"):
         match = re.search(pattern, window)
         if match:
@@ -126,13 +127,15 @@ def chunk_text(
 
         stripped = piece.strip()
         if stripped:
-            chunks.append(Chunk(
-                text=stripped,
-                index=len(chunks),
-                start=cursor,
-                end=cursor + taken,
-                metadata=dict(base),
-            ))
+            chunks.append(
+                Chunk(
+                    text=stripped,
+                    index=len(chunks),
+                    start=cursor,
+                    end=cursor + taken,
+                    metadata=dict(base),
+                )
+            )
 
         if cursor + taken >= len(body):
             break

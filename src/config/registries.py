@@ -8,9 +8,9 @@ import httpx
 from src.audit_logging import get_logger
 from src.config.dynamic_models import (
     AuthScheme,
+    PromptTemplate,
     ProviderConfig,
     ProviderType,
-    PromptTemplate,
 )
 from src.config.loader import ConfigurationError, get_loader
 
@@ -134,9 +134,7 @@ class ProviderRegistry:
                 if provider.auth.env_var:
                     api_key = os.getenv(provider.auth.env_var)
                     if not api_key:
-                        raise ValueError(
-                            f"Environment variable not set: {provider.auth.env_var}"
-                        )
+                        raise ValueError(f"Environment variable not set: {provider.auth.env_var}")
                     headers["Authorization"] = f"Bearer {api_key}"
             elif provider.auth.scheme == AuthScheme.API_KEY:
                 if provider.auth.env_var and provider.auth.header_name:
@@ -149,11 +147,7 @@ class ProviderRegistry:
             headers.update(provider.request_defaults.headers)
 
         # Create client
-        timeout = (
-            provider.request_defaults.timeout_seconds
-            if provider.request_defaults
-            else 120
-        )
+        timeout = provider.request_defaults.timeout_seconds if provider.request_defaults else 120
 
         return httpx.AsyncClient(
             base_url=provider.base_url,
@@ -189,9 +183,7 @@ class ProviderRegistry:
                 provider_id=provider.id,
                 error=str(e),
             )
-            raise ValueError(
-                f"Failed to create tool instance for {provider.id}: {e}"
-            ) from e
+            raise ValueError(f"Failed to create tool instance for {provider.id}: {e}") from e
 
     def list_providers(self) -> list[str]:
         """List all registered provider IDs."""
@@ -199,9 +191,7 @@ class ProviderRegistry:
 
     def list_enabled_providers(self) -> list[str]:
         """List all enabled provider IDs."""
-        return [
-            pid for pid, p in self._providers.items() if p.enabled
-        ]
+        return [pid for pid, p in self._providers.items() if p.enabled]
 
     def reload_from_config(self) -> None:
         """Reload providers from configuration file."""

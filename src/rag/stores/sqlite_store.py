@@ -96,15 +96,17 @@ class SqliteVectorStore:
             vector = np.asarray(record.embedding, dtype=np.float32)
             if vector.ndim != 1 or not vector.size:
                 raise VectorStoreError(f"record {record.id!r} has no usable embedding")
-            rows.append((
-                record.id,
-                collection,
-                str(record.metadata.get("source", "")),
-                record.text,
-                vector.tobytes(),
-                int(vector.size),
-                json.dumps(record.metadata, default=str),
-            ))
+            rows.append(
+                (
+                    record.id,
+                    collection,
+                    str(record.metadata.get("source", "")),
+                    record.text,
+                    vector.tobytes(),
+                    int(vector.size),
+                    json.dumps(record.metadata, default=str),
+                )
+            )
 
         with self._lock:
             connection = self._connect()
@@ -199,7 +201,7 @@ class SqliteVectorStore:
                     "WHERE collection = ? AND source = ?",
                     (collection, where["source"]),
                 ).fetchall()
-                where = None          # already applied
+                where = None  # already applied
             else:
                 rows = connection.execute(
                     "SELECT id, text, embedding, dimensions, metadata FROM rag_chunks "

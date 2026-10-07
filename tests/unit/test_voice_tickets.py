@@ -6,7 +6,6 @@ authenticated, rate-limited HTTP endpoint. Every property below is what stops
 that socket from being a free, unthrottled handle on a billed realtime model.
 """
 
-import time
 from datetime import timedelta
 
 import pytest

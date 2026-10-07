@@ -44,7 +44,10 @@ def shop_db(tmp_path):
 
 def make_sql_tool(db_path, **settings) -> SqlToolFactory:
     return create_runtime_factory(
-        "sql", "shop", "shop_db", "Shop database",
+        "sql",
+        "shop",
+        "shop_db",
+        "Shop database",
         {"db_uri": f"sqlite:///{db_path}", **settings},
     )
 
@@ -180,14 +183,18 @@ class TestSqlSchema:
 
 class TestSqlQuery:
     def test_returns_rows(self, shop_db):
-        result = json.loads(make_sql_tool(shop_db).run_query("SELECT name FROM customers ORDER BY id"))
+        result = json.loads(
+            make_sql_tool(shop_db).run_query("SELECT name FROM customers ORDER BY id")
+        )
         assert [row["name"] for row in result["rows"]] == ["Acme", "Globex"]
 
     def test_supports_joins_and_aggregates(self, shop_db):
-        result = json.loads(make_sql_tool(shop_db).run_query(
-            "SELECT c.name, SUM(o.total) AS spend FROM orders o "
-            "JOIN customers c ON c.id=o.customer_id GROUP BY c.name ORDER BY spend DESC"
-        ))
+        result = json.loads(
+            make_sql_tool(shop_db).run_query(
+                "SELECT c.name, SUM(o.total) AS spend FROM orders o "
+                "JOIN customers c ON c.id=o.customer_id GROUP BY c.name ORDER BY spend DESC"
+            )
+        )
         assert result["rows"][0] == {"name": "Acme", "spend": 5090.5}
 
     def test_row_limit_is_applied_and_flagged(self, shop_db):
@@ -211,7 +218,9 @@ class TestSqlQuery:
 
     def test_allow_writes_opens_the_gate(self, shop_db):
         tool = make_sql_tool(shop_db, allow_writes=True)
-        assert "error" not in json.loads(tool.run_query("INSERT INTO customers VALUES (9,'New','X')"))
+        assert "error" not in json.loads(
+            tool.run_query("INSERT INTO customers VALUES (9,'New','X')")
+        )
         after = json.loads(tool.run_query("SELECT COUNT(*) AS n FROM customers"))
         assert after["rows"][0]["n"] == 3
 
@@ -255,12 +264,16 @@ class TestSqlSample:
 class TestCredentialHandling:
     def test_env_var_is_resolved(self, shop_db, monkeypatch):
         monkeypatch.setenv("TEST_SHOP_DB_URI", f"sqlite:///{shop_db}")
-        tool = create_runtime_factory("sql", "shop", "shop", "d", {"db_uri_env_var": "TEST_SHOP_DB_URI"})
+        tool = create_runtime_factory(
+            "sql", "shop", "shop", "d", {"db_uri_env_var": "TEST_SHOP_DB_URI"}
+        )
         assert "error" not in json.loads(tool.describe_schema())
 
     def test_missing_env_var_names_the_variable(self, monkeypatch):
         monkeypatch.delenv("ABSENT_DB_URI", raising=False)
-        tool = create_runtime_factory("sql", "shop", "shop", "d", {"db_uri_env_var": "ABSENT_DB_URI"})
+        tool = create_runtime_factory(
+            "sql", "shop", "shop", "d", {"db_uri_env_var": "ABSENT_DB_URI"}
+        )
         assert "ABSENT_DB_URI" in json.loads(tool.describe_schema())["error"]
 
     def test_no_uri_at_all_is_an_actionable_error(self):
@@ -322,15 +335,17 @@ class TestMongoConfig:
 
     def test_non_object_filter_is_rejected(self):
         tool = self.make(uri="mongodb://localhost:27017", database="app")
-        assert "must be a JSON object" in json.loads(tool.find_documents("orders", "[1,2]"))["error"]
+        assert (
+            "must be a JSON object" in json.loads(tool.find_documents("orders", "[1,2]"))["error"]
+        )
 
     @pytest.mark.parametrize(
         "query",
         [
             '{"$where": "this.x == 1"}',
             '{"$function": {"body": "function(){}"}}',
-            '{"a": {"b": {"$where": "1"}}}',   # nested at depth
-            '{"$or": [{"$where": "1"}]}',      # nested inside a list
+            '{"a": {"b": {"$where": "1"}}}',  # nested at depth
+            '{"$or": [{"$where": "1"}]}',  # nested inside a list
         ],
     )
     def test_server_side_execution_operators_are_refused(self, query):

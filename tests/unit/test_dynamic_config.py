@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -42,9 +41,7 @@ class TestConfigurationLoader:
 
         (config_dir / "api_providers.json").write_text(json.dumps(providers_data))
         (config_dir / "prompt_templates.json").write_text(
-            json.dumps(
-                {"version": "1.0", "contexts": [], "fallbacks": {}}
-            )
+            json.dumps({"version": "1.0", "contexts": [], "fallbacks": {}})
         )
 
         # Load config
@@ -117,9 +114,7 @@ class TestConfigurationLoader:
         (config_dir / "prompt_templates.json").write_text(
             json.dumps({"version": "1.0", "contexts": [], "fallbacks": {}})
         )
-        (config_dir / "tools.json").write_text(
-            json.dumps({"version": "1.0", "tools": []})
-        )
+        (config_dir / "tools.json").write_text(json.dumps({"version": "1.0", "tools": []}))
 
         loader = ConfigurationLoader(config_dir)
 
@@ -133,6 +128,7 @@ class TestConfigurationLoader:
         assert isinstance(providers, APIProvidersConfig)
         assert isinstance(prompts, PromptTemplatesConfig)
         from src.config.tool_models import ToolsConfig
+
         assert isinstance(tools, ToolsConfig)
 
 

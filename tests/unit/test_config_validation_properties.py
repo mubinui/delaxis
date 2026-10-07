@@ -9,27 +9,26 @@ using property-based testing with Hypothesis.
 """
 
 import pytest
-from hypothesis import given, settings, assume
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from src.config.agent_models import (
     AgentConfig,
     AgentType,
-    HumanInputMode,
     LLMConfig,
-    ModelClientConfig,
     MemoryConfig,
+    ModelClientConfig,
 )
 from src.config.workflow_models import (
-    TerminationConfig,
-    TerminationType,
-    TerminationOperator,
     TeamConfig,
     TeamType,
+    TerminationConfig,
+    TerminationOperator,
+    TerminationType,
 )
 
-
 # Strategies for generating valid configurations
+
 
 @st.composite
 def valid_agent_id(draw):
@@ -37,11 +36,9 @@ def valid_agent_id(draw):
     # First character must be lowercase letter
     first_char = draw(st.sampled_from("abcdefghijklmnopqrstuvwxyz"))
     # Remaining characters can be lowercase letters, digits, or underscores
-    remaining = draw(st.text(
-        alphabet="abcdefghijklmnopqrstuvwxyz0123456789_",
-        min_size=2,
-        max_size=19
-    ))
+    remaining = draw(
+        st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789_", min_size=2, max_size=19)
+    )
     return first_char + remaining
 
 
@@ -52,7 +49,7 @@ def valid_model_client_config(draw):
     model = draw(st.sampled_from(["gpt-4", "gpt-3.5-turbo", "gpt-oss-20b"]))
     temperature = draw(st.floats(min_value=0.0, max_value=2.0))
     timeout = draw(st.integers(min_value=1, max_value=300))
-    
+
     return ModelClientConfig(
         provider_id=provider,
         model=model,
@@ -68,7 +65,7 @@ def valid_llm_config(draw):
     model = draw(st.sampled_from(["gpt-4", "gpt-3.5-turbo", "google/gemma-3-27b-it"]))
     temperature = draw(st.floats(min_value=0.0, max_value=2.0))
     timeout = draw(st.integers(min_value=1, max_value=300))
-    
+
     return LLMConfig(
         provider_id=provider,
         model=model,
@@ -80,12 +77,14 @@ def valid_llm_config(draw):
 @st.composite
 def valid_memory_config(draw):
     """Generate a valid MemoryConfig."""
-    collection_name = draw(st.text(
-        alphabet=st.characters(whitelist_categories=("Ll", "Nd"), whitelist_characters="_"),
-        min_size=3,
-        max_size=20
-    ).filter(lambda x: x and x[0].isalpha()))
-    
+    collection_name = draw(
+        st.text(
+            alphabet=st.characters(whitelist_categories=("Ll", "Nd"), whitelist_characters="_"),
+            min_size=3,
+            max_size=20,
+        ).filter(lambda x: x and x[0].isalpha())
+    )
+
     return MemoryConfig(
         type="rag",
         vector_db=draw(st.sampled_from(["chromadb", "qdrant", "pgvector"])),
@@ -98,16 +97,14 @@ def valid_memory_config(draw):
 def valid_termination_config(draw):
     """Generate a valid TerminationConfig."""
     term_type = draw(st.sampled_from([TerminationType.TEXT_MENTION, TerminationType.MAX_MESSAGE]))
-    
+
     if term_type == TerminationType.TEXT_MENTION:
         return TerminationConfig(
-            type=term_type,
-            text_mention=draw(st.sampled_from(["TERMINATE", "DONE", "END"]))
+            type=term_type, text_mention=draw(st.sampled_from(["TERMINATE", "DONE", "END"]))
         )
     else:
         return TerminationConfig(
-            type=term_type,
-            max_messages=draw(st.integers(min_value=1, max_value=100))
+            type=term_type, max_messages=draw(st.integers(min_value=1, max_value=100))
         )
 
 
@@ -116,10 +113,13 @@ def valid_combined_termination_config(draw):
     """Generate a valid combined TerminationConfig."""
     conditions = [
         TerminationConfig(type=TerminationType.TEXT_MENTION, text_mention="TERMINATE"),
-        TerminationConfig(type=TerminationType.MAX_MESSAGE, max_messages=draw(st.integers(min_value=1, max_value=100)))
+        TerminationConfig(
+            type=TerminationType.MAX_MESSAGE,
+            max_messages=draw(st.integers(min_value=1, max_value=100)),
+        ),
     ]
     operator = draw(st.sampled_from([TerminationOperator.AND, TerminationOperator.OR]))
-    
+
     return TerminationConfig(
         type=TerminationType.COMBINED,
         conditions=conditions,
@@ -149,7 +149,7 @@ def test_assistant_agent_with_model_client_config_is_v04_compatible(
         model_client_config=model_config,
         system_message="You are a helpful assistant.",
     )
-    
+
     errors = config.validate_v04_compatibility()
     assert len(errors) == 0, f"Expected no errors, got: {errors}"
     assert config.is_v04_compatible()
@@ -174,7 +174,7 @@ def test_assistant_agent_without_model_config_reports_error(
         name=f"Agent {agent_id}",
         system_message="You are a helpful assistant.",
     )
-    
+
     errors = config.validate_v04_compatibility()
     assert len(errors) > 0, "Expected validation errors for assistant without model config"
     assert any("model_client_config" in err or "llm_config" in err for err in errors)
@@ -206,7 +206,7 @@ def test_agent_with_both_configs_reports_error(
         llm_config=llm_config,
         system_message="You are a helpful assistant.",
     )
-    
+
     errors = config.validate_v04_compatibility()
     assert len(errors) > 0, "Expected validation errors for agent with both configs"
     assert any("both" in err.lower() for err in errors)
@@ -231,7 +231,7 @@ def test_code_executor_agent_without_execution_config_reports_error(
         name=f"Agent {agent_id}",
         code_execution_config=False,
     )
-    
+
     errors = config.validate_v04_compatibility()
     assert len(errors) > 0, "Expected validation errors for code_executor without execution config"
     assert any("code_execution_config" in err for err in errors)
@@ -255,7 +255,7 @@ def test_custom_agent_without_system_message_reports_error(
         type=AgentType.CUSTOM,
         name=f"Agent {agent_id}",
     )
-    
+
     errors = config.validate_v04_compatibility()
     assert len(errors) > 0, "Expected validation errors for custom agent without system_message"
     assert any("system_message" in err for err in errors)
@@ -282,9 +282,9 @@ def test_get_effective_model_config_converts_llm_config(
         name=f"Agent {agent_id}",
         llm_config=llm_config,
     )
-    
+
     effective_config = config.get_effective_model_config()
-    
+
     assert effective_config is not None
     assert effective_config.provider_id == llm_config.provider_id
     assert effective_config.model == llm_config.model
@@ -307,7 +307,7 @@ def test_termination_config_validation(
     """
     # If we got here, the config was created successfully
     assert termination_config.type in [TerminationType.TEXT_MENTION, TerminationType.MAX_MESSAGE]
-    
+
     if termination_config.type == TerminationType.TEXT_MENTION:
         assert termination_config.text_mention is not None
     elif termination_config.type == TerminationType.MAX_MESSAGE:
@@ -354,7 +354,7 @@ def test_team_config_validation(
         agents=agent_ids,
         termination_condition=termination_config,
     )
-    
+
     assert team_config.type == TeamType.ROUND_ROBIN
     assert len(team_config.agents) >= 2
     assert team_config.termination_condition is not None
@@ -372,11 +372,10 @@ def test_selector_team_requires_selector_config():
             type=TeamType.SELECTOR,
             agents=["agent1", "agent2"],
             termination_condition=TerminationConfig(
-                type=TerminationType.TEXT_MENTION,
-                text_mention="TERMINATE"
+                type=TerminationType.TEXT_MENTION, text_mention="TERMINATE"
             ),
         )
-    
+
     assert "selector" in str(exc_info.value).lower()
 
 
@@ -390,7 +389,7 @@ def test_termination_config_text_mention_requires_text():
         TerminationConfig(
             type=TerminationType.TEXT_MENTION,
         )
-    
+
     assert "text_mention" in str(exc_info.value).lower()
 
 
@@ -404,7 +403,7 @@ def test_termination_config_max_message_requires_max_messages():
         TerminationConfig(
             type=TerminationType.MAX_MESSAGE,
         )
-    
+
     assert "max_messages" in str(exc_info.value).lower()
 
 
@@ -419,5 +418,5 @@ def test_termination_config_combined_requires_conditions():
             type=TerminationType.COMBINED,
             operator=TerminationOperator.AND,
         )
-    
+
     assert "conditions" in str(exc_info.value).lower()

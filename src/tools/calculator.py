@@ -1,9 +1,7 @@
 """Calculator tool for performing arithmetic operations."""
 
-from typing import Union
 
-
-def calculate(expression: str) -> Union[float, str]:
+def calculate(expression: str) -> float | str:
     """
     Perform arithmetic calculations on a mathematical expression.
 

@@ -33,12 +33,7 @@ async def test_add_agent_note() -> None:
     """Test adding agent notes to conversation state."""
     state = ConversationState()
 
-    note = state.add_agent_note(
-        AgentType.REASONING,
-        "intent",
-        "greeting",
-        confidence=0.9
-    )
+    note = state.add_agent_note(AgentType.REASONING, "intent", "greeting", confidence=0.9)
 
     assert note.agent_type == AgentType.REASONING
     assert note.note_type == "intent"

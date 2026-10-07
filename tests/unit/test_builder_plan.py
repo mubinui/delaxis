@@ -11,41 +11,58 @@ def normalize(plan: dict, prompt: str = "a support chatbot"):
 
 class TestPlanRepair:
     def test_topology_node_pointing_at_a_nonexistent_agent_is_dropped(self):
-        plan = normalize({
-            "agents": [{"id": "helper", "name": "Helper"}],
-            "workflow": {"topology": {"nodes": [{"id": "ghost", "agent_id": "not_defined"}], "entry_node": "ghost"}},
-        })
+        plan = normalize(
+            {
+                "agents": [{"id": "helper", "name": "Helper"}],
+                "workflow": {
+                    "topology": {
+                        "nodes": [{"id": "ghost", "agent_id": "not_defined"}],
+                        "entry_node": "ghost",
+                    }
+                },
+            }
+        )
         node_agents = {n["agent_id"] for n in plan["workflow"]["topology"]["nodes"]}
         assert node_agents == {"helper"}
 
     def test_every_agent_gets_a_topology_node(self):
-        plan = normalize({
-            "agents": [{"id": "one"}, {"id": "two"}],
-            "workflow": {"topology": {"nodes": [{"id": "one", "agent_id": "one"}], "entry_node": "one"}},
-        })
+        plan = normalize(
+            {
+                "agents": [{"id": "one"}, {"id": "two"}],
+                "workflow": {
+                    "topology": {"nodes": [{"id": "one", "agent_id": "one"}], "entry_node": "one"}
+                },
+            }
+        )
         assert {n["id"] for n in plan["workflow"]["topology"]["nodes"]} == {"one", "two"}
 
     def test_an_unregistered_tool_is_removed_rather_than_left_dangling(self):
         # The rationale is what keeps web_search past the selectivity check, so
         # this still tests dangling removal rather than the new pruning.
-        plan = normalize({
-            "agents": [{"id": "helper", "tools": ["web_search", "invented_tool"]}],
-            "tool_rationale": {"web_search": "The brief needs live lookups."},
-        })
+        plan = normalize(
+            {
+                "agents": [{"id": "helper", "tools": ["web_search", "invented_tool"]}],
+                "tool_rationale": {"web_search": "The brief needs live lookups."},
+            }
+        )
         assert plan["agents"][0]["tools"] == ["web_search"]
 
     def test_a_tool_the_plan_defines_itself_is_kept(self):
-        plan = normalize({
-            "agents": [{"id": "helper", "tools": ["my_api"]}],
-            "tools": [{"id": "my_api", "name": "my_api"}],
-        })
+        plan = normalize(
+            {
+                "agents": [{"id": "helper", "tools": ["my_api"]}],
+                "tools": [{"id": "my_api", "name": "my_api"}],
+            }
+        )
         assert plan["agents"][0]["tools"] == ["my_api"]
 
     def test_agent_tools_are_mirrored_onto_the_topology_node(self):
-        plan = normalize({
-            "agents": [{"id": "helper", "tools": ["web_search"]}],
-            "tool_rationale": {"web_search": "The brief needs live lookups."},
-        })
+        plan = normalize(
+            {
+                "agents": [{"id": "helper", "tools": ["web_search"]}],
+                "tool_rationale": {"web_search": "The brief needs live lookups."},
+            }
+        )
         node = plan["workflow"]["topology"]["nodes"][0]
         assert node["tools"] == ["web_search"]
 
@@ -56,7 +73,9 @@ class TestPlanRepair:
         assert len(set(ids)) == 2
 
     def test_a_missing_entry_node_falls_back_to_the_first_node(self):
-        plan = normalize({"agents": [{"id": "one"}, {"id": "two"}], "workflow": {"topology": {"nodes": []}}})
+        plan = normalize(
+            {"agents": [{"id": "one"}, {"id": "two"}], "workflow": {"topology": {"nodes": []}}}
+        )
         topology = plan["workflow"]["topology"]
         assert topology["entry_node"] in {n["id"] for n in topology["nodes"]}
 
@@ -125,7 +144,13 @@ class TestApplyIsIdempotent:
         from src.api.routers import workflows as workflows_router
 
         app = FastAPI()
-        for module in (builder_router, agents_router, tools_router, workflows_router, functions_router):
+        for module in (
+            builder_router,
+            agents_router,
+            tools_router,
+            workflows_router,
+            functions_router,
+        ):
             app.include_router(module.router)
         test_client = TestClient(app)
         yield test_client
@@ -138,13 +163,15 @@ class TestApplyIsIdempotent:
 
     def _plan(self, suffix: str) -> dict:
         return {
-            "agents": [{
-                "id": f"idem_agent_{suffix}",
-                "type": "conversable",
-                "name": f"IdemAgent{suffix}",
-                "instruction": "Be helpful.",
-                "tools": ["web_search"],
-            }],
+            "agents": [
+                {
+                    "id": f"idem_agent_{suffix}",
+                    "type": "conversable",
+                    "name": f"IdemAgent{suffix}",
+                    "instruction": "Be helpful.",
+                    "tools": ["web_search"],
+                }
+            ],
             "workflow": {
                 "id": f"idem_wf_{suffix}",
                 "name": "Idem",
@@ -153,7 +180,9 @@ class TestApplyIsIdempotent:
                 "topology": {
                     "type": "single",
                     "entry_node": "n1",
-                    "nodes": [{"id": "n1", "agent_id": f"idem_agent_{suffix}", "tools": ["web_search"]}],
+                    "nodes": [
+                        {"id": "n1", "agent_id": f"idem_agent_{suffix}", "tools": ["web_search"]}
+                    ],
                     "edges": [],
                 },
             },
@@ -201,8 +230,13 @@ class TestToolSelectivity:
 
         plan = _normalize_plan(
             {
-                "agents": [{"id": "a", "name": "A",
-                            "tools": ["web_search", "calculate", "get_weather", "rag_query"]}],
+                "agents": [
+                    {
+                        "id": "a",
+                        "name": "A",
+                        "tools": ["web_search", "calculate", "get_weather", "rag_query"],
+                    }
+                ],
                 "workflow": {"id": "w", "name": "W"},
             },
             "A chatbot that answers questions about our refund policy.",
@@ -215,7 +249,9 @@ class TestToolSelectivity:
 
         plan = _normalize_plan(
             {
-                "agents": [{"id": "a", "name": "A", "tools": ["web_search", "calculate", "get_weather"]}],
+                "agents": [
+                    {"id": "a", "name": "A", "tools": ["web_search", "calculate", "get_weather"]}
+                ],
                 "workflow": {"id": "w", "name": "W"},
                 "tool_rationale": {
                     "web_search": "The brief asks for current shipping times.",
@@ -260,8 +296,11 @@ class TestToolSelectivity:
         plan = _normalize_plan(
             {
                 "agents": [{"id": "a", "name": "A", "tools": ["web_search", "calculate"]}],
-                "workflow": {"id": "w", "name": "W", "topology": {
-                    "nodes": [{"id": "a", "agent_id": "a"}], "entry_node": "a"}},
+                "workflow": {
+                    "id": "w",
+                    "name": "W",
+                    "topology": {"nodes": [{"id": "a", "agent_id": "a"}], "entry_node": "a"},
+                },
                 "tool_rationale": {"calculate": "It must do arithmetic exactly."},
             },
             "brief",

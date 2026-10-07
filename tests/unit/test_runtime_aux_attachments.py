@@ -19,7 +19,9 @@ def test_node_attachments_fold_per_agent_with_union() -> None:
         AgentNode(id="n2", agent_id="agent_one", tools=["t2", "t3"], knowledge=True),
         AgentNode(id="n3", agent_id="agent_two"),
     ]
-    extra_tools, wants_memory, wants_knowledge, routers = CrewAIWorkflowRuntime._node_attachments(nodes)
+    extra_tools, wants_memory, wants_knowledge, routers = CrewAIWorkflowRuntime._node_attachments(
+        nodes
+    )
     assert extra_tools == {"agent_one": ["t1", "t2", "t3"]}
     assert wants_memory == {"agent_one"}
     assert wants_knowledge == {"agent_one"}
@@ -203,7 +205,9 @@ def test_knowledge_tool_queries_every_configured_collection(monkeypatch) -> None
 
     from src.config import settings as settings_module
 
-    monkeypatch.setattr(settings_module.get_settings().external_services, "rag_pipeline_enabled", True)
+    monkeypatch.setattr(
+        settings_module.get_settings().external_services, "rag_pipeline_enabled", True
+    )
 
     queried: list[tuple[str, str, int]] = []
 
@@ -235,7 +239,9 @@ def test_knowledge_tool_survives_one_failing_collection(monkeypatch) -> None:
 
     from src.config import settings as settings_module
 
-    monkeypatch.setattr(settings_module.get_settings().external_services, "rag_pipeline_enabled", True)
+    monkeypatch.setattr(
+        settings_module.get_settings().external_services, "rag_pipeline_enabled", True
+    )
 
     async def fake_query_rag(query: str, collection: str, top_k: int):
         if collection == "broken":

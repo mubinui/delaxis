@@ -6,6 +6,7 @@ they were resolved in the runtime's module â€” which never imports `Optional` â€
 and every workflow using `rag_query` failed with
 "`Rag_Query` is not fully defined; you should define `Optional`".
 """
+
 from types import SimpleNamespace
 
 from crewai.tools import tool

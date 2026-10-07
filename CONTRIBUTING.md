@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This document covers the essentials.
 
 ## Development setup
 
-Backend (Python 3.10+, managed with [uv](https://docs.astral.sh/uv/)):
+Backend (Python 3.11+, managed with [uv](https://docs.astral.sh/uv/)):
 
 ```bash
 uv sync --extra dev

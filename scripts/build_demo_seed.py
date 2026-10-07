@@ -79,7 +79,9 @@ def scrub(value: Any) -> Any:
     """Replace every credential-shaped field with an obvious placeholder."""
     if isinstance(value, dict):
         return {
-            key: MASKED_KEY if SECRET_FIELD.match(key) and isinstance(inner, str) and inner else scrub(inner)
+            key: MASKED_KEY
+            if SECRET_FIELD.match(key) and isinstance(inner, str) and inner
+            else scrub(inner)
             for key, inner in value.items()
         }
     if isinstance(value, list):
@@ -161,7 +163,9 @@ def enrich(data: dict[str, Any]) -> dict[str, Any]:
                 continue
             config = node.setdefault("config", {})
             config.setdefault("model_config", dict(agent["llm_config"]))
-            config.setdefault("system_message", agent.get("system_message") or "You are a helpful assistant.")
+            config.setdefault(
+                "system_message", agent.get("system_message") or "You are a helpful assistant."
+            )
             config.setdefault("tools", agent.get("tools") or [])
 
     data["functions"] = {
@@ -196,7 +200,7 @@ def enrich(data: dict[str, Any]) -> dict[str, Any]:
 
     data["functionSources"] = {
         "sentiment_score": (
-            'def sentiment_score(text: str) -> float:\n'
+            "def sentiment_score(text: str) -> float:\n"
             '    """Score text sentiment from -1 (negative) to 1 (positive)."""\n'
             '    positive = {"good", "great", "love", "excellent", "happy"}\n'
             '    negative = {"bad", "terrible", "hate", "awful", "sad"}\n'
@@ -206,14 +210,14 @@ def enrich(data: dict[str, Any]) -> dict[str, Any]:
         ),
         "slugify_title": (
             "import re\n\n\n"
-            'def slugify_title(title: str) -> str:\n'
+            "def slugify_title(title: str) -> str:\n"
             '    """Convert a headline into a URL-safe slug."""\n'
             '    slug = re.sub(r"[^a-z0-9]+", "-", title.lower())\n'
             '    return slug.strip("-")\n'
         ),
         "fx_convert": (
             'RATES = {"USD": 1.0, "EUR": 0.92, "GBP": 0.79, "BDT": 121.5}\n\n\n'
-            'def fx_convert(amount: float, source: str, target: str) -> dict:\n'
+            "def fx_convert(amount: float, source: str, target: str) -> dict:\n"
             '    """Convert an amount between two currencies at a fixed demo rate."""\n'
             "    if source not in RATES or target not in RATES:\n"
             '        raise ValueError(f"Unsupported currency pair {source}->{target}")\n'
@@ -351,8 +355,12 @@ def assert_no_secrets(seed: dict[str, Any]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://localhost:8000", help="Running API server")
-    parser.add_argument("--source", type=Path, help="Replay a previously saved snapshot instead of fetching")
-    parser.add_argument("--out", type=Path, default=SEED_PATH, help="Where to write the seed bundle")
+    parser.add_argument(
+        "--source", type=Path, help="Replay a previously saved snapshot instead of fetching"
+    )
+    parser.add_argument(
+        "--out", type=Path, default=SEED_PATH, help="Where to write the seed bundle"
+    )
     args = parser.parse_args()
 
     raw = json.loads(args.source.read_text()) if args.source else fetch_all(args.base_url)

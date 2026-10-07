@@ -36,9 +36,16 @@ def _provider(provider_id, models, *, env_var="KEY", required=True, enabled=True
 def catalog(tmp_path, monkeypatch):
     """A provider set where the frontier models live behind a keyed provider."""
     providers = [
-        _provider("openrouter", ["anthropic/claude-opus-5", "anthropic/claude-sonnet-5",
-                                 "google/gemini-3.6-flash", "openai/gpt-oss-20b"],
-                  env_var="OPENROUTER_API_KEY"),
+        _provider(
+            "openrouter",
+            [
+                "anthropic/claude-opus-5",
+                "anthropic/claude-sonnet-5",
+                "google/gemini-3.6-flash",
+                "openai/gpt-oss-20b",
+            ],
+            env_var="OPENROUTER_API_KEY",
+        ),
         _provider("local", ["some-local-model"], required=False),
     ]
     path = _providers_file(tmp_path, providers)
@@ -149,8 +156,12 @@ class TestKeyAwareness:
 
     def test_disabled_provider_is_ignored(self, tmp_path, monkeypatch):
         providers = [
-            _provider("openrouter", ["anthropic/claude-opus-5"],
-                      env_var="OPENROUTER_API_KEY", enabled=False),
+            _provider(
+                "openrouter",
+                ["anthropic/claude-opus-5"],
+                env_var="OPENROUTER_API_KEY",
+                enabled=False,
+            ),
             _provider("local", ["local-llama"], required=False),
         ]
         path = _providers_file(tmp_path, providers)
@@ -170,7 +181,9 @@ class TestFallbacks:
         assert "no preferred model" in choice.reason
 
     def test_no_usable_provider_returns_empty_for_the_caller_to_report(self, tmp_path, monkeypatch):
-        providers = [_provider("anthropic", ["anthropic/claude-opus-5"], env_var="ANTHROPIC_API_KEY")]
+        providers = [
+            _provider("anthropic", ["anthropic/claude-opus-5"], env_var="ANTHROPIC_API_KEY")
+        ]
         path = _providers_file(tmp_path, providers)
         monkeypatch.setattr("src.config.provider_registry._providers_path", lambda: path)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

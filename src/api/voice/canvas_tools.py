@@ -65,8 +65,7 @@ CANVAS_FUNCTIONS: Final[list[dict[str, Any]]] = [
             "properties": {
                 "tool_id": _string("Tool id from the catalogue, e.g. 'web_search' or 'detect_pii'"),
                 "agent_name": _string(
-                    "Which agent to attach it to. Omit to attach to the most "
-                    "recently added agent."
+                    "Which agent to attach it to. Omit to attach to the most recently added agent."
                 ),
             },
             "required": ["tool_id"],

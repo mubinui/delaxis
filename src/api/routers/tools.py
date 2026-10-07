@@ -1,30 +1,30 @@
 """Tool management endpoints."""
 
 import asyncio
-import json
 import inspect
+import json
 import time
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from src.api.models import (
+    SwaggerImportRequest,
+    SwaggerImportResult,
+    SwaggerPreviewEndpoint,
+    SwaggerPreviewResponse,
+    ToolExecutionRequest,
+    ToolExecutionResponse,
     ToolRegisterRequest,
     ToolResponse,
     ToolUpdateRequest,
-    ToolExecutionRequest,
-    ToolExecutionResponse,
-    SwaggerImportRequest,
-    SwaggerPreviewResponse,
-    SwaggerPreviewEndpoint,
-    SwaggerImportResult,
 )
 from src.audit_logging import get_logger
+from src.config.config_loader import get_config_loader
 from src.config.dependency_validation import DependencyError, get_validator
 from src.config.tool_registry import get_tool_registry
-from src.config.config_loader import get_config_loader
 from src.tools.swagger_parser import SwaggerParser, sanitize_tool_id
 
 logger = get_logger(__name__)
@@ -49,10 +49,10 @@ def _save_tools_config(config: dict) -> None:
     """Save tools configuration to file."""
     config_path = _get_tools_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
-    
+
     # Trigger reload in config loader
     try:
         loader = get_config_loader()
@@ -68,36 +68,36 @@ async def register_tool(
 ) -> ToolResponse:
     """
     Register a new tool.
-    
+
     For function tools:
         - entrypoint is required (e.g., src.tools.calculator:calculate)
-        
+
     For API tools:
         - settings.type must be 'api'
         - settings.api_url is required
         - entrypoint is auto-set to the API tool executor
-    
+
     Args:
         request: FastAPI request object
         body: Tool registration request
-        
+
     Returns:
         Registered tool information
-        
+
     Requirements: 3.2, 4.1, 4.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Registering tool",
         request_id=request_id,
         tool_id=body.id,
     )
-    
+
     try:
         # Load existing config
         config = _load_tools_config()
-        
+
         # Check if tool already exists
         if any(t["id"] == body.id for t in config["tools"]):
             raise HTTPException(
@@ -105,21 +105,21 @@ async def register_tool(
                 detail={
                     "error": "duplicate_tool_id",
                     "message": f"Tool already exists with ID: {body.id}",
-                    "suggestion": "Use a different tool ID or update the existing tool"
+                    "suggestion": "Use a different tool ID or update the existing tool",
                 },
             )
-        
+
         # Add new tool
         tool_dict = body.model_dump()
         config["tools"].append(tool_dict)
-        
+
         # Save config
         _save_tools_config(config)
-        
+
         # Register with tool registry if enabled. register_tool_from_entrypoint
         # branches internally on settings['type'] (function/api/mcp/database/gmail),
         # so every type becomes live immediately, not just function tools.
-        tool_type = body.settings.get('type', 'function')
+        tool_type = body.settings.get("type", "function")
         if body.enabled:
             try:
                 tool_registry = get_tool_registry()
@@ -136,16 +136,16 @@ async def register_tool(
                     tool_id=body.id,
                     error=str(e),
                 )
-        
+
         logger.info(
             "Registered tool",
             request_id=request_id,
             tool_id=body.id,
             tool_type=tool_type,
         )
-        
+
         return ToolResponse(**tool_dict)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -159,35 +159,35 @@ async def register_tool(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to register tool: {str(e)}",
-        )
+        ) from e
 
 
-@router.get("", response_model=List[ToolResponse])
+@router.get("", response_model=list[ToolResponse])
 async def list_tools(
     request: Request,
-) -> List[ToolResponse]:
+) -> list[ToolResponse]:
     """
     List all registered tools.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         List of tool configurations
-        
+
     Requirements: 3.2, 4.1, 4.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Listing tools",
         request_id=request_id,
     )
-    
+
     try:
         config = _load_tools_config()
         return [ToolResponse(**tool) for tool in config["tools"]]
-        
+
     except Exception as e:
         logger.error(
             "Failed to list tools",
@@ -198,7 +198,7 @@ async def list_tools(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list tools: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/{tool_id}", response_model=ToolResponse)
@@ -208,38 +208,38 @@ async def get_tool(
 ) -> ToolResponse:
     """
     Get tool configuration by ID.
-    
+
     Args:
         request: FastAPI request object
         tool_id: Tool identifier
-        
+
     Returns:
         Tool configuration
-        
+
     Requirements: 3.2, 4.1, 4.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Getting tool",
         request_id=request_id,
         tool_id=tool_id,
     )
-    
+
     try:
         config = _load_tools_config()
-        
+
         # Find tool
         tool = next((t for t in config["tools"] if t["id"] == tool_id), None)
-        
+
         if tool is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Tool not found: {tool_id}",
             )
-        
+
         return ToolResponse(**tool)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -253,7 +253,7 @@ async def get_tool(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get tool: {str(e)}",
-        )
+        ) from e
 
 
 @router.put("/{tool_id}", response_model=ToolResponse)
@@ -264,48 +264,45 @@ async def update_tool(
 ) -> ToolResponse:
     """
     Update tool configuration.
-    
+
     Args:
         request: FastAPI request object
         tool_id: Tool identifier
         body: Tool update request
-        
+
     Returns:
         Updated tool configuration
-        
+
     Requirements: 3.2, 4.1, 4.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Updating tool",
         request_id=request_id,
         tool_id=tool_id,
     )
-    
+
     try:
         config = _load_tools_config()
-        
+
         # Find tool
-        tool_idx = next(
-            (i for i, t in enumerate(config["tools"]) if t["id"] == tool_id),
-            None
-        )
-        
+        tool_idx = next((i for i, t in enumerate(config["tools"]) if t["id"] == tool_id), None)
+
         if tool_idx is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Tool not found: {tool_id}",
             )
-        
+
         # Update tool
         tool = config["tools"][tool_idx]
         update_data = body.model_dump(exclude_unset=True)
         tool.update(update_data)
-        
+
         # Save config
         _save_tools_config(config)
-        
+
         # Reload tool registry if enabled status changed or entrypoint changed
         if "enabled" in update_data or "entrypoint" in update_data:
             try:
@@ -316,15 +313,15 @@ async def update_tool(
                     "Failed to reload tool registry",
                     error=str(e),
                 )
-        
+
         logger.info(
             "Updated tool",
             request_id=request_id,
             tool_id=tool_id,
         )
-        
+
         return ToolResponse(**tool)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -338,7 +335,7 @@ async def update_tool(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update tool: {str(e)}",
-        )
+        ) from e
 
 
 @router.delete("/{tool_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -348,51 +345,51 @@ async def delete_tool(
 ) -> None:
     """
     Delete tool configuration.
-    
+
     Args:
         request: FastAPI request object
         tool_id: Tool identifier
-        
+
     Requirements: 3.2, 4.1, 4.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Deleting tool",
         request_id=request_id,
         tool_id=tool_id,
     )
-    
+
     try:
         config = _load_tools_config()
-        
+
         # Check if tool exists
         if not any(t["id"] == tool_id for t in config["tools"]):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Tool not found: {tool_id}",
             )
-        
+
         # Check for dependencies before deletion
         validator = get_validator()
         try:
             validator.validate_tool_deletion(tool_id)
         except DependencyError as e:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={
                     "type": "dependency_error",
                     "message": str(e),
                     "dependents": e.dependents,
                 },
-            )
-        
+            ) from e
+
         # Remove tool
         config["tools"] = [t for t in config["tools"] if t["id"] != tool_id]
-        
+
         # Save config
         _save_tools_config(config)
-        
+
         # Reload tool registry
         try:
             tool_registry = get_tool_registry()
@@ -402,13 +399,13 @@ async def delete_tool(
                 "Failed to reload tool registry",
                 error=str(e),
             )
-        
+
         logger.info(
             "Deleted tool",
             request_id=request_id,
             tool_id=tool_id,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -422,7 +419,8 @@ async def delete_tool(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete tool: {str(e)}",
-        )
+        ) from e
+
 
 @router.post("/{tool_id}/execute", response_model=ToolExecutionResponse)
 async def execute_tool(
@@ -432,45 +430,45 @@ async def execute_tool(
 ) -> ToolExecutionResponse:
     """
     Execute a tool directly.
-    
+
     Args:
         request: FastAPI request object
         tool_id: Tool identifier
         body: Execution arguments
-        
+
     Returns:
         Execution result
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Executing tool",
         request_id=request_id,
         tool_id=tool_id,
     )
-    
+
     try:
         tool_registry = get_tool_registry()
         tool_def = tool_registry.get_tool(tool_id)
-        
+
         if not tool_def:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Tool not found: {tool_id}",
             )
-            
+
         # Execute the tool function
         # Note: Context is already set by middleware if headers were provided
         if inspect.iscoroutinefunction(tool_def.function):
             result = await tool_def.function(**body.args)
         else:
             result = tool_def.function(**body.args)
-            
+
         return ToolExecutionResponse(
             status="success",
             result=result,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -491,7 +489,9 @@ async def execute_tool(
 class McpInspectRequest(BaseModel):
     """Request to connect to an MCP server and list its tools (works pre-save)."""
 
-    settings: dict[str, Any] = Field(description="MCP tool settings (type/transport/command/url/...)")
+    settings: dict[str, Any] = Field(
+        description="MCP tool settings (type/transport/command/url/...)"
+    )
 
 
 @router.post("/mcp/inspect")
@@ -515,7 +515,7 @@ async def inspect_mcp_server(request: Request, body: McpInspectRequest) -> dict[
             settings=settings,
         )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     from src.tools.runtime_tool_factories import McpToolFactory
 
@@ -530,7 +530,7 @@ async def inspect_mcp_server(request: Request, body: McpInspectRequest) -> dict[
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to connect to MCP server: {e}",
-        )
+        ) from e
 
     return {
         "status": "connected",
@@ -546,56 +546,60 @@ async def preview_swagger_import(
 ) -> SwaggerPreviewResponse:
     """
     Preview endpoints from a Swagger/OpenAPI specification before importing.
-    
+
     This endpoint fetches and parses the Swagger spec, then returns a preview
     of all available endpoints with duplicate detection against existing tools.
-    
+
     Args:
         request: FastAPI request object
         swagger_url: URL to the Swagger/OpenAPI specification
-        
+
     Returns:
         Preview of available endpoints and their generated tool IDs
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Previewing Swagger import",
         request_id=request_id,
         swagger_url=swagger_url,
     )
-    
+
     try:
         # Load existing tools to check for duplicates
         config = _load_tools_config()
         existing_ids = {t["id"] for t in config["tools"]}
-        
+
         # Parse the Swagger spec
         parser = SwaggerParser()
         parse_result = await parser.parse(swagger_url)
-        
+
         # Build preview endpoints
         preview_endpoints = []
         duplicate_count = 0
-        
+
         for endpoint in parse_result.endpoints:
             tool_id = sanitize_tool_id(endpoint.operation_id, endpoint.path, endpoint.method)
             is_duplicate = tool_id in existing_ids
-            
+
             if is_duplicate:
                 duplicate_count += 1
-            
-            preview_endpoints.append(SwaggerPreviewEndpoint(
-                operation_id=endpoint.operation_id,
-                path=endpoint.path,
-                method=endpoint.method,
-                summary=endpoint.summary,
-                description=endpoint.description[:200] + "..." if len(endpoint.description) > 200 else endpoint.description,
-                tags=endpoint.tags,
-                generated_tool_id=tool_id,
-                is_duplicate=is_duplicate,
-            ))
-        
+
+            preview_endpoints.append(
+                SwaggerPreviewEndpoint(
+                    operation_id=endpoint.operation_id,
+                    path=endpoint.path,
+                    method=endpoint.method,
+                    summary=endpoint.summary,
+                    description=endpoint.description[:200] + "..."
+                    if len(endpoint.description) > 200
+                    else endpoint.description,
+                    tags=endpoint.tags,
+                    generated_tool_id=tool_id,
+                    is_duplicate=is_duplicate,
+                )
+            )
+
         return SwaggerPreviewResponse(
             title=parse_result.title,
             version=parse_result.version,
@@ -607,12 +611,12 @@ async def preview_swagger_import(
             duplicate_count=duplicate_count,
             errors=parse_result.errors,
         )
-        
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
     except Exception as e:
         logger.error(
             "Failed to preview Swagger import",
@@ -624,7 +628,7 @@ async def preview_swagger_import(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to parse Swagger spec: {str(e)}",
-        )
+        ) from e
 
 
 @router.post("/import-swagger", response_model=SwaggerImportResult)
@@ -634,37 +638,37 @@ async def import_swagger_tools(
 ) -> SwaggerImportResult:
     """
     Import tools from a Swagger/OpenAPI specification.
-    
+
     Parses the Swagger/OpenAPI spec and creates tool configurations for each endpoint.
     Supports both OpenAPI 2.0 (Swagger) and OpenAPI 3.0+ specifications.
-    
+
     Duplicate tools (by ID) are automatically skipped.
-    
+
     Args:
         request: FastAPI request object
         body: Swagger import request with URL and options
-        
+
     Returns:
         Import result with counts and lists of imported/skipped tools
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Importing tools from Swagger",
         request_id=request_id,
         swagger_url=body.swagger_url,
         endpoint_filter=body.endpoint_filter,
     )
-    
+
     try:
         # Load existing tools config
         config = _load_tools_config()
         existing_ids = {t["id"] for t in config["tools"]}
-        
+
         # Parse and generate tools
         parser = SwaggerParser()
         parse_result = await parser.parse(body.swagger_url)
-        
+
         tools, skipped = parser.generate_tool_configs(
             parse_result=parse_result,
             existing_tool_ids=existing_ids.copy(),  # Pass copy to track duplicates
@@ -674,18 +678,18 @@ async def import_swagger_tools(
             forward_user_context=body.forward_user_context,
             timeout=body.timeout,
         )
-        
+
         # Import non-duplicate tools
         imported_tools = []
         errors = []
-        
+
         for tool in tools:
             try:
                 # Check again for duplicates (in case of race condition)
                 if tool.id in existing_ids:
                     skipped.append(f"{tool.id} (already exists)")
                     continue
-                
+
                 # Create tool config
                 tool_dict = {
                     "id": tool.id,
@@ -695,18 +699,18 @@ async def import_swagger_tools(
                     "enabled": body.enabled,
                     "settings": tool.settings,
                 }
-                
+
                 config["tools"].append(tool_dict)
                 existing_ids.add(tool.id)
                 imported_tools.append(tool.id)
-                
+
             except Exception as e:
                 errors.append(f"Failed to import {tool.id}: {str(e)}")
-        
+
         # Save config if any tools were imported
         if imported_tools:
             _save_tools_config(config)
-            
+
             # Reload tool registry
             try:
                 tool_registry = get_tool_registry()
@@ -716,14 +720,14 @@ async def import_swagger_tools(
                     "Failed to reload tool registry after import",
                     error=str(e),
                 )
-        
+
         logger.info(
             "Swagger import completed",
             request_id=request_id,
             imported_count=len(imported_tools),
             skipped_count=len(skipped),
         )
-        
+
         return SwaggerImportResult(
             success=True,
             imported_count=len(imported_tools),
@@ -731,12 +735,12 @@ async def import_swagger_tools(
             imported_tools=imported_tools,
             errors=errors + parse_result.errors,
         )
-        
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
     except Exception as e:
         logger.error(
             "Failed to import Swagger tools",
@@ -748,4 +752,4 @@ async def import_swagger_tools(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to import tools from Swagger: {str(e)}",
-        )
+        ) from e

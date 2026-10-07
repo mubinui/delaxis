@@ -165,5 +165,5 @@ def build_system_instruction(
         # Trim the persona rather than the addendum — the speaking rules are what
         # keep the output listenable, so they must survive.
         budget = MAX_INSTRUCTION_CHARS - len(VOICE_ADDENDUM) - 2
-        instruction = f"{persona[:max(0, budget)].rstrip()}\n\n{VOICE_ADDENDUM}"
+        instruction = f"{persona[: max(0, budget)].rstrip()}\n\n{VOICE_ADDENDUM}"
     return instruction

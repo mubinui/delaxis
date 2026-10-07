@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
-from datetime import datetime
 import json
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -54,7 +54,7 @@ class SessionManager:
         if workflow is None:
             raise ValueError(f"Workflow not found: {workflow_id}")
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         session = ConversationState(
             session_id=uuid4(),
             active=True,
@@ -72,7 +72,9 @@ class SessionManager:
         )
         self._sessions[str(session.session_id)] = session
         self._save_sessions()
-        logger.info("crewai_session_created", session_id=session.session_id, workflow_id=workflow_id)
+        logger.info(
+            "crewai_session_created", session_id=session.session_id, workflow_id=workflow_id
+        )
         return session
 
     async def get_session(self, session_id: UUID) -> ConversationState | None:
@@ -87,7 +89,9 @@ class SessionManager:
         """List sessions from the in-process CrewAI session index."""
         sessions = list(self._sessions.values())
         if user_id:
-            sessions = [session for session in sessions if session.metadata.get("user_id") == user_id]
+            sessions = [
+                session for session in sessions if session.metadata.get("user_id") == user_id
+            ]
         if active_only:
             sessions = [session for session in sessions if session.active]
         return sorted(sessions, key=lambda item: item.updated_at, reverse=True)
@@ -124,7 +128,9 @@ class SessionManager:
 
         if max_turns and session.turn_count > max_turns:
             session.active = False
-            response = "This session reached the configured turn limit. Start a new session to continue."
+            response = (
+                "This session reached the configured turn limit. Start a new session to continue."
+            )
             session.add_message(MessageRole.ASSISTANT, response, runtime="crewai", limited=True)
             self._save_sessions()
             return self._response(session, response, {"runtime": "crewai", "limited": True})
@@ -162,10 +168,12 @@ class SessionManager:
         )
         session.metadata["last_trace_steps"] = result.trace_steps
         session.metadata["last_run"] = result.metadata
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(UTC)
         self._save_sessions()
 
-        return self._response(session, response_text, {**result.metadata, "trace_steps": result.trace_steps})
+        return self._response(
+            session, response_text, {**result.metadata, "trace_steps": result.trace_steps}
+        )
 
     async def stream_message(
         self,
@@ -200,7 +208,9 @@ class SessionManager:
                 # itself keeps going, we just stop forwarding events.
                 pass
 
-        def _build_delta(event_type: str, payload: dict[str, Any], agent_id: str | None) -> ResponseDelta:
+        def _build_delta(
+            event_type: str, payload: dict[str, Any], agent_id: str | None
+        ) -> ResponseDelta:
             try:
                 delta_type = ResponseDeltaType(event_type)
             except ValueError:
@@ -208,7 +218,9 @@ class SessionManager:
             return builder.delta(delta_type, payload, agent_id=agent_id)
 
         run_task = asyncio.create_task(
-            self.process_message(session_id, message, max_turns=max_turns, metadata=metadata, event_sink=sink)
+            self.process_message(
+                session_id, message, max_turns=max_turns, metadata=metadata, event_sink=sink
+            )
         )
         # Retrieve the exception even if the client disconnects before we await
         # the task, so a failed run never surfaces as "exception never retrieved".
@@ -218,7 +230,9 @@ class SessionManager:
         try:
             while True:
                 pending_get = asyncio.create_task(queue.get())
-                done, _ = await asyncio.wait({pending_get, run_task}, return_when=asyncio.FIRST_COMPLETED)
+                done, _ = await asyncio.wait(
+                    {pending_get, run_task}, return_when=asyncio.FIRST_COMPLETED
+                )
                 if pending_get in done:
                     event_type, payload, agent_id = pending_get.result()
                     pending_get = None
@@ -244,7 +258,9 @@ class SessionManager:
                 },
             )
         except Exception as exc:
-            logger.error("crewai_message_stream_failed", session_id=session_id, error=str(exc), exc_info=True)
+            logger.error(
+                "crewai_message_stream_failed", session_id=session_id, error=str(exc), exc_info=True
+            )
             yield builder.delta(
                 ResponseDeltaType.ERROR,
                 {"error_type": type(exc).__name__, "error_message": str(exc), "runtime": "crewai"},
@@ -364,7 +380,9 @@ class SessionManager:
                 session = ConversationState.model_validate(item)
                 self._sessions[str(session.session_id)] = session
         except Exception as exc:
-            logger.warning("crewai_session_restore_failed", path=str(self.storage_path), error=str(exc))
+            logger.warning(
+                "crewai_session_restore_failed", path=str(self.storage_path), error=str(exc)
+            )
 
     def _save_sessions(self) -> None:
         """Persist sessions so run history survives API restarts."""
@@ -373,7 +391,7 @@ class SessionManager:
             payload = {
                 "version": 1,
                 "runtime": "crewai",
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
                 "sessions": [
                     session.model_dump(mode="json")
                     for session in sorted(self._sessions.values(), key=lambda item: item.updated_at)
@@ -381,7 +399,9 @@ class SessionManager:
             }
             self.storage_path.write_text(json.dumps(payload, indent=2))
         except Exception as exc:
-            logger.warning("crewai_session_persist_failed", path=str(self.storage_path), error=str(exc))
+            logger.warning(
+                "crewai_session_persist_failed", path=str(self.storage_path), error=str(exc)
+            )
 
 
 _session_manager: SessionManager | None = None

@@ -4,20 +4,21 @@ OpenAI SDK-based LLM Provider Configuration.
 Uses OpenAI SDK directly with OpenRouter as the backend provider.
 This replaces the LiteLLM-based implementation for better performance and reliability.
 """
-import os
-import asyncio
-from dataclasses import dataclass, field
-from typing import Optional, Literal, Dict, Any, List
-from enum import Enum
+
 import logging
+import os
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any
 
 from openai import AsyncOpenAI, OpenAI
 
 logger = logging.getLogger(__name__)
 
 
-class ProviderType(str, Enum):
+class ProviderType(StrEnum):
     """Supported LLM provider types."""
+
     OPENROUTER = "openrouter"
     OPENAI = "openai"
     AZURE = "azure"
@@ -27,35 +28,35 @@ class ProviderType(str, Enum):
 @dataclass
 class OpenAIProviderConfig:
     """Configuration for OpenAI SDK-based LLM providers."""
-    
+
     # Provider selection
     provider: ProviderType = ProviderType.OPENROUTER
     model_name: str = "openai/gpt-oss-20b"
-    
+
     # API settings
-    api_key: Optional[str] = None
+    api_key: str | None = None
     base_url: str = "https://openrouter.ai/api/v1"
-    
+
     # OpenRouter specific headers
-    openrouter_site_url: Optional[str] = None
-    openrouter_app_name: Optional[str] = None
-    
+    openrouter_site_url: str | None = None
+    openrouter_app_name: str | None = None
+
     # Model configuration
     temperature: float = 0.7
     max_tokens: int = 4096
     top_p: float = 0.9
-    
+
     # Timeout settings (in seconds)
     timeout: float = 60.0
     connect_timeout: float = 10.0
-    
+
     # Debug settings
     debug_mode: bool = False
-    
+
     # Cached clients
-    _sync_client: Optional[OpenAI] = field(default=None, repr=False)
-    _async_client: Optional[AsyncOpenAI] = field(default=None, repr=False)
-    
+    _sync_client: OpenAI | None = field(default=None, repr=False)
+    _async_client: AsyncOpenAI | None = field(default=None, repr=False)
+
     @classmethod
     def from_env(cls) -> "OpenAIProviderConfig":
         """Load configuration from environment variables."""
@@ -65,7 +66,7 @@ class OpenAIProviderConfig:
         except ValueError:
             logger.warning(f"Invalid LLM_PROVIDER '{provider_str}', defaulting to openrouter")
             provider = ProviderType.OPENROUTER
-        
+
         # Determine base URL and API key based on provider
         if provider == ProviderType.OPENROUTER:
             base_url = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
@@ -76,7 +77,7 @@ class OpenAIProviderConfig:
         else:
             base_url = os.getenv("LLM_API_BASE", "http://localhost:8000/v1")
             api_key = os.getenv("LLM_API_KEY", "dummy")
-        
+
         return cls(
             provider=provider,
             model_name=os.getenv("LLM_MODEL", "google/gemini-3.5-flash-lite"),
@@ -91,8 +92,8 @@ class OpenAIProviderConfig:
             connect_timeout=float(os.getenv("LLM_CONNECT_TIMEOUT", "10.0")),
             debug_mode=os.getenv("LLM_DEBUG", "false").lower() == "true",
         )
-    
-    def _get_extra_headers(self) -> Dict[str, str]:
+
+    def _get_extra_headers(self) -> dict[str, str]:
         """Get extra headers for OpenRouter."""
         headers = {}
         if self.provider == ProviderType.OPENROUTER:
@@ -101,7 +102,7 @@ class OpenAIProviderConfig:
             if self.openrouter_app_name:
                 headers["X-Title"] = self.openrouter_app_name
         return headers
-    
+
     def get_sync_client(self) -> OpenAI:
         """Get or create synchronous OpenAI client."""
         if self._sync_client is None:
@@ -112,7 +113,7 @@ class OpenAIProviderConfig:
                 default_headers=self._get_extra_headers(),
             )
         return self._sync_client
-    
+
     def get_async_client(self) -> AsyncOpenAI:
         """Get or create asynchronous OpenAI client."""
         if self._async_client is None:
@@ -123,8 +124,8 @@ class OpenAIProviderConfig:
                 default_headers=self._get_extra_headers(),
             )
         return self._async_client
-    
-    def get_model_kwargs(self) -> Dict[str, Any]:
+
+    def get_model_kwargs(self) -> dict[str, Any]:
         """Get model kwargs for API calls."""
         return {
             "model": self.model_name,
@@ -132,17 +133,17 @@ class OpenAIProviderConfig:
             "max_tokens": self.max_tokens,
             "top_p": self.top_p,
         }
-    
+
     def test_connection_sync(self) -> bool:
         """
         Test connection to the LLM provider synchronously.
-        
+
         Returns:
             True if connection successful, False otherwise.
         """
         try:
             client = self.get_sync_client()
-            response = client.chat.completions.create(
+            client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": "Hi"}],
                 max_tokens=5,
@@ -152,17 +153,17 @@ class OpenAIProviderConfig:
         except Exception as e:
             logger.error(f"Failed to connect to {self.provider.value}: {e}")
             return False
-    
+
     async def test_connection_async(self) -> bool:
         """
         Test connection to the LLM provider asynchronously.
-        
+
         Returns:
             True if connection successful, False otherwise.
         """
         try:
             client = self.get_async_client()
-            response = await client.chat.completions.create(
+            await client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": "Hi"}],
                 max_tokens=5,
@@ -172,8 +173,8 @@ class OpenAIProviderConfig:
         except Exception as e:
             logger.error(f"Failed to connect to {self.provider.value}: {e}")
             return False
-    
-    def get_litellm_model_config(self) -> Dict[str, Any]:
+
+    def get_litellm_model_config(self) -> dict[str, Any]:
         """
         Get configuration dict compatible with existing LiteLLM patterns.
         This allows gradual migration while keeping CrewAI LiteLlm wrapper working.
@@ -183,14 +184,14 @@ class OpenAIProviderConfig:
             model_string = f"openrouter/{self.model_name}"
         else:
             model_string = self.model_name
-        
+
         return {
             "model": model_string,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "top_p": self.top_p,
         }
-    
+
     def get_model_string(self) -> str:
         """Get the model string for LiteLLM compatibility."""
         if self.provider == ProviderType.OPENROUTER:
@@ -199,7 +200,7 @@ class OpenAIProviderConfig:
 
 
 # Global provider configuration instance
-_openai_provider_config: Optional[OpenAIProviderConfig] = None
+_openai_provider_config: OpenAIProviderConfig | None = None
 
 
 def get_openai_provider_config() -> OpenAIProviderConfig:

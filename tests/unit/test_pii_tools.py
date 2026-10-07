@@ -27,13 +27,15 @@ from src.tools.pii import (
 # appears contiguously in this file — such a literal trips GitHub push
 # protection and every other scanner that will ever read this repository, and a
 # test fixture is not worth a permanent repo-wide scanner exception.
-SAMPLE_AWS_KEY = "AKIA" "3FJK2LMNQ4XZ7BVC"
-SAMPLE_AWS_DOC_KEY = "AKIA" "IOSFODNN7EXAMPLE"
-SAMPLE_GITHUB_TOKEN = "ghp_" "aB3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2eF3"
-SAMPLE_SLACK_TOKEN = "xoxb-" "2451233-abcDEF123456"
-SAMPLE_STRIPE_KEY = "sk_" "live_aB3xY9zQ1mN7pR2sT4uV6wX8"
-SAMPLE_GOOGLE_KEY = "AIza" "SyD3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2e"
-SAMPLE_OPENAI_KEY = "sk-" "proj-Xk92mQvR4tYuIoPa8sDfGhJk1LzXcVbNm3"
+SAMPLE_AWS_KEY = "AKIA3FJK2LMNQ4XZ7BVC"
+SAMPLE_AWS_DOC_KEY = "AKIAIOSFODNN7EXAMPLE"
+# Each sample is two literals: the value is unchanged, but the source never
+# contains a key-shaped string, which GitHub's push protection would refuse.
+SAMPLE_GITHUB_TOKEN = "ghp_" + "aB3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2eF3"
+SAMPLE_SLACK_TOKEN = "xoxb-" + "2451233-abcDEF123456"
+SAMPLE_STRIPE_KEY = "sk_live_" + "aB3xY9zQ1mN7pR2sT4uV6wX8"
+SAMPLE_GOOGLE_KEY = "AIza" + "SyD3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2e"
+SAMPLE_OPENAI_KEY = "sk-proj-" + "Xk92mQvR4tYuIoPa8sDfGhJk1LzXcVbNm3"
 
 
 def types_found(text: str, **kwargs) -> set[str]:
@@ -46,7 +48,9 @@ def types_found(text: str, **kwargs) -> set[str]:
 
 
 class TestValidators:
-    @pytest.mark.parametrize("number", ["4111111111111111", "5500005555555559", "4111 1111 1111 1111"])
+    @pytest.mark.parametrize(
+        "number", ["4111111111111111", "5500005555555559", "4111 1111 1111 1111"]
+    )
     def test_luhn_accepts_valid_cards(self, number):
         assert _luhn_ok(number)
 
@@ -111,7 +115,7 @@ class TestDetection:
         "phone",
         [
             "+1 (415) 555-0132",
-            "+8801712345678",       # bare E.164, no separators
+            "+8801712345678",  # bare E.164, no separators
             "415-555-0132",
             "+44 20 7946 0958",
         ],

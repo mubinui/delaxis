@@ -1,7 +1,6 @@
 """Dependency validation for configuration management."""
 
 from pathlib import Path
-from typing import Dict, List, Set
 
 from src.audit_logging import get_logger
 from src.config.loader import ConfigurationLoader
@@ -15,9 +14,9 @@ class DependencyError(Exception):
     def __init__(
         self,
         message: str,
-        missing: List[str] = None,
-        available: List[str] = None,
-        dependents: List[str] = None,
+        missing: list[str] = None,
+        available: list[str] = None,
+        dependents: list[str] = None,
     ):
         """
         Initialize dependency error.
@@ -46,9 +45,7 @@ class DependencyValidator:
         """
         self.config_loader = config_loader or ConfigurationLoader()
 
-    def validate_agent_tool_references(
-        self, agent_id: str, tool_ids: List[str]
-    ) -> None:
+    def validate_agent_tool_references(self, agent_id: str, tool_ids: list[str]) -> None:
         """
         Validate that all tool references in an agent configuration exist.
 
@@ -90,9 +87,7 @@ class DependencyValidator:
             tool_count=len(tool_ids),
         )
 
-    def validate_workflow_agent_references(
-        self, workflow_id: str, agent_ids: Set[str]
-    ) -> None:
+    def validate_workflow_agent_references(self, workflow_id: str, agent_ids: set[str]) -> None:
         """
         Validate that all agent references in a workflow configuration exist.
 
@@ -109,15 +104,16 @@ class DependencyValidator:
             return
 
         # Load agents configuration
-        from src.config.agent_models import AgentsConfig
         import json
 
+        from src.config.agent_models import AgentsConfig
+
         # Use config_loader's directory if available
-        if hasattr(self.config_loader, 'config_dir'):
+        if hasattr(self.config_loader, "config_dir"):
             agents_path = Path(self.config_loader.config_dir) / "agents.json"
         else:
             agents_path = Path("configs") / "agents.json"
-            
+
         if not agents_path.exists():
             raise DependencyError(
                 f"Workflow '{workflow_id}' references agents but agents configuration not found",
@@ -125,7 +121,7 @@ class DependencyValidator:
                 available=[],
             )
 
-        with open(agents_path, "r") as f:
+        with open(agents_path) as f:
             agents_data = json.load(f)
 
         agents_config = AgentsConfig(**agents_data)
@@ -153,7 +149,7 @@ class DependencyValidator:
             agent_count=len(agent_ids),
         )
 
-    def check_tool_dependencies(self, tool_id: str) -> List[str]:
+    def check_tool_dependencies(self, tool_id: str) -> list[str]:
         """
         Check which agents depend on a specific tool.
 
@@ -165,29 +161,26 @@ class DependencyValidator:
 
         Requirements: 3.5, 8.2
         """
-        from src.config.agent_models import AgentsConfig
         import json
 
+        from src.config.agent_models import AgentsConfig
+
         # Use config_loader's directory if available
-        if hasattr(self.config_loader, 'config_dir'):
+        if hasattr(self.config_loader, "config_dir"):
             agents_path = Path(self.config_loader.config_dir) / "agents.json"
         else:
             agents_path = Path("configs") / "agents.json"
-            
+
         if not agents_path.exists():
             return []
 
-        with open(agents_path, "r") as f:
+        with open(agents_path) as f:
             agents_data = json.load(f)
 
         agents_config = AgentsConfig(**agents_data)
 
         # Find agents that reference this tool
-        dependent_agents = [
-            agent.id
-            for agent in agents_config.agents
-            if tool_id in agent.tools
-        ]
+        dependent_agents = [agent.id for agent in agents_config.agents if tool_id in agent.tools]
 
         logger.debug(
             "Checked tool dependencies",
@@ -197,7 +190,7 @@ class DependencyValidator:
 
         return dependent_agents
 
-    def check_agent_dependencies(self, agent_id: str) -> List[str]:
+    def check_agent_dependencies(self, agent_id: str) -> list[str]:
         """
         Check which workflows depend on a specific agent.
 
@@ -209,19 +202,20 @@ class DependencyValidator:
 
         Requirements: 3.5, 8.3
         """
-        from src.config.workflow_models import WorkflowsConfig
         import json
 
+        from src.config.workflow_models import WorkflowsConfig
+
         # Use config_loader's directory if available
-        if hasattr(self.config_loader, 'config_dir'):
+        if hasattr(self.config_loader, "config_dir"):
             workflows_path = Path(self.config_loader.config_dir) / "workflows.json"
         else:
             workflows_path = Path("configs") / "workflows.json"
-            
+
         if not workflows_path.exists():
             return []
 
-        with open(workflows_path, "r") as f:
+        with open(workflows_path) as f:
             workflows_data = json.load(f)
 
         workflows_config = WorkflowsConfig(**workflows_data)

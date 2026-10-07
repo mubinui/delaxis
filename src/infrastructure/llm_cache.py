@@ -1,9 +1,9 @@
 """LLM caching integration with CrewAI."""
 
 import logging
-from typing import Any, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Any
 
 from src.infrastructure.cache import RedisCache
 
@@ -13,31 +13,31 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheMetrics:
     """Metrics for LLM cache performance."""
-    
+
     total_requests: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
     total_tokens_saved: int = 0
     total_cost_saved: float = 0.0
-    last_reset: datetime = field(default_factory=datetime.utcnow)
-    
+    last_reset: datetime = field(default_factory=lambda: datetime.now(UTC))
+
     @property
     def hit_rate(self) -> float:
         """Calculate cache hit rate as percentage."""
         if self.total_requests == 0:
             return 0.0
         return (self.cache_hits / self.total_requests) * 100
-    
+
     def to_dict(self) -> dict[str, Any]:
         """Convert metrics to dictionary."""
         return {
-            'total_requests': self.total_requests,
-            'cache_hits': self.cache_hits,
-            'cache_misses': self.cache_misses,
-            'hit_rate': round(self.hit_rate, 2),
-            'total_tokens_saved': self.total_tokens_saved,
-            'total_cost_saved': round(self.total_cost_saved, 4),
-            'last_reset': self.last_reset.isoformat(),
+            "total_requests": self.total_requests,
+            "cache_hits": self.cache_hits,
+            "cache_misses": self.cache_misses,
+            "hit_rate": round(self.hit_rate, 2),
+            "total_tokens_saved": self.total_tokens_saved,
+            "total_cost_saved": round(self.total_cost_saved, 4),
+            "last_reset": self.last_reset.isoformat(),
         }
 
 
@@ -52,7 +52,7 @@ class LLMCacheMonitor:
 
     def __init__(
         self,
-        redis_cache: Optional[RedisCache] = None,
+        redis_cache: RedisCache | None = None,
         enable_metrics: bool = True,
     ):
         """Initialize LLM cache monitor.
@@ -64,10 +64,8 @@ class LLMCacheMonitor:
         self.redis_cache = redis_cache
         self.enable_metrics = enable_metrics
         self.metrics = CacheMetrics()
-        
-        logger.info(
-            f"LLM cache monitor initialized (metrics_enabled={enable_metrics})"
-        )
+
+        logger.info(f"LLM cache monitor initialized (metrics_enabled={enable_metrics})")
 
     def record_request(
         self,
@@ -84,21 +82,20 @@ class LLMCacheMonitor:
         """
         if not self.enable_metrics:
             return
-        
+
         self.metrics.total_requests += 1
-        
+
         if cache_hit:
             self.metrics.cache_hits += 1
             self.metrics.total_tokens_saved += tokens_saved
             self.metrics.total_cost_saved += cost_saved
             logger.debug(
-                f"LLM cache hit (tokens_saved={tokens_saved}, "
-                f"cost_saved=${cost_saved:.4f})"
+                f"LLM cache hit (tokens_saved={tokens_saved}, cost_saved=${cost_saved:.4f})"
             )
         else:
             self.metrics.cache_misses += 1
             logger.debug("LLM cache miss")
-        
+
         # Persist metrics to Redis if available
         if self.redis_cache:
             self._persist_metrics()
@@ -112,14 +109,14 @@ class LLMCacheMonitor:
         # Load from Redis if available
         if self.redis_cache:
             self._load_metrics()
-        
+
         return self.metrics
 
     def reset_metrics(self) -> None:
         """Reset cache metrics."""
         logger.info("Resetting LLM cache metrics")
         self.metrics = CacheMetrics()
-        
+
         # Clear from Redis if available
         if self.redis_cache:
             self.redis_cache.delete("llm_cache:metrics")
@@ -128,7 +125,7 @@ class LLMCacheMonitor:
         """Persist metrics to Redis."""
         if not self.redis_cache:
             return
-        
+
         try:
             self.redis_cache.set_json(
                 "llm_cache:metrics",
@@ -142,18 +139,18 @@ class LLMCacheMonitor:
         """Load metrics from Redis."""
         if not self.redis_cache:
             return
-        
+
         try:
             data = self.redis_cache.get_json("llm_cache:metrics")
             if data:
-                self.metrics.total_requests = data.get('total_requests', 0)
-                self.metrics.cache_hits = data.get('cache_hits', 0)
-                self.metrics.cache_misses = data.get('cache_misses', 0)
-                self.metrics.total_tokens_saved = data.get('total_tokens_saved', 0)
-                self.metrics.total_cost_saved = data.get('total_cost_saved', 0.0)
-                
+                self.metrics.total_requests = data.get("total_requests", 0)
+                self.metrics.cache_hits = data.get("cache_hits", 0)
+                self.metrics.cache_misses = data.get("cache_misses", 0)
+                self.metrics.total_tokens_saved = data.get("total_tokens_saved", 0)
+                self.metrics.total_cost_saved = data.get("total_cost_saved", 0.0)
+
                 # Parse last_reset timestamp
-                last_reset_str = data.get('last_reset')
+                last_reset_str = data.get("last_reset")
                 if last_reset_str:
                     self.metrics.last_reset = datetime.fromisoformat(last_reset_str)
         except Exception as e:
@@ -181,9 +178,9 @@ class CrewAICacheConfig:
     def create_llm_config_with_cache(
         config_list: list[dict[str, Any]],
         temperature: float = 0.7,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
         timeout: int = 120,
-        cache_seed: Optional[int] = 42,
+        cache_seed: int | None = 42,
     ) -> dict[str, Any]:
         """Create llm_config with caching enabled.
 
@@ -202,16 +199,16 @@ class CrewAICacheConfig:
             "temperature": temperature,
             "timeout": timeout,
         }
-        
+
         if max_tokens is not None:
             llm_config["max_tokens"] = max_tokens
-        
+
         if cache_seed is not None:
             llm_config["cache_seed"] = cache_seed
             logger.debug(f"LLM config created with cache_seed={cache_seed}")
         else:
             logger.debug("LLM config created without caching")
-        
+
         return llm_config
 
     @staticmethod
@@ -261,11 +258,11 @@ class CrewAICacheConfig:
 
 
 # Singleton instance
-_llm_cache_monitor: Optional[LLMCacheMonitor] = None
+_llm_cache_monitor: LLMCacheMonitor | None = None
 
 
 def get_llm_cache_monitor(
-    redis_cache: Optional[RedisCache] = None,
+    redis_cache: RedisCache | None = None,
 ) -> LLMCacheMonitor:
     """Get the singleton LLM cache monitor instance.
 

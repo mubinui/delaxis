@@ -16,7 +16,7 @@ import json
 import threading
 from typing import Any
 
-from src.rag.stores.base import Record, SearchHit, VectorStoreError, matches
+from src.rag.stores.base import Record, SearchHit, VectorStoreError
 
 
 def _psycopg():
@@ -98,8 +98,14 @@ class PgVectorStore:
             return 0
         self._ensure()
         rows = [
-            (record.id, collection, record.metadata.get("source", ""), record.text,
-             _literal(record.embedding), json.dumps(record.metadata, default=str))
+            (
+                record.id,
+                collection,
+                record.metadata.get("source", ""),
+                record.text,
+                _literal(record.embedding),
+                json.dumps(record.metadata, default=str),
+            )
             for record in records
         ]
         with self._connect() as connection, connection.cursor() as cursor:
@@ -143,14 +149,20 @@ class PgVectorStore:
             f"FROM {self._table} WHERE {' AND '.join(clauses)} "
             f"ORDER BY embedding <=> %s::vector LIMIT %s"
         )
-        with self._connect() as connection, \
-                connection.cursor(cursor_factory=self._cursor_factory) as cursor:
+        with (
+            self._connect() as connection,
+            connection.cursor(cursor_factory=self._cursor_factory) as cursor,
+        ):
             cursor.execute(statement, [vector, *params, vector, max(1, top_k)])
             rows = cursor.fetchall()
 
         return [
-            SearchHit(id=row["id"], text=row["text"], score=float(row["score"]),
-                      metadata=row["metadata"] or {})
+            SearchHit(
+                id=row["id"],
+                text=row["text"],
+                score=float(row["score"]),
+                metadata=row["metadata"] or {},
+            )
             for row in rows
         ]
 
@@ -192,8 +204,10 @@ class PgVectorStore:
 
     def stats(self, collection: str) -> dict[str, Any]:
         self._ensure()
-        with self._connect() as connection, \
-                connection.cursor(cursor_factory=self._cursor_factory) as cursor:
+        with (
+            self._connect() as connection,
+            connection.cursor(cursor_factory=self._cursor_factory) as cursor,
+        ):
             cursor.execute(
                 "SELECT COUNT(*) AS chunks, COUNT(DISTINCT source) AS documents, "
                 "COALESCE(SUM(LENGTH(text)), 0) AS characters "
@@ -212,8 +226,10 @@ class PgVectorStore:
 
     def sources(self, collection: str) -> list[dict[str, Any]]:
         self._ensure()
-        with self._connect() as connection, \
-                connection.cursor(cursor_factory=self._cursor_factory) as cursor:
+        with (
+            self._connect() as connection,
+            connection.cursor(cursor_factory=self._cursor_factory) as cursor,
+        ):
             cursor.execute(
                 "SELECT source, COUNT(*) AS chunks, COALESCE(SUM(LENGTH(text)), 0) AS characters, "
                 "MIN(created_at) AS ingested_at "
@@ -221,8 +237,11 @@ class PgVectorStore:
                 (collection,),
             )
             return [
-                {"source": row["source"], "chunks": int(row["chunks"]),
-                 "characters": int(row["characters"]),
-                 "ingested_at": row["ingested_at"].isoformat() if row["ingested_at"] else None}
+                {
+                    "source": row["source"],
+                    "chunks": int(row["chunks"]),
+                    "characters": int(row["characters"]),
+                    "ingested_at": row["ingested_at"].isoformat() if row["ingested_at"] else None,
+                }
                 for row in cursor.fetchall()
             ]

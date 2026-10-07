@@ -1,11 +1,11 @@
 """Audit logging for conversation tracking and compliance."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from src.audit_logging.logger import get_logger
-from src.memory.models import AgentType, MessageRole
+from src.memory.models import AgentType
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,7 @@ class AuditLogger:
             "user_input",
             session_id=str(session_id),
             content=content,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             metadata=metadata or {},
         )
 
@@ -38,7 +38,7 @@ class AuditLogger:
             session_id=str(session_id),
             agent_type=agent_type.value,
             action=action,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             details=details or {},
         )
 
@@ -57,7 +57,7 @@ class AuditLogger:
             model=model,
             prompt=prompt,
             response=response,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             metadata=metadata or {},
         )
 
@@ -74,7 +74,7 @@ class AuditLogger:
             session_id=str(session_id),
             content=content,
             passed=passed,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             safeguard_metadata=safeguard_metadata or {},
         )
 
@@ -91,7 +91,7 @@ class AuditLogger:
             session_id=str(session_id),
             error_type=error_type,
             error_message=error_message,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             context=context or {},
         )
 
@@ -103,7 +103,7 @@ class AuditLogger:
             "session_lifecycle",
             session_id=str(session_id),
             lifecycle_event=event,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             metadata=metadata or {},
         )
 
@@ -115,7 +115,7 @@ class AuditLogger:
             "assistant_response",
             session_id=str(session_id),
             content=content,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             metadata=metadata or {},
         )
 
@@ -129,7 +129,7 @@ class AuditLogger:
     ) -> None:
         """
         Log configuration retrieval.
-        
+
         Args:
             config_type: Type of config ('agent', 'workflow', 'tool', 'vector_db')
             config_id: Configuration identifier
@@ -144,7 +144,7 @@ class AuditLogger:
             user_id=user_id,
             version=version,
             found=found,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     def log_config_update(
@@ -162,7 +162,7 @@ class AuditLogger:
     ) -> None:
         """
         Log configuration update with before/after values.
-        
+
         Args:
             config_type: Type of config ('agent', 'workflow', 'tool', 'vector_db')
             config_id: Configuration identifier
@@ -187,7 +187,7 @@ class AuditLogger:
             before=before,
             after=after,
             change_summary=change_summary,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     def log_config_conflict(
@@ -203,7 +203,7 @@ class AuditLogger:
     ) -> None:
         """
         Log configuration conflict with resolution action.
-        
+
         Args:
             config_type: Type of config ('agent', 'workflow', 'tool', 'vector_db')
             config_id: Configuration identifier
@@ -224,7 +224,7 @@ class AuditLogger:
             current_etag=current_etag,
             provided_etag=provided_etag,
             resolution=resolution,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     def log_config_rollback(
@@ -239,7 +239,7 @@ class AuditLogger:
     ) -> None:
         """
         Log configuration rollback with target version.
-        
+
         Args:
             config_type: Type of config ('agent', 'workflow', 'tool', 'vector_db')
             config_id: Configuration identifier
@@ -258,7 +258,7 @@ class AuditLogger:
             to_version=to_version,
             new_version=new_version,
             new_etag=new_etag,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     def log_config_creation(
@@ -272,7 +272,7 @@ class AuditLogger:
     ) -> None:
         """
         Log configuration creation.
-        
+
         Args:
             config_type: Type of config ('agent', 'workflow', 'tool', 'vector_db')
             config_id: Configuration identifier
@@ -289,7 +289,7 @@ class AuditLogger:
             version=version,
             etag=etag,
             config_data=config_data,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
     def log_config_history_retrieval(
@@ -301,7 +301,7 @@ class AuditLogger:
     ) -> None:
         """
         Log configuration history retrieval.
-        
+
         Args:
             config_type: Type of config ('agent', 'workflow', 'tool', 'vector_db')
             config_id: Configuration identifier
@@ -314,5 +314,5 @@ class AuditLogger:
             config_id=config_id,
             user_id=user_id,
             entries_returned=entries_returned,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )

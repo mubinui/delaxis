@@ -7,8 +7,6 @@ Both endpoints were broken and nobody noticed because neither had a test:
   a bool while the caller read .is_valid.
 """
 
-import json
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -77,14 +75,20 @@ class TestStructuralApplicability:
         assert structural_checks_applicable({"edges": []}) is False
 
     def test_llm_routing_skips_structural_rules(self):
-        assert structural_checks_applicable(
-            {"edges": [{"from_node": "a", "to_node": "b"}], "routing_method": "llm"}
-        ) is False
+        assert (
+            structural_checks_applicable(
+                {"edges": [{"from_node": "a", "to_node": "b"}], "routing_method": "llm"}
+            )
+            is False
+        )
 
     def test_domain_agents_skip_structural_rules(self):
-        assert structural_checks_applicable(
-            {"edges": [{"from_node": "a", "to_node": "b"}], "domain_agents": [{"id": "x"}]}
-        ) is False
+        assert (
+            structural_checks_applicable(
+                {"edges": [{"from_node": "a", "to_node": "b"}], "domain_agents": [{"id": "x"}]}
+            )
+            is False
+        )
 
     def test_plain_edge_graph_is_checked(self):
         assert structural_checks_applicable({"edges": [{"from_node": "a", "to_node": "b"}]}) is True
@@ -94,7 +98,9 @@ class TestValidateGraphEndpoint:
     """The canvas needs to check work that has not been saved yet."""
 
     def test_empty_graph(self, client):
-        body = client.post("/api/v1/workflows/validate-graph", json={"nodes": [], "connections": []}).json()
+        body = client.post(
+            "/api/v1/workflows/validate-graph", json={"nodes": [], "connections": []}
+        ).json()
         assert body["valid"] is False
         assert body["diagnostics"][0]["code"] == "workflow_empty"
 
@@ -157,7 +163,8 @@ class TestConfigurationChecks:
 
     def test_unknown_provider(self):
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=[{"id": "a1", "llm_config": {"provider_id": "ghost", "model": "m"}}],
             providers=self.PROVIDERS,
         )
@@ -167,7 +174,8 @@ class TestConfigurationChecks:
         monkeypatch.setenv("DELAXIS_DATA_DIR", str(tmp_path))
         monkeypatch.delenv("TEST_KEY", raising=False)
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=self._agent(model="known-model"),
             providers=self.PROVIDERS,
         )
@@ -179,7 +187,8 @@ class TestConfigurationChecks:
         monkeypatch.setenv("DELAXIS_DATA_DIR", str(tmp_path))
         monkeypatch.setenv("TEST_KEY", "sk-test")
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=self._agent(model="some-new-model"),
             providers=self.PROVIDERS,
         )
@@ -189,7 +198,8 @@ class TestConfigurationChecks:
 
     def test_disabled_tool_still_referenced(self):
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=[{"id": "a1", "tools": ["t1"]}],
             tools=[{"id": "t1", "enabled": False}],
             providers=[],
@@ -198,7 +208,8 @@ class TestConfigurationChecks:
 
     def test_missing_tool(self):
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=[{"id": "a1", "tools": ["ghost_tool"]}],
             tools=[{"id": "t1"}],
             providers=[],
@@ -207,7 +218,8 @@ class TestConfigurationChecks:
 
     def test_unimportable_entrypoint(self):
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=[{"id": "a1", "tools": ["t1"]}],
             tools=[{"id": "t1", "entrypoint": "no.such.module:fn"}],
             providers=[],
@@ -216,7 +228,8 @@ class TestConfigurationChecks:
 
     def test_importable_entrypoint_is_clean(self):
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=[{"id": "a1", "tools": ["t1"]}],
             tools=[{"id": "t1", "entrypoint": "json:dumps"}],
             providers=[],
@@ -229,7 +242,8 @@ class TestConfigurationChecks:
         module.write_text("raise RuntimeError('imported!')\n", encoding="utf-8")
         monkeypatch.syspath_prepend(str(tmp_path))
         findings = diagnose_graph(
-            [{"id": "n1", "agent_id": "a1"}], [],
+            [{"id": "n1", "agent_id": "a1"}],
+            [],
             agents=[{"id": "a1", "tools": ["t1"]}],
             tools=[{"id": "t1", "entrypoint": "boom_module:fn"}],
             providers=[],

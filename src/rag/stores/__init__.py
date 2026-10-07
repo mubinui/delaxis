@@ -19,7 +19,8 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import structlog
 
@@ -35,8 +36,16 @@ from src.rag.stores.base import (
 logger = structlog.get_logger(__name__)
 
 __all__ = [
-    "Record", "SearchHit", "VectorStore", "VectorStoreError", "cosine", "matches",
-    "create_store", "register_backend", "available_backends", "normalise_collection",
+    "Record",
+    "SearchHit",
+    "VectorStore",
+    "VectorStoreError",
+    "cosine",
+    "matches",
+    "create_store",
+    "register_backend",
+    "available_backends",
+    "normalise_collection",
 ]
 
 
@@ -94,13 +103,16 @@ def available_backends() -> list[str]:
 # Imports are deferred into the factories: importing this module must not
 # require chromadb, faiss, qdrant-client and pinecone all to be installed.
 
+
 def _sqlite(**options: Any) -> VectorStore:
     from src.rag.stores.sqlite_store import SqliteVectorStore
+
     return SqliteVectorStore(path=options.get("path") or _env("RAG_SQLITE_PATH") or None)
 
 
 def _chroma(**options: Any) -> VectorStore:
     from src.rag.stores.chroma_store import ChromaVectorStore
+
     return ChromaVectorStore(
         persist_directory=options.get("path") or _env("CHROMA_PATH", "./data/chromadb"),
         host=options.get("host") or _env("CHROMA_HOST") or None,
@@ -110,11 +122,13 @@ def _chroma(**options: Any) -> VectorStore:
 
 def _faiss(**options: Any) -> VectorStore:
     from src.rag.stores.faiss_store import FaissVectorStore
+
     return FaissVectorStore(path=options.get("path") or _env("FAISS_PATH", "./data/faiss"))
 
 
 def _qdrant(**options: Any) -> VectorStore:
     from src.rag.stores.qdrant_store import QdrantVectorStore
+
     return QdrantVectorStore(
         url=options.get("url") or _env("QDRANT_URL") or None,
         api_key=options.get("api_key") or _env("QDRANT_API_KEY") or None,
@@ -126,6 +140,7 @@ def _qdrant(**options: Any) -> VectorStore:
 
 def _pgvector(**options: Any) -> VectorStore:
     from src.rag.stores.pgvector_store import PgVectorStore
+
     dsn = options.get("connection_string") or _env("PGVECTOR_URL") or _env("DATABASE_URL")
     if not dsn:
         raise VectorStoreError(
@@ -141,6 +156,7 @@ def _pgvector(**options: Any) -> VectorStore:
 
 def _pinecone(**options: Any) -> VectorStore:
     from src.rag.stores.pinecone_store import PineconeVectorStore
+
     key = options.get("api_key") or _env("PINECONE_API_KEY")
     if not key:
         raise VectorStoreError("the pinecone backend needs PINECONE_API_KEY")
@@ -191,8 +207,7 @@ def create_store(backend: str | None = None, **options: Any) -> VectorStore:
     factory = _BACKENDS.get(chosen)
     if factory is None:
         raise VectorStoreError(
-            f"unknown vector store backend {chosen!r}. "
-            f"Available: {', '.join(available_backends())}"
+            f"unknown vector store backend {chosen!r}. Available: {', '.join(available_backends())}"
         )
     store = factory(**options)
     logger.info("rag_store_ready", backend=store.name)

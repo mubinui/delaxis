@@ -25,7 +25,7 @@ import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -138,7 +138,7 @@ def append_audit_entry(
         raise ValueError(f"unknown severity '{severity}'; use one of {', '.join(SEVERITIES)}")
 
     record = {
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "category": category.strip() or "custom",
         "action": action.strip(),
         "actor": actor if actor is not None else _current_actor(),

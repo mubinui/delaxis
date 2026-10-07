@@ -11,7 +11,7 @@ not part of the contract, so ``/config`` reports what is actually running.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
@@ -35,14 +35,14 @@ class QueryRequest(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     top_k: int = Field(default=5, ge=1, le=50)
     #: Equality filter on chunk metadata, e.g. {"source": "handbook.pdf"}.
-    where: Optional[dict[str, Any]] = None
+    where: dict[str, Any] | None = None
     min_score: float = Field(default=0.0, ge=-1.0, le=1.0)
 
 
 class TextRequest(BaseModel):
     text: str = Field(min_length=1)
     source: str = Field(default="note", max_length=300)
-    metadata: Optional[dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
 
 def _service():
@@ -123,16 +123,18 @@ async def ingest_files(
             saved = save_uploaded_bytes(name, payload)
             outcome = service.ingest_file(uploads_dir() / saved["name"], collection=collection)
             indexed += outcome.chunks
-            results.append({
-                "file": saved["name"],
-                "indexed": bool(outcome.chunks),
-                "chunks": outcome.chunks,
-                "characters": outcome.characters,
-                "replaced": outcome.replaced,
-                "extractor": outcome.extractor,
-                "note": outcome.note or None,
-                "error": None if outcome.chunks else (outcome.note or "no text extracted"),
-            })
+            results.append(
+                {
+                    "file": saved["name"],
+                    "indexed": bool(outcome.chunks),
+                    "chunks": outcome.chunks,
+                    "characters": outcome.characters,
+                    "replaced": outcome.replaced,
+                    "extractor": outcome.extractor,
+                    "note": outcome.note or None,
+                    "error": None if outcome.chunks else (outcome.note or "no text extracted"),
+                }
+            )
         except VectorStoreError as exc:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
         except ValueError as exc:
@@ -156,8 +158,10 @@ async def ingest_text(collection: str, request: TextRequest) -> dict[str, Any]:
     service = _service()
     try:
         outcome = service.ingest_text(
-            request.text, source=request.source,
-            collection=collection, metadata=request.metadata,
+            request.text,
+            source=request.source,
+            collection=collection,
+            metadata=request.metadata,
         )
     except VectorStoreError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
@@ -177,8 +181,11 @@ async def query(collection: str, request: QueryRequest) -> dict[str, Any]:
     service = _service()
     try:
         hits = service.query(
-            request.query, collection=collection, top_k=request.top_k,
-            where=request.where, min_score=request.min_score,
+            request.query,
+            collection=collection,
+            top_k=request.top_k,
+            where=request.where,
+            min_score=request.min_score,
         )
     except VectorStoreError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
@@ -205,8 +212,11 @@ async def delete_document(
             status.HTTP_404_NOT_FOUND,
             f"'{source}' is not indexed in this collection",
         )
-    return {"collection": service.collection_for(collection),
-            "source": source, "chunks_removed": removed}
+    return {
+        "collection": service.collection_for(collection),
+        "source": source,
+        "chunks_removed": removed,
+    }
 
 
 @router.delete("/collections/{collection}", status_code=status.HTTP_200_OK)

@@ -12,12 +12,20 @@ from src.crewai_runtime.execution_events import (
 def make_metas() -> list[TaskMeta]:
     return [
         TaskMeta(node_id="n1", agent_id="a1", index=0, description="first task"),
-        TaskMeta(node_id="n2", agent_id="a2", index=1, description="second task", upstream_node_ids=["n1"]),
+        TaskMeta(
+            node_id="n2",
+            agent_id="a2",
+            index=1,
+            description="second task",
+            upstream_node_ids=["n1"],
+        ),
     ]
 
 
 def task_output(name: str, raw: str = "out") -> SimpleNamespace:
-    return SimpleNamespace(name=name, raw=raw, agent="Role", expected_output="x", description="desc")
+    return SimpleNamespace(
+        name=name, raw=raw, agent="Role", expected_output="x", description="desc"
+    )
 
 
 def collect() -> tuple[list[tuple[str, dict, str | None]], ExecutionEventEmitter]:
@@ -37,7 +45,11 @@ def test_sequential_flow_emits_predictive_input_then_output() -> None:
     emitter.task_callback(task_output("n1", raw="alpha"))
     # n1 output, then n2 announced with n1's output as upstream context
     assert [e[0] for e in events] == [
-        "node_started", "node_input", "node_output", "node_started", "node_input",
+        "node_started",
+        "node_input",
+        "node_output",
+        "node_started",
+        "node_input",
     ]
     n1_output = events[2][1]
     assert n1_output["node_id"] == "n1"
@@ -78,7 +90,9 @@ def test_unknown_task_name_falls_back_to_completion_order() -> None:
 
 def test_long_text_is_truncated_and_flagged() -> None:
     events, emitter = collect()
-    emitter.register_tasks([TaskMeta(node_id="n1", agent_id="a1", index=0, description="d")], sequential=True)
+    emitter.register_tasks(
+        [TaskMeta(node_id="n1", agent_id="a1", index=0, description="d")], sequential=True
+    )
     emitter.on_kickoff_start()
 
     emitter.task_callback(task_output("n1", raw="x" * (MAX_TEXT_CHARS + 500)))

@@ -14,15 +14,16 @@ import inspect
 import os
 import time
 import typing
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import structlog
 
 from src.config.agent_models import AgentConfig, LLMConfig
 from src.config.env_compat import env
-from src.config.provider_capabilities import AGENT_PARAMS, filter_llm_params
 from src.config.loader import load_agents_config
+from src.config.provider_capabilities import AGENT_PARAMS, filter_llm_params
 from src.config.tool_registry import ToolDefinition, get_tool_registry
 from src.config.workflow_models import WorkflowConfig
 from src.crewai_runtime.execution_events import EventSink, ExecutionEventEmitter, TaskMeta
@@ -33,7 +34,6 @@ logger = structlog.get_logger(__name__)
 # Must handle tool calling reliably: the manager delegates via tool calls, and a
 # model that cannot do that emits the call as plain text instead of running it.
 DEFAULT_FALLBACK_MODEL = "openrouter/google/gemini-3.5-flash-lite"
-
 
 
 def knowledge_embedder() -> dict[str, Any]:
@@ -66,6 +66,7 @@ def knowledge_embedder() -> dict[str, Any]:
             return [np.asarray(vector, dtype=np.float32) for vector in vectors]
 
     return {"provider": "custom", "config": {"embedding_callable": DelaxisEmbeddings}}
+
 
 @dataclass
 class CrewAIRuntimeResult:
@@ -139,7 +140,9 @@ class CrewAIWorkflowRuntime:
         # server connections/subprocesses): they are closed when this method
         # returns or raises, no matter where the failure happens.
         with contextlib.ExitStack() as stack:
-            return self._run_message_inner(workflow, message, session_id, user_id, metadata, stack, event_sink)
+            return self._run_message_inner(
+                workflow, message, session_id, user_id, metadata, stack, event_sink
+            )
 
     def _run_message_inner(
         self,
@@ -176,7 +179,9 @@ class CrewAIWorkflowRuntime:
         # Canvas attachments (Tools/Memory/Knowledge handles) fold into the
         # agent behind each node. The same agent used by several nodes gets
         # the union of their attachments.
-        extra_tools, wants_memory, wants_knowledge, router_agent_ids = self._node_attachments(ordered_nodes)
+        extra_tools, wants_memory, wants_knowledge, router_agent_ids = self._node_attachments(
+            ordered_nodes
+        )
         attached_knowledge_sources = (
             self._resolve_knowledge_sources(workflow, force=True) if wants_knowledge else []
         )
@@ -185,8 +190,8 @@ class CrewAIWorkflowRuntime:
         # so its collections/top_k settings did nothing; this is the part that
         # actually searches the corpus.
         knowledge_tools = self._knowledge_retrieval_tools(workflow)
-        knowledge_everywhere = (
-            not wants_knowledge and bool(getattr(getattr(workflow, "knowledge", None), "enabled", False))
+        knowledge_everywhere = not wants_knowledge and bool(
+            getattr(getattr(workflow, "knowledge", None), "enabled", False)
         )
 
         crew_agents: list[Any] = []
@@ -197,7 +202,9 @@ class CrewAIWorkflowRuntime:
         for agent_id in workflow_agent_ids:
             config = agent_configs.get(agent_id)
             if config is None:
-                logger.warning("crewai_agent_config_missing", workflow_id=workflow.id, agent_id=agent_id)
+                logger.warning(
+                    "crewai_agent_config_missing", workflow_id=workflow.id, agent_id=agent_id
+                )
                 continue
             crew_agent = self._create_agent(
                 Agent,
@@ -207,8 +214,12 @@ class CrewAIWorkflowRuntime:
                 emitter=emitter,
                 extra_tool_ids=extra_tools.get(agent_id, []),
                 memory_attached=agent_id in wants_memory,
-                knowledge_sources=attached_knowledge_sources if agent_id in wants_knowledge else None,
-                knowledge_tools=knowledge_tools if (knowledge_everywhere or agent_id in wants_knowledge) else None,
+                knowledge_sources=attached_knowledge_sources
+                if agent_id in wants_knowledge
+                else None,
+                knowledge_tools=knowledge_tools
+                if (knowledge_everywhere or agent_id in wants_knowledge)
+                else None,
                 delegates=agent_id in router_agent_ids,
                 model_override=model_override,
             )
@@ -232,7 +243,9 @@ class CrewAIWorkflowRuntime:
 
         process = self._resolve_process(Process, workflow)
         process_name = process.value if hasattr(process, "value") else str(process)
-        emitter.register_tasks(task_metas, sequential=not process_name.lower().endswith("hierarchical"))
+        emitter.register_tasks(
+            task_metas, sequential=not process_name.lower().endswith("hierarchical")
+        )
 
         # Resolve Knowledge sources natively if available
         knowledge_sources = self._resolve_knowledge_sources(workflow)
@@ -248,8 +261,10 @@ class CrewAIWorkflowRuntime:
             for step in trace_steps:
                 emitter.emit_trace(step)
 
-        memory_active = workflow.memory.enabled if hasattr(workflow, "memory") else self.memory_enabled
-        
+        memory_active = (
+            workflow.memory.enabled if hasattr(workflow, "memory") else self.memory_enabled
+        )
+
         crew_kwargs: dict[str, Any] = {
             "agents": crew_agents,
             "tasks": tasks,
@@ -276,11 +291,15 @@ class CrewAIWorkflowRuntime:
         if getattr(workflow, "max_rpm", None):
             crew_kwargs["max_rpm"] = int(workflow.max_rpm)
 
-        if (process.value if hasattr(process, "value") else str(process)).lower().endswith("hierarchical"):
+        if (
+            (process.value if hasattr(process, "value") else str(process))
+            .lower()
+            .endswith("hierarchical")
+        ):
             crew_kwargs["manager_llm"] = self._resolve_llm_model(
                 self._crew_llm_config(workflow, "manager_llm", agent_configs, workflow_agent_ids)
             )
-            
+
         crew = Crew(**crew_kwargs)
 
         # Kickoff CrewAI process
@@ -291,7 +310,7 @@ class CrewAIWorkflowRuntime:
             "workflow_id": workflow.id,
             **metadata,
         }
-        
+
         started_execution = time.time()
         try:
             emitter.on_kickoff_start()
@@ -306,13 +325,15 @@ class CrewAIWorkflowRuntime:
             logger.error("crewai_execution_error", error=str(e), exc_info=True)
             response = f"Error during CrewAI execution: {str(e)}"
             token_usage = {}
-            
+
         execution_duration = time.time() - started_execution
-        
+
         # Calculate approximate cost if token usage available
         total_tokens = token_usage.get("total_tokens", 0) if isinstance(token_usage, dict) else 0
         prompt_tokens = token_usage.get("prompt_tokens", 0) if isinstance(token_usage, dict) else 0
-        completion_tokens = token_usage.get("completion_tokens", 0) if isinstance(token_usage, dict) else 0
+        completion_tokens = (
+            token_usage.get("completion_tokens", 0) if isinstance(token_usage, dict) else 0
+        )
         approx_cost = (prompt_tokens * 0.0000015) + (completion_tokens * 0.000006)
 
         trace_steps.append(
@@ -334,7 +355,7 @@ class CrewAIWorkflowRuntime:
                 },
             }
         )
-        
+
         return CrewAIRuntimeResult(
             response=response.strip(),
             trace_steps=trace_steps,
@@ -394,7 +415,9 @@ class CrewAIWorkflowRuntime:
         only fail.
         """
         knowledge = getattr(workflow, "knowledge", None)
-        collections = [str(c) for c in (getattr(knowledge, "collections", None) or []) if str(c).strip()]
+        collections = [
+            str(c) for c in (getattr(knowledge, "collections", None) or []) if str(c).strip()
+        ]
         if not collections:
             return []
 
@@ -423,7 +446,9 @@ class CrewAIWorkflowRuntime:
                     logger.warning("knowledge_query_failed", collection=collection, error=str(exc))
                     continue
                 if not result.get("success"):
-                    logger.warning("knowledge_query_rejected", collection=collection, error=result.get("error"))
+                    logger.warning(
+                        "knowledge_query_rejected", collection=collection, error=result.get("error")
+                    )
                     continue
                 for item in result.get("results", []):
                     text = str(item.get("text", "")).strip()
@@ -437,7 +462,9 @@ class CrewAIWorkflowRuntime:
         logger.info("knowledge_retrieval_enabled", collections=collections, top_k=top_k)
         return [crewai_tool("search_knowledge")(search_knowledge)]
 
-    def _resolve_knowledge_sources(self, workflow: WorkflowConfig, force: bool = False) -> list[Any]:
+    def _resolve_knowledge_sources(
+        self, workflow: WorkflowConfig, force: bool = False
+    ) -> list[Any]:
         """Dynamically build CrewAI Knowledge source instances if configured.
 
         `force=True` builds sources even when the workflow-level toggle is off,
@@ -446,11 +473,11 @@ class CrewAIWorkflowRuntime:
         enabled = hasattr(workflow, "knowledge") and getattr(workflow.knowledge, "enabled", False)
         if not enabled and not force:
             return []
-            
+
         sources = []
         try:
             from crewai.knowledge.source.string_knowledge_source import StringKnowledgeSource
-            
+
             # Inject dynamic context as string knowledge if metadata contains context
             desc = getattr(workflow, "description", "")
             if desc:
@@ -462,7 +489,7 @@ class CrewAIWorkflowRuntime:
                 )
         except Exception as e:
             logger.debug("crewai_knowledge_source_import_skipped", error=str(e))
-            
+
         return sources
 
     def _crew_llm_config(
@@ -550,7 +577,9 @@ class CrewAIWorkflowRuntime:
         agent_kwargs: dict[str, Any] = {
             "role": config.name,
             "goal": config.description or f"Help users with {config.name} requests.",
-            "backstory": config.system_message or config.description or "You are a highly capable enterprise AI assistant.",
+            "backstory": config.system_message
+            or config.description
+            or "You are a highly capable enterprise AI assistant.",
             "llm": self._resolve_llm_model(model_config),
             "tools": tools,
         }
@@ -574,8 +603,8 @@ class CrewAIWorkflowRuntime:
         max_iter/max_rpm/max_execution_time historically travelled inside
         model_config (the untyped override), so both sources are honoured.
         """
-        _INT_PARAMS = {"max_iter", "max_rpm", "max_execution_time", "max_retry_limit"}
-        _BOOL_PARAMS = {
+        int_params = {"max_iter", "max_rpm", "max_execution_time", "max_retry_limit"}
+        bool_params = {
             "allow_delegation",
             "respect_context_window",
             "cache",
@@ -594,9 +623,9 @@ class CrewAIWorkflowRuntime:
             value = model_config.get(key)
             if value is None:
                 continue
-            if key in _INT_PARAMS:
+            if key in int_params:
                 params[key] = int(value)
-            elif key in _BOOL_PARAMS:
+            elif key in bool_params:
                 params[key] = bool(value)
             else:
                 params[key] = value
@@ -696,14 +725,20 @@ class CrewAIWorkflowRuntime:
         OpenAI-compatible endpoint before giving up.
         """
         try:
-            from src.config.provider_registry import ProviderResolutionError, compat_fallback, resolve_llm
+            from src.config.provider_registry import (
+                ProviderResolutionError,
+                compat_fallback,
+                resolve_llm,
+            )
         except ImportError:
             return None
 
         try:
             resolved = resolve_llm(provider_id, str(model or ""))
         except ProviderResolutionError as e:
-            logger.warning("provider_resolution_failed_using_legacy", provider_id=provider_id, error=str(e))
+            logger.warning(
+                "provider_resolution_failed_using_legacy", provider_id=provider_id, error=str(e)
+            )
             return None
 
         try:
@@ -801,7 +836,9 @@ class CrewAIWorkflowRuntime:
 
         def run_tool(*args: Any, **kwargs: Any) -> Any:
             started_tool = time.perf_counter()
-            logger.info("crewai_tool_call_started", tool_id=tool_def.tool_id, tool_name=tool_def.name)
+            logger.info(
+                "crewai_tool_call_started", tool_id=tool_def.tool_id, tool_name=tool_def.name
+            )
             if emitter is not None:
                 # Positional args are rare (crewai passes structured kwargs), but
                 # record them so the inspector reflects the real call.
@@ -815,18 +852,33 @@ class CrewAIWorkflowRuntime:
                 else:
                     res = func(*args, **kwargs)
                 duration = time.perf_counter() - started_tool
-                logger.info("crewai_tool_call_success", tool_id=tool_def.tool_id, duration_sec=round(duration, 3))
+                logger.info(
+                    "crewai_tool_call_success",
+                    tool_id=tool_def.tool_id,
+                    duration_sec=round(duration, 3),
+                )
                 if emitter is not None:
                     emitter.tool_finished(
-                        tool_def.tool_id, tool_def.name, result=res, duration_ms=round(duration * 1000)
+                        tool_def.tool_id,
+                        tool_def.name,
+                        result=res,
+                        duration_ms=round(duration * 1000),
                     )
                 return res
             except Exception as e:
                 duration = time.perf_counter() - started_tool
-                logger.error("crewai_tool_call_failed", tool_id=tool_def.tool_id, error=str(e), duration_sec=round(duration, 3))
+                logger.error(
+                    "crewai_tool_call_failed",
+                    tool_id=tool_def.tool_id,
+                    error=str(e),
+                    duration_sec=round(duration, 3),
+                )
                 if emitter is not None:
                     emitter.tool_finished(
-                        tool_def.tool_id, tool_def.name, error=str(e), duration_ms=round(duration * 1000)
+                        tool_def.tool_id,
+                        tool_def.name,
+                        error=str(e),
+                        duration_ms=round(duration * 1000),
                     )
                 return f"Tool execution error: {str(e)}"
 
@@ -855,9 +907,16 @@ class CrewAIWorkflowRuntime:
         return tool_decorator(tool_def.name)(run_tool)
 
     def _resolve_process(self, process_cls: type[Any], workflow: WorkflowConfig) -> Any:
-        raw = (getattr(workflow, "process", None) or workflow.metadata.get("pattern") or workflow.execution_strategy or self.default_process)
+        raw = (
+            getattr(workflow, "process", None)
+            or workflow.metadata.get("pattern")
+            or workflow.execution_strategy
+            or self.default_process
+        )
         raw = str(getattr(raw, "value", raw)).lower()
-        if raw in {"hierarchical", "selector", "group_chat"} and hasattr(process_cls, "hierarchical"):
+        if raw in {"hierarchical", "selector", "group_chat"} and hasattr(
+            process_cls, "hierarchical"
+        ):
             return process_cls.hierarchical
         return process_cls.sequential
 
@@ -893,12 +952,20 @@ class CrewAIWorkflowRuntime:
         worker — so honoring human_input_mode=ALWAYS requires
         DELAXIS_ALLOW_HUMAN_INPUT=true.
         """
-        mode = str(getattr(getattr(agent_config, "human_input_mode", ""), "value", getattr(agent_config, "human_input_mode", ""))).upper()
+        mode = str(
+            getattr(
+                getattr(agent_config, "human_input_mode", ""),
+                "value",
+                getattr(agent_config, "human_input_mode", ""),
+            )
+        ).upper()
         if mode != "ALWAYS":
             return False
         if (env("DELAXIS_ALLOW_HUMAN_INPUT", "false") or "false").lower() == "true":
             return True
-        logger.warning("crewai_human_input_suppressed", reason="DELAXIS_ALLOW_HUMAN_INPUT is not enabled")
+        logger.warning(
+            "crewai_human_input_suppressed", reason="DELAXIS_ALLOW_HUMAN_INPUT is not enabled"
+        )
         return False
 
     @staticmethod
@@ -924,7 +991,10 @@ class CrewAIWorkflowRuntime:
                 try:
                     _json.loads(candidate)
                 except Exception as exc:
-                    return False, f"The output must be valid JSON (parse error: {exc}). Re-emit as pure JSON with no prose."
+                    return (
+                        False,
+                        f"The output must be valid JSON (parse error: {exc}). Re-emit as pure JSON with no prose.",
+                    )
             return True, task_output
 
         return guardrail
@@ -950,9 +1020,13 @@ class CrewAIWorkflowRuntime:
         """
         agent_configs = agent_configs or {}
         guardrails_enabled = bool(getattr(getattr(workflow, "guardrails", None), "enabled", False))
-        guardrail_schema = str(getattr(getattr(workflow, "guardrails", None), "output_schema", "text"))
+        guardrail_schema = str(
+            getattr(getattr(workflow, "guardrails", None), "output_schema", "text")
+        )
 
-        def apply_task_extras(task_kwargs: dict[str, Any], agent_id: str | None, is_final: bool) -> None:
+        def apply_task_extras(
+            task_kwargs: dict[str, Any], agent_id: str | None, is_final: bool
+        ) -> None:
             config = agent_configs.get(agent_id) if agent_id else None
             if config is not None and self._human_input_enabled(config):
                 task_kwargs["human_input"] = True
@@ -987,7 +1061,9 @@ class CrewAIWorkflowRuntime:
                 }
                 if tasks:
                     task_kwargs["context"] = tasks[:]
-                apply_task_extras(task_kwargs, task_config.agent_id, is_final=index == len(explicit_tasks) - 1)
+                apply_task_extras(
+                    task_kwargs, task_config.agent_id, is_final=index == len(explicit_tasks) - 1
+                )
                 tasks.append(task_cls(**task_kwargs))
                 metas.append(
                     TaskMeta(
@@ -1018,7 +1094,8 @@ class CrewAIWorkflowRuntime:
                 metadata,
                 step=index + 1,
                 node_id=node.id,
-                task_description=node_goal or f"Execute and analyze workflow node {node.id} natively.",
+                task_description=node_goal
+                or f"Execute and analyze workflow node {node.id} natively.",
             )
             expected_output = (node.config_override or {}).get(
                 "expected_output",
@@ -1084,14 +1161,12 @@ class CrewAIWorkflowRuntime:
         of ordered_nodes avoids misattributing context when a node is skipped
         because its agent config is missing.
         """
-        pairs = list(zip(created_metas, created_tasks))
+        pairs = list(zip(created_metas, created_tasks, strict=False))
         if not workflow.topology.edges:
             return pairs[-1:]
 
         upstream_ids = {
-            edge.from_node
-            for edge in workflow.topology.edges
-            if edge.to_node == node_id
+            edge.from_node for edge in workflow.topology.edges if edge.to_node == node_id
         }
         return [(meta, task) for meta, task in pairs if meta.node_id in upstream_ids]
 
@@ -1114,7 +1189,9 @@ class CrewAIWorkflowRuntime:
                 "timestamp": now,
                 "details": {
                     "process": process_name,
-                    "workflow_type": getattr(workflow.workflow_type, "value", workflow.workflow_type),
+                    "workflow_type": getattr(
+                        workflow.workflow_type, "value", workflow.workflow_type
+                    ),
                     "runtime": "crewai_advanced",
                 },
             },
@@ -1123,17 +1200,21 @@ class CrewAIWorkflowRuntime:
                 "agent": "CrewAI",
                 "description": "Enterprise Memory Subsystem Active",
                 "timestamp": now,
-                "details": workflow.memory.model_dump(mode="json") if hasattr(workflow, "memory") else {"enabled": self.memory_enabled},
+                "details": workflow.memory.model_dump(mode="json")
+                if hasattr(workflow, "memory")
+                else {"enabled": self.memory_enabled},
             },
             {
                 "type": "knowledge",
                 "agent": "CrewAI",
                 "description": "Dynamic Knowledge Sources Connected",
                 "timestamp": now,
-                "details": workflow.knowledge.model_dump(mode="json") if hasattr(workflow, "knowledge") else {"enabled": True, "sources_resolved": True},
+                "details": workflow.knowledge.model_dump(mode="json")
+                if hasattr(workflow, "knowledge")
+                else {"enabled": True, "sources_resolved": True},
             },
         ]
-        for index, (meta, task) in enumerate(zip(task_metas, tasks), start=1):
+        for index, (meta, task) in enumerate(zip(task_metas, tasks, strict=False), start=1):
             trace_steps.append(
                 {
                     "type": "task_planned",

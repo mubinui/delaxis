@@ -1,9 +1,8 @@
 """File system watcher for hot reloading configurations."""
 
-import asyncio
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer

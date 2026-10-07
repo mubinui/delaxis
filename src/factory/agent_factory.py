@@ -23,5 +23,7 @@ class AgentFactory:
         try:
             from crewai import Agent
         except Exception as exc:
-            raise RuntimeError("CrewAI is not installed. Run `uv sync` to install dependencies.") from exc
+            raise RuntimeError(
+                "CrewAI is not installed. Run `uv sync` to install dependencies."
+            ) from exc
         return self.runtime._create_agent(Agent, agent_config)

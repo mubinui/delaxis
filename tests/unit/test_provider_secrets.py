@@ -94,7 +94,9 @@ class TestPrecedence:
         assert provider_registry.resolve_api_key("p1") == "inline-key"
         assert provider_registry.key_source("p1") == "inline"
 
-    def test_deployments_get_the_env_key_when_nothing_is_pasted(self, store, providers_file, monkeypatch):
+    def test_deployments_get_the_env_key_when_nothing_is_pasted(
+        self, store, providers_file, monkeypatch
+    ):
         """Deployments run in-process against the same registry, so this is the
         whole mechanism behind 'deployments use the key from the environment'."""
         providers_file(self._provider())

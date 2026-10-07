@@ -11,7 +11,9 @@ class MessageConverter:
     @staticmethod
     def message_to_dict(message: Any) -> dict[str, Any]:
         return {
-            "role": getattr(getattr(message, "role", None), "value", getattr(message, "role", "assistant")),
+            "role": getattr(
+                getattr(message, "role", None), "value", getattr(message, "role", "assistant")
+            ),
             "content": getattr(message, "content", str(message)),
             "timestamp": getattr(getattr(message, "timestamp", None), "isoformat", lambda: None)(),
             "metadata": getattr(message, "metadata", {}),

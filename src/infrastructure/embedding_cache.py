@@ -1,9 +1,8 @@
 """Embedding caching layer using Redis."""
 
 import hashlib
-import json
 import logging
-from typing import Optional, Any
+from typing import Any
 
 from src.infrastructure.cache import RedisCache
 
@@ -43,7 +42,7 @@ class EmbeddingCache:
         """
         # Combine content and model for unique hash
         combined = f"{model}:{content}"
-        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+        return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
     def _embedding_key(self, content_hash: str) -> str:
         """Generate Redis key for embedding.
@@ -60,7 +59,7 @@ class EmbeddingCache:
         self,
         content: str,
         model: str = "default",
-    ) -> Optional[list[float]]:
+    ) -> list[float] | None:
         """Get embedding from cache.
 
         Args:
@@ -72,18 +71,18 @@ class EmbeddingCache:
         """
         content_hash = self._compute_content_hash(content, model)
         key = self._embedding_key(content_hash)
-        
+
         try:
             data = self.redis_cache.get_json(key)
             if data and isinstance(data, dict):
-                embedding = data.get('embedding')
+                embedding = data.get("embedding")
                 if embedding:
                     logger.debug(
                         f"Embedding cache hit: {content_hash[:16]}... "
                         f"(model={model}, length={len(content)})"
                     )
                     return embedding
-            
+
             logger.debug(
                 f"Embedding cache miss: {content_hash[:16]}... "
                 f"(model={model}, length={len(content)})"
@@ -98,8 +97,8 @@ class EmbeddingCache:
         content: str,
         embedding: list[float],
         model: str = "default",
-        ttl: Optional[int] = None,
-        metadata: Optional[dict[str, Any]] = None,
+        ttl: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Set embedding in cache.
 
@@ -116,19 +115,19 @@ class EmbeddingCache:
         content_hash = self._compute_content_hash(content, model)
         key = self._embedding_key(content_hash)
         ttl = ttl or self.embedding_ttl
-        
+
         try:
             # Store embedding with metadata
             data = {
-                'embedding': embedding,
-                'model': model,
-                'content_length': len(content),
-                'content_hash': content_hash,
+                "embedding": embedding,
+                "model": model,
+                "content_length": len(content),
+                "content_hash": content_hash,
             }
-            
+
             if metadata:
-                data['metadata'] = metadata
-            
+                data["metadata"] = metadata
+
             result = self.redis_cache.set_json(key, data, ttl)
             if result:
                 logger.debug(
@@ -140,7 +139,7 @@ class EmbeddingCache:
             logger.error(f"Failed to set embedding in cache: {e}", exc_info=True)
             return False
 
-    def get_by_hash(self, content_hash: str) -> Optional[dict[str, Any]]:
+    def get_by_hash(self, content_hash: str) -> dict[str, Any] | None:
         """Get embedding by content hash.
 
         Args:
@@ -150,7 +149,7 @@ class EmbeddingCache:
             Cached embedding data or None if not found
         """
         key = self._embedding_key(content_hash)
-        
+
         try:
             data = self.redis_cache.get_json(key)
             if data:
@@ -173,7 +172,7 @@ class EmbeddingCache:
         """
         content_hash = self._compute_content_hash(content, model)
         key = self._embedding_key(content_hash)
-        
+
         try:
             result = self.redis_cache.delete(key)
             if result:
@@ -193,7 +192,7 @@ class EmbeddingCache:
             True if deleted, False otherwise
         """
         key = self._embedding_key(content_hash)
-        
+
         try:
             result = self.redis_cache.delete(key)
             if result:
@@ -221,7 +220,7 @@ class EmbeddingCache:
         self,
         contents: list[str],
         model: str = "default",
-    ) -> dict[str, Optional[list[float]]]:
+    ) -> dict[str, list[float] | None]:
         """Get multiple embeddings from cache.
 
         Args:
@@ -240,7 +239,7 @@ class EmbeddingCache:
         self,
         embeddings: dict[str, list[float]],
         model: str = "default",
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> dict[str, bool]:
         """Set multiple embeddings in cache.
 
@@ -302,27 +301,27 @@ class EmbeddingCache:
         try:
             keys = self.redis_cache.keys("embedding:*")
             total_embeddings = len(keys)
-            
+
             # Sample a few embeddings to get average dimension
             sample_size = min(10, total_embeddings)
             dimensions = []
-            
+
             for key in keys[:sample_size]:
                 data = self.redis_cache.get_json(key)
-                if data and 'embedding' in data:
-                    dimensions.append(len(data['embedding']))
-            
+                if data and "embedding" in data:
+                    dimensions.append(len(data["embedding"]))
+
             avg_dimension = sum(dimensions) / len(dimensions) if dimensions else 0
-            
+
             return {
-                'total_embeddings': total_embeddings,
-                'average_dimension': avg_dimension,
-                'ttl_seconds': self.embedding_ttl,
+                "total_embeddings": total_embeddings,
+                "average_dimension": avg_dimension,
+                "ttl_seconds": self.embedding_ttl,
             }
         except Exception as e:
             logger.error(f"Failed to get cache stats: {e}", exc_info=True)
             return {
-                'total_embeddings': 0,
-                'average_dimension': 0,
-                'ttl_seconds': self.embedding_ttl,
+                "total_embeddings": 0,
+                "average_dimension": 0,
+                "ttl_seconds": self.embedding_ttl,
             }

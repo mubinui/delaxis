@@ -19,12 +19,27 @@ def parameter_names(function) -> list[str]:
 
 
 WEATHER_PARAMETERS = [
-    {"name": "latitude", "in": "query", "required": True,
-     "description": "Latitude", "schema": {"type": "number"}},
-    {"name": "longitude", "in": "query", "required": True,
-     "description": "Longitude", "schema": {"type": "number"}},
-    {"name": "current_weather", "in": "query", "required": False,
-     "description": "Include current conditions", "schema": {"type": "boolean", "default": True}},
+    {
+        "name": "latitude",
+        "in": "query",
+        "required": True,
+        "description": "Latitude",
+        "schema": {"type": "number"},
+    },
+    {
+        "name": "longitude",
+        "in": "query",
+        "required": True,
+        "description": "Longitude",
+        "schema": {"type": "number"},
+    },
+    {
+        "name": "current_weather",
+        "in": "query",
+        "required": False,
+        "description": "Include current conditions",
+        "schema": {"type": "boolean", "default": True},
+    },
 ]
 
 
@@ -65,7 +80,12 @@ class TestHandDeclaredParameters:
                 "api_url": "https://example.test",
                 "parameters": [
                     {"name": "q", "in": "query", "required": True, "schema": {"type": "string"}},
-                    {"name": "Authorization", "in": "header", "required": True, "schema": {"type": "string"}},
+                    {
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    },
                 ],
             },
         )
@@ -83,7 +103,12 @@ class TestSwaggerParameters:
                 "api_url": "https://example.test",
                 "_swagger_metadata": {
                     "parameters": [
-                        {"name": "term", "in": "query", "required": True, "schema": {"type": "string"}}
+                        {
+                            "name": "term",
+                            "in": "query",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
                     ]
                 },
             },
@@ -98,11 +123,21 @@ class TestSwaggerParameters:
                 "api_url": "https://example.test",
                 "_swagger_metadata": {
                     "parameters": [
-                        {"name": "from_swagger", "in": "query", "required": True, "schema": {"type": "string"}}
+                        {
+                            "name": "from_swagger",
+                            "in": "query",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
                     ]
                 },
                 "parameters": [
-                    {"name": "from_settings", "in": "query", "required": True, "schema": {"type": "string"}}
+                    {
+                        "name": "from_settings",
+                        "in": "query",
+                        "required": True,
+                        "schema": {"type": "string"},
+                    }
                 ],
             },
         )
@@ -112,7 +147,9 @@ class TestSwaggerParameters:
 class TestUndeclaredParameters:
     def test_a_tool_with_no_parameters_still_accepts_kwargs(self):
         # Degrading to "untyped" is acceptable; degrading to "uncallable" is not.
-        function = create_api_tool_function("ping", {"type": "api", "api_url": "https://example.test"})
+        function = create_api_tool_function(
+            "ping", {"type": "api", "api_url": "https://example.test"}
+        )
         signature = inspect.signature(function)
         kinds = {parameter.kind for parameter in signature.parameters.values()}
         assert inspect.Parameter.VAR_KEYWORD in kinds
@@ -120,7 +157,9 @@ class TestUndeclaredParameters:
     def test_calling_with_arguments_does_not_raise_typeerror(self):
         import asyncio
 
-        function = create_api_tool_function("ping", {"type": "api", "api_url": "http://127.0.0.1:1/none"})
+        function = create_api_tool_function(
+            "ping", {"type": "api", "api_url": "http://127.0.0.1:1/none"}
+        )
         # The request itself will fail (nothing is listening); what matters is
         # that the failure is an HTTP error the tool reports, not a TypeError
         # from the signature rejecting a documented argument.
@@ -133,10 +172,14 @@ class TestShippedConfig:
         import json
         from pathlib import Path
 
-        config = json.loads((Path(__file__).resolve().parents[2] / "configs" / "tools.json").read_text())
+        config = json.loads(
+            (Path(__file__).resolve().parents[2] / "configs" / "tools.json").read_text()
+        )
         weather = next(tool for tool in config["tools"] if tool["id"] == "get_weather")
 
-        function = create_api_tool_function("get_weather", weather["settings"], weather["description"])
+        function = create_api_tool_function(
+            "get_weather", weather["settings"], weather["description"]
+        )
         for documented in ("latitude", "longitude", "current_weather"):
             assert documented in parameter_names(function), (
                 f"'{documented}' is documented in the description but the generated "
@@ -149,7 +192,9 @@ class TestShippedConfig:
         import re
         from pathlib import Path
 
-        config = json.loads((Path(__file__).resolve().parents[2] / "configs" / "tools.json").read_text())
+        config = json.loads(
+            (Path(__file__).resolve().parents[2] / "configs" / "tools.json").read_text()
+        )
         tool = next(item for item in config["tools"] if item["id"] == tool_id)
         function = create_api_tool_function(tool_id, tool["settings"], tool["description"])
         accepted = set(parameter_names(function))
@@ -157,4 +202,6 @@ class TestShippedConfig:
         # Parameters the description promises, in the "  - name (required):" form
         # the shipped tools use.
         documented = set(re.findall(r"^\s*-\s+(\w+)\s*\(", tool["description"], re.MULTILINE))
-        assert documented <= accepted, f"documented but not accepted: {sorted(documented - accepted)}"
+        assert documented <= accepted, (
+            f"documented but not accepted: {sorted(documented - accepted)}"
+        )

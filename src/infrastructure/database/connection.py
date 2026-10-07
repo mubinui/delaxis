@@ -1,8 +1,9 @@
 """Database connection management with pooling and health checks."""
 
 import logging
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator, Optional
+from typing import Optional
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -46,8 +47,8 @@ class DatabaseConnectionManager:
         self.pool_recycle = pool_recycle
         self.echo = echo
 
-        self._engine: Optional[Engine] = None
-        self._session_factory: Optional[sessionmaker] = None
+        self._engine: Engine | None = None
+        self._session_factory: sessionmaker | None = None
 
     @property
     def engine(self) -> Engine:
@@ -228,8 +229,7 @@ def get_db_manager() -> DatabaseConnectionManager:
     if _db_manager is None:
         settings = get_settings()
         _db_manager = DatabaseConnectionManager(
-            database_url=settings.database_url,
-            echo=settings.app.log_level.upper() == "DEBUG"
+            database_url=settings.database_url, echo=settings.app.log_level.upper() == "DEBUG"
         )
     return _db_manager
 

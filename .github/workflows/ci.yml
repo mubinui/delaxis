@@ -1,0 +1,149 @@
+name: CI
+
+# Every push and pull request runs the full gate: backend lint, types and
+# tests; Studio lint, types, tests and build; and a Docker image that boots.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+
+      - name: Install
+        run: uv sync --frozen --extra dev
+
+      - name: Lint
+        run: uv run --no-sync ruff check src tests scripts
+
+      - name: Format
+        run: uv run --no-sync ruff format --check src tests scripts
+
+      - name: Types
+        run: uv run --no-sync mypy src
+
+      - name: Tests
+        env:
+          ENVIRONMENT: development
+          # Redis must stay optional: the suite runs with no REDIS_URL at all.
+          REDIS_URL: ""
+        run: uv run --no-sync pytest -q --cov=src --cov-report=xml --cov-report=term
+
+      - name: Config round-trip
+        # Every shipped config must load, validate and re-serialise unchanged.
+        run: uv run --no-sync python scripts/check_configs.py
+
+  studio:
+    name: Studio
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workflow-editor
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workflow-editor/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint -- --max-warnings 0
+
+      - name: Types
+        run: npx tsc -b
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Build demo
+        env:
+          VITE_DEMO_MODE: "true"
+        run: npm run build:demo
+
+  e2e:
+    name: End to end
+    runs-on: ubuntu-latest
+    needs: [studio]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: workflow-editor/package-lock.json
+
+      - name: Install backend
+        run: uv sync --frozen --extra dev
+
+      - name: Install Studio
+        working-directory: workflow-editor
+        run: npm ci && npx playwright install --with-deps chromium
+
+      - name: Playwright
+        working-directory: workflow-editor
+        env:
+          ENVIRONMENT: development
+          REDIS_URL: ""
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: workflow-editor/playwright-report
+          retention-days: 7
+
+  docker:
+    name: Docker image boots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: delaxis:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Boot and probe
+        run: scripts/smoke_docker.sh delaxis:ci

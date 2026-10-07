@@ -6,10 +6,6 @@ must never reference a third-party origin. The page validator is what enforces
 that, and these tests are what keep the validator honest.
 """
 
-import json
-
-import pytest
-
 from src.api.chatbot_page import (
     default_chatbot_html,
     ensure_markdown_support,
@@ -71,7 +67,9 @@ class TestVoiceInjection:
         assert ensure_voice_support(once) == once
 
     def test_composes_with_markdown_support(self):
-        html = ensure_markdown_support(ensure_voice_support("<html><head></head><body></body></html>"))
+        html = ensure_markdown_support(
+            ensure_voice_support("<html><head></head><body></body></html>")
+        )
         assert "function renderMarkdown" in html
         assert "const VOICE = (function" in html
         assert page_defects(html)  # a bare shell is still not a working chatbot
@@ -116,13 +114,14 @@ class TestExternalWebSocketDefect:
 
     def test_flags_any_third_party_socket(self):
         html = plain_page().replace(
-            "</body>", "<script>new WebSocket(\"ws://evil.test/relay\")</script></body>"
+            "</body>", '<script>new WebSocket("ws://evil.test/relay")</script></body>'
         )
         assert any("WebSocket to an external host" in d for d in page_defects(html))
 
     def test_allows_localhost_for_development_pages(self):
         html = plain_page().replace(
-            "</body>", "<script>new WebSocket('ws://localhost:8000/api/v1/voice/ws')</script></body>"
+            "</body>",
+            "<script>new WebSocket('ws://localhost:8000/api/v1/voice/ws')</script></body>",
         )
         assert not any("WebSocket to an external host" in d for d in page_defects(html))
 
@@ -137,7 +136,9 @@ class TestVoiceWarning:
         assert any("no voice client" in w for w in warnings)
 
     def test_no_warning_when_voice_is_off(self):
-        assert not any("voice" in w.lower() for w in validate_page(plain_page(), voice_enabled=False))
+        assert not any(
+            "voice" in w.lower() for w in validate_page(plain_page(), voice_enabled=False)
+        )
 
 
 class TestConfigPrivacy:

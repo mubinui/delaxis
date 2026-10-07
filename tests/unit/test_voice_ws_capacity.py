@@ -6,8 +6,6 @@ up, proxy dropped it — burned a slot forever. At the default cap of four, four
 such failures wedged voice permanently, which is what made it work "sometimes".
 """
 
-import asyncio
-
 import pytest
 
 from src.api.routers import voice as voice_router
@@ -51,6 +49,7 @@ def fresh_capacity(monkeypatch):
 @pytest.fixture
 def working_voice(monkeypatch):
     """Make _resolve_voice_settings succeed without touching a provider."""
+
     class Config:
         provider_id = "gemini"
         model = "test-live"
@@ -59,7 +58,8 @@ def working_voice(monkeypatch):
         max_session_seconds = 5
 
     monkeypatch.setattr(
-        voice_router, "_resolve_voice_settings",
+        voice_router,
+        "_resolve_voice_settings",
         lambda _dep: (Config(), "test-key", "", "", 5),
     )
     return Config
@@ -114,6 +114,7 @@ class TestCapacityRelease:
     @pytest.mark.asyncio
     async def test_repeated_failures_do_not_wedge_voice(self, working_voice, monkeypatch):
         """The actual reported symptom: it works, then stops working."""
+
         async def never_called(**_kwargs):
             raise AssertionError("should not reach the bridge")
 
@@ -121,7 +122,9 @@ class TestCapacityRelease:
 
         cap = voice_router._semaphore()._value
         for _ in range(cap + 2):
-            ticket, _ = tickets.mint(session_id="", deployment=None, purpose=tickets.PURPOSE_BUILDER)
+            ticket, _ = tickets.mint(
+                session_id="", deployment=None, purpose=tickets.PURPOSE_BUILDER
+            )
             await voice_router.voice_websocket(FakeWebSocket(accept_raises=True), ticket=ticket)
 
         # Still room for a new caller after more failures than the cap.

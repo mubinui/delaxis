@@ -2,29 +2,31 @@
 
 import json
 from contextvars import ContextVar
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Use ContextVar with copy_context for async propagation
 # This is the recommended approach for asyncio
-_tool_username: ContextVar[Optional[str]] = ContextVar('tool_username', default=None)
-_tool_roles: ContextVar[Optional[List[str]]] = ContextVar('tool_roles', default=None)
-_tool_raw_token: ContextVar[Optional[str]] = ContextVar('tool_raw_token', default=None)
+_tool_username: ContextVar[str | None] = ContextVar("tool_username", default=None)
+_tool_roles: ContextVar[list[str] | None] = ContextVar("tool_roles", default=None)
+_tool_raw_token: ContextVar[str | None] = ContextVar("tool_raw_token", default=None)
 
 # Also maintain a simple module-level fallback (for sync tool execution)
-_global_context: Dict[str, Any] = {
+_global_context: dict[str, Any] = {
     "username": None,
     "roles": None,
     "raw_token": None,
 }
 
 
-def set_tool_execution_context(username: Optional[str], roles: Optional[List[str]], raw_token: Optional[str] = None) -> None:
+def set_tool_execution_context(
+    username: str | None, roles: list[str] | None, raw_token: str | None = None
+) -> None:
     """
     Set user context for tool execution.
-    
+
     This should be called before agent execution begins to ensure
     tools have access to user context.
-    
+
     Args:
         username: Username for x-client-username header
         roles: Roles for x-client-ref header
@@ -34,7 +36,7 @@ def set_tool_execution_context(username: Optional[str], roles: Optional[List[str
     _tool_username.set(username)
     _tool_roles.set(roles)
     _tool_raw_token.set(raw_token)
-    
+
     # Also set global fallback
     _global_context["username"] = username
     _global_context["roles"] = roles
@@ -46,16 +48,16 @@ def clear_tool_execution_context() -> None:
     _tool_username.set(None)
     _tool_roles.set(None)
     _tool_raw_token.set(None)
-    
+
     _global_context["username"] = None
     _global_context["roles"] = None
     _global_context["raw_token"] = None
 
 
-def get_user_context_headers() -> Dict[str, str]:
+def get_user_context_headers() -> dict[str, str]:
     """
     Get headers containing current user context.
-    
+
     Returns:
         Dict with x-client-ref and x-client-username headers if user context exists.
         x-client-ref contains roles as JSON array.
@@ -68,25 +70,25 @@ def get_user_context_headers() -> Dict[str, str]:
     if current_user:
         if current_user.username:
             headers["x-client-username"] = current_user.username
-        
+
         # Use roles list if available, otherwise fall back to single role
         if current_user.roles:
             headers["x-client-ref"] = json.dumps(current_user.roles)
         elif current_user.role:
             headers["x-client-ref"] = json.dumps([current_user.role.value])
-            
+
     return headers
 
 
-def get_user_context_info() -> Dict[str, Optional[str | List[str]]]:
+def get_user_context_info() -> dict[str, str | list[str] | None]:
     """
     Get current user context information.
-    
+
     Tries multiple sources in order:
     1. ContextVar (async-safe, set before agent execution)
     2. Global module-level fallback
     3. Request context (ContextVar from middleware)
-    
+
     Returns:
         Dict with username, roles, user_id, and raw_token.
     """
@@ -94,7 +96,7 @@ def get_user_context_info() -> Dict[str, Optional[str | List[str]]]:
     ctx_username = _tool_username.get()
     ctx_roles = _tool_roles.get()
     ctx_token = _tool_raw_token.get()
-    
+
     if ctx_username or ctx_roles:
         return {
             "username": ctx_username,
@@ -102,7 +104,7 @@ def get_user_context_info() -> Dict[str, Optional[str | List[str]]]:
             "user_id": None,
             "raw_token": ctx_token,
         }
-    
+
     # Try global fallback
     if _global_context.get("username") or _global_context.get("roles"):
         return {
@@ -111,7 +113,7 @@ def get_user_context_info() -> Dict[str, Optional[str | List[str]]]:
             "user_id": None,
             "raw_token": _global_context.get("raw_token"),
         }
-    
+
     # Fall back to request context (ContextVar from middleware)
     from src.api.context import get_request_user  # local import to avoid circular dependency
 
@@ -119,8 +121,10 @@ def get_user_context_info() -> Dict[str, Optional[str | List[str]]]:
 
     if current_user:
         # Use roles list if available, otherwise fall back to single role
-        roles = current_user.roles if current_user.roles else (
-            [current_user.role.value] if current_user.role else []
+        roles = (
+            current_user.roles
+            if current_user.roles
+            else ([current_user.role.value] if current_user.role else [])
         )
         return {
             "username": current_user.username,
@@ -128,7 +132,7 @@ def get_user_context_info() -> Dict[str, Optional[str | List[str]]]:
             "user_id": str(current_user.user_id) if current_user.user_id else None,
             "raw_token": current_user.raw_token,  # JWT token for external service calls
         }
-    
+
     return {
         "username": None,
         "roles": [],

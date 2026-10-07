@@ -131,12 +131,24 @@ def _infer_max_context(model_lower: str) -> int:
     # Million-token-class families
     if _contains_any(
         model_lower,
-        ("gemini-1.5", "gemini-2", "gemini-3", "gemini-pro", "gpt-5", "qwen3", "deepseek-v4", "kimi-k3", "glm-5.2"),
+        (
+            "gemini-1.5",
+            "gemini-2",
+            "gemini-3",
+            "gemini-pro",
+            "gpt-5",
+            "qwen3",
+            "deepseek-v4",
+            "kimi-k3",
+            "glm-5.2",
+        ),
     ):
         return max(max_context, 1_000_000)
     if _contains_any(model_lower, ("claude-", "glm-5", "glm-4.7", "kimi-k2")):
         return max(max_context, 200_000)
-    if _contains_any(model_lower, ("gpt-4o", "gpt-4.1", "gpt-oss", "o1-", "o3-", "o4-", "deepseek-v3")):
+    if _contains_any(
+        model_lower, ("gpt-4o", "gpt-4.1", "gpt-oss", "o1-", "o3-", "o4-", "deepseek-v3")
+    ):
         return max(max_context, 128_000)
 
     return max_context

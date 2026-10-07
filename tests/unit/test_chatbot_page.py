@@ -131,7 +131,7 @@ class TestDefaultChatbotHtml:
         return default_chatbot_html(**params)
 
     def test_escapes_hostile_title(self):
-        html = self._render(title='</title><script>alert(1)</script>')
+        html = self._render(title="</title><script>alert(1)</script>")
         assert "<script>alert(1)</script>" not in html
 
     def test_theme_variables_present(self):
@@ -141,7 +141,9 @@ class TestDefaultChatbotHtml:
 
     def test_config_in_head_before_app_script(self):
         html = self._render()
-        assert html.index("window.CHATBOT_CONFIG =") < html.index("const cfg = window.CHATBOT_CONFIG")
+        assert html.index("window.CHATBOT_CONFIG =") < html.index(
+            "const cfg = window.CHATBOT_CONFIG"
+        )
 
     def test_validates_clean(self):
         assert validate_page(self._render()) == []
@@ -173,7 +175,10 @@ class TestValidatePage:
             "function renderMarkdown(x){}</script></head><body></body></html>"
         )
         warnings = validate_page(html)
-        assert any("no conversation is ever created" in w.lower() or "/api/v1/sessions" in w for w in warnings)
+        assert any(
+            "no conversation is ever created" in w.lower() or "/api/v1/sessions" in w
+            for w in warnings
+        )
         assert any("no text input" in w.lower() for w in warnings)
 
 
@@ -208,7 +213,8 @@ class TestContrastGuard:
         from src.api.chatbot_page import harmonize_brand
 
         brand, notes = harmonize_brand(
-            "daylight", {"text": "#1a1a1a", "bg": "#fffdf8", "accent": "#8a3b12", "accent-text": "#ffffff"}
+            "daylight",
+            {"text": "#1a1a1a", "bg": "#fffdf8", "accent": "#8a3b12", "accent-text": "#ffffff"},
         )
         assert brand["text"] == "#1a1a1a"
         assert brand["accent"] == "#8a3b12"
@@ -232,7 +238,7 @@ class TestContrastGuard:
 
     def test_panels_follow_a_new_page_background(self):
         """A cream page must not keep the theme's midnight panels bolted on."""
-        from src.api.chatbot_page import _relative_luminance, _parse_color, harmonize_brand
+        from src.api.chatbot_page import _parse_color, _relative_luminance, harmonize_brand
 
         brand, _ = harmonize_brand("midnight", {"bg": "#f9f6f1"})
         for name in ("surface", "panel", "assistant-bubble", "input-bg"):
@@ -248,12 +254,20 @@ class TestContrastGuard:
     def test_every_pair_is_readable_after_harmonizing_a_hostile_palette(self):
         from src.api.chatbot_page import CONTRAST_PAIRS, THEMES, contrast_ratio, harmonize_brand
 
-        hostile = {"bg": "#f9f6f1", "text": "#f2efe8", "muted": "#f0ece4", "accent": "#efe9dd", "accent-text": "#f5f2ec"}
+        hostile = {
+            "bg": "#f9f6f1",
+            "text": "#f2efe8",
+            "muted": "#f0ece4",
+            "accent": "#efe9dd",
+            "accent-text": "#f5f2ec",
+        }
         brand, notes = harmonize_brand("sunset", hostile)
         assert notes
         merged = {**THEMES["sunset"], **brand}
         for foreground, background, minimum in CONTRAST_PAIRS:
-            assert contrast_ratio(merged[foreground], merged[background]) >= minimum, f"{foreground} on {background}"
+            assert contrast_ratio(merged[foreground], merged[background]) >= minimum, (
+                f"{foreground} on {background}"
+            )
 
 
 class TestErrorText:
@@ -279,8 +293,12 @@ class TestErrorText:
             pytest.skip("node is not available to execute the page's JavaScript")
 
         page = default_chatbot_html(
-            title="Bot", greeting="Hi", workflow_id="wf_1",
-            provider_id="openrouter", model_id="", theme="midnight",
+            title="Bot",
+            greeting="Hi",
+            workflow_id="wf_1",
+            provider_id="openrouter",
+            model_id="",
+            theme="midnight",
             config={"workflow_id": "wf_1"},
         )
         start = page.index("function errorText(raw, status) {")
@@ -290,16 +308,22 @@ class TestErrorText:
         )
         result = subprocess.run(
             [node, "--input-type=module", "-e", script],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return result.stdout
 
     def test_structured_detail_yields_the_readable_line(self):
-        body = json.dumps({"detail": {
-            "error_code": "MESSAGE_PROCESSING_FAILED",
-            "error_message": "Failed to send message: Connection refused.",
-            "error_type": "ConnectionError",
-        }})
+        body = json.dumps(
+            {
+                "detail": {
+                    "error_code": "MESSAGE_PROCESSING_FAILED",
+                    "error_message": "Failed to send message: Connection refused.",
+                    "error_type": "ConnectionError",
+                }
+            }
+        )
         assert self._run(body, 500) == "Failed to send message: Connection refused."
 
     def test_never_renders_object_object(self):
@@ -310,10 +334,14 @@ class TestErrorText:
         assert self._run(json.dumps({"detail": "Not Found"}), 404) == "Not Found"
 
     def test_validation_list_is_joined(self):
-        body = json.dumps({"detail": [
-            {"loc": ["body", "query"], "msg": "Field required"},
-            {"loc": ["body", "sessionId"], "msg": "Field required"},
-        ]})
+        body = json.dumps(
+            {
+                "detail": [
+                    {"loc": ["body", "query"], "msg": "Field required"},
+                    {"loc": ["body", "sessionId"], "msg": "Field required"},
+                ]
+            }
+        )
         assert self._run(body, 422) == "Field required; Field required"
 
     def test_top_level_error_message_without_detail(self):
@@ -337,8 +365,12 @@ class TestAttachments:
     @staticmethod
     def _page() -> str:
         return default_chatbot_html(
-            title="Bot", greeting="Hi", workflow_id="wf_1",
-            provider_id="openrouter", model_id="", theme="midnight",
+            title="Bot",
+            greeting="Hi",
+            workflow_id="wf_1",
+            provider_id="openrouter",
+            model_id="",
+            theme="midnight",
             config={"workflow_id": "wf_1"},
         )
 
@@ -356,8 +388,8 @@ class TestAttachments:
         # Setting it by hand omits the boundary the browser generates, and the
         # server rejects the body as malformed.
         page = self._page()
-        upload = page[page.index("async function uploadStaged"):]
-        upload = upload[:upload.index("\n    }")]
+        upload = page[page.index("async function uploadStaged") :]
+        upload = upload[: upload.index("\n    }")]
         assert "FormData" in upload
         assert "Content-Type" not in upload
 
@@ -367,11 +399,11 @@ class TestAttachments:
         # not read, a model answers from the filename and invents the contents.
         page = self._page()
         assert "withAttachmentContext" in page
-        helper = page[page.index("async function withAttachmentContext"):]
-        helper = helper[:helper.index("\n    async function send")]
+        helper = page[page.index("async function withAttachmentContext") :]
+        helper = helper[: helper.index("\n    async function send")]
         assert "top_k" in helper
         assert "The relevant extracts follow" in helper
-        assert "could not be read" in helper      # the honest path when retrieval fails
+        assert "could not be read" in helper  # the honest path when retrieval fails
 
     def test_attachments_are_shown_in_the_sent_message(self):
         assert "message.attachments" in self._page()
@@ -386,8 +418,13 @@ class TestPageGeneration:
     @staticmethod
     def _page() -> str:
         return default_chatbot_html(
-            title="Bot", greeting="Hi", workflow_id="wf_1", provider_id="openrouter",
-            model_id="", theme="midnight", config={"workflow_id": "wf_1"},
+            title="Bot",
+            greeting="Hi",
+            workflow_id="wf_1",
+            provider_id="openrouter",
+            model_id="",
+            theme="midnight",
+            config={"workflow_id": "wf_1"},
         )
 
     def test_generated_pages_are_stamped(self):
@@ -411,4 +448,7 @@ class TestPageGeneration:
         from src.api.chatbot_page import page_generation
 
         # A raw template still holding its placeholder has not been rendered.
-        assert page_generation('<div id="chats"></div><div class="composer">__CHATBOT_CONFIG__</div>') is None
+        assert (
+            page_generation('<div id="chats"></div><div class="composer">__CHATBOT_CONFIG__</div>')
+            is None
+        )

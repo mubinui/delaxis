@@ -1,13 +1,13 @@
 """Pydantic models for dynamic configuration validation."""
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Literal
+from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class ProviderType(str, Enum):
+class ProviderType(StrEnum):
     """Type of provider."""
 
     LLM = "llm"
@@ -17,7 +17,7 @@ class ProviderType(str, Enum):
     API = "api"
 
 
-class AuthScheme(str, Enum):
+class AuthScheme(StrEnum):
     """Authentication scheme."""
 
     BEARER = "bearer"
@@ -33,10 +33,12 @@ class AuthConfig(BaseModel):
     scheme: AuthScheme
     env_var: str | None = Field(None, description="Environment variable containing credentials")
     header_name: str | None = Field(None, description="Custom header name for API key")
-    required: bool = Field(True, description="Whether the provider refuses unauthenticated requests")
+    required: bool = Field(
+        True, description="Whether the provider refuses unauthenticated requests"
+    )
 
 
-class ModelCapability(str, Enum):
+class ModelCapability(StrEnum):
     """LLM model capabilities."""
 
     CHAT = "chat"
@@ -64,7 +66,9 @@ class ModelConfig(BaseModel):
     pricing: ModelPricing | None = None
     max_tokens: int | None = Field(None, ge=1)
     temperature: float | None = Field(None, ge=0, le=2)
-    litellm_string: str | None = Field(None, description="Exact LiteLLM model string, overrides prefixing")
+    litellm_string: str | None = Field(
+        None, description="Exact LiteLLM model string, overrides prefixing"
+    )
     context_window: int | None = Field(None, ge=1)
     max_output_tokens: int | None = Field(None, ge=1)
 
@@ -91,7 +95,8 @@ class ProviderConfig(BaseModel):
     base_url_env: str | None = Field(None, description="Env var that overrides base_url")
     default_base_url: str | None = Field(None, description="Fallback base URL when env is unset")
     litellm_prefix: str | None = Field(
-        None, description="Native LiteLLM route prefix (e.g. 'openai', 'gemini', 'ollama'); unset = OpenAI-compatible via base_url"
+        None,
+        description="Native LiteLLM route prefix (e.g. 'openai', 'gemini', 'ollama'); unset = OpenAI-compatible via base_url",
     )
     litellm_base_url: str | None = Field(
         None, description="api_base handed to LiteLLM in native-prefix mode (self-hosted providers)"

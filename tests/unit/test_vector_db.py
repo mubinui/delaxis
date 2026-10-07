@@ -24,17 +24,14 @@ class TestVectorDBModels:
     def test_chromadb_config_custom(self) -> None:
         """Test ChromaDB configuration with custom values."""
         config = ChromaDBConfig(
-            persist_directory="/custom/path",
-            client_settings={"anonymized_telemetry": False}
+            persist_directory="/custom/path", client_settings={"anonymized_telemetry": False}
         )
         assert config.persist_directory == "/custom/path"
         assert config.client_settings == {"anonymized_telemetry": False}
 
     def test_pgvector_config_valid(self) -> None:
         """Test PGVector configuration with valid connection string."""
-        config = PGVectorConfig(
-            connection_string="postgresql://user:pass@localhost:5432/db"
-        )
+        config = PGVectorConfig(connection_string="postgresql://user:pass@localhost:5432/db")
         assert config.connection_string.startswith("postgresql://")
         assert config.table_name == "embeddings"
         assert config.vector_dimensions == 768
@@ -46,10 +43,7 @@ class TestVectorDBModels:
 
     def test_qdrant_config_remote(self) -> None:
         """Test Qdrant configuration for remote server."""
-        config = QdrantConfig(
-            url="http://localhost:6333",
-            api_key="test_key"
-        )
+        config = QdrantConfig(url="http://localhost:6333", api_key="test_key")
         assert config.url == "http://localhost:6333"
         assert config.api_key == "test_key"
         assert config.prefer_grpc is False
@@ -73,12 +67,12 @@ class TestVectorDBModels:
             collection_name="test_collection",
             embedding_model="all-mpnet-base-v2",
             embedding_dimensions=768,
-            distance_metric="cosine"
+            distance_metric="cosine",
         )
-        
+
         # Validate config (should create default ChromaDBConfig)
         config.validate_config()
-        
+
         assert config.type == VectorDBType.CHROMADB
         assert config.collection_name == "test_collection"
         assert config.chromadb_config is not None
@@ -94,11 +88,11 @@ class TestVectorDBModels:
             distance_metric="cosine",
             pgvector_config=PGVectorConfig(
                 connection_string="postgresql://user:pass@localhost:5432/db"
-            )
+            ),
         )
-        
+
         config.validate_config()
-        
+
         assert config.type == VectorDBType.PGVECTOR
         assert config.pgvector_config is not None
         assert config.pgvector_config.connection_string.startswith("postgresql://")
@@ -110,9 +104,9 @@ class TestVectorDBModels:
             collection_name="test_collection",
             embedding_model="all-mpnet-base-v2",
             embedding_dimensions=768,
-            distance_metric="cosine"
+            distance_metric="cosine",
         )
-        
+
         with pytest.raises(ValueError, match="pgvector_config is required"):
             config.validate_config()
 
@@ -124,11 +118,11 @@ class TestVectorDBModels:
             embedding_model="all-mpnet-base-v2",
             embedding_dimensions=768,
             distance_metric="cosine",
-            qdrant_config=QdrantConfig(url="http://localhost:6333")
+            qdrant_config=QdrantConfig(url="http://localhost:6333"),
         )
-        
+
         config.validate_config()
-        
+
         assert config.type == VectorDBType.QDRANT
         assert config.qdrant_config is not None
         assert config.qdrant_config.url == "http://localhost:6333"
@@ -141,7 +135,7 @@ class TestVectorDBModels:
                 collection_name="test_collection",
                 embedding_model="all-mpnet-base-v2",
                 embedding_dimensions=768,
-                distance_metric="invalid_metric"
+                distance_metric="invalid_metric",
             )
 
     def test_vector_db_config_get_connection_string(self) -> None:
@@ -152,10 +146,10 @@ class TestVectorDBModels:
             collection_name="test",
             embedding_model="all-mpnet-base-v2",
             embedding_dimensions=768,
-            chromadb_config=ChromaDBConfig(persist_directory="/custom/path")
+            chromadb_config=ChromaDBConfig(persist_directory="/custom/path"),
         )
         assert config_chroma.get_connection_string() == "/custom/path"
-        
+
         # PGVector
         config_pg = VectorDBConfig(
             type=VectorDBType.PGVECTOR,
@@ -164,17 +158,17 @@ class TestVectorDBModels:
             embedding_dimensions=768,
             pgvector_config=PGVectorConfig(
                 connection_string="postgresql://user:pass@localhost:5432/db"
-            )
+            ),
         )
         assert config_pg.get_connection_string() == "postgresql://user:pass@localhost:5432/db"
-        
+
         # Qdrant
         config_qdrant = VectorDBConfig(
             type=VectorDBType.QDRANT,
             collection_name="test",
             embedding_model="all-mpnet-base-v2",
             embedding_dimensions=768,
-            qdrant_config=QdrantConfig(url="http://localhost:6333")
+            qdrant_config=QdrantConfig(url="http://localhost:6333"),
         )
         assert config_qdrant.get_connection_string() == "http://localhost:6333"
 

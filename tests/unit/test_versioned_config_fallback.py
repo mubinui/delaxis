@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.auth import CurrentUser, UserRole, get_current_user, require_user
@@ -24,7 +24,9 @@ def current_user() -> CurrentUser:
     return CurrentUser(role=UserRole.ADMIN, auth_method="development", username="tester")
 
 
-def test_list_prompts_falls_back_when_versioning_schema_missing(tmp_path, monkeypatch, current_user):
+def test_list_prompts_falls_back_when_versioning_schema_missing(
+    tmp_path, monkeypatch, current_user
+):
     config_path = tmp_path / "prompt_templates.json"
     config_path.write_text(
         json.dumps(
@@ -65,7 +67,9 @@ def test_list_prompts_falls_back_when_versioning_schema_missing(tmp_path, monkey
     assert body[0]["etag"] is None
 
 
-def test_list_api_providers_falls_back_when_versioning_schema_missing(tmp_path, monkeypatch, current_user):
+def test_list_api_providers_falls_back_when_versioning_schema_missing(
+    tmp_path, monkeypatch, current_user
+):
     config_path = tmp_path / "api_providers.json"
     config_path.write_text(
         json.dumps(

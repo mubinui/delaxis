@@ -74,18 +74,26 @@ class TestEmptyTurns:
         # Voice activity detection fires on background noise; an empty turn is
         # not worth a row.
         state = await manager.create_session(workflow_id="assistant_chat", user_id="u")
-        assert await manager.record_voice_turn(state.session_id, user_text="", agent_text="") is False
+        assert (
+            await manager.record_voice_turn(state.session_id, user_text="", agent_text="") is False
+        )
         assert (await manager.get_chat_history(state.session_id))["messages"] == []
 
     @pytest.mark.asyncio
     async def test_whitespace_only_is_not_recorded(self, manager):
         state = await manager.create_session(workflow_id="assistant_chat", user_id="u")
-        assert await manager.record_voice_turn(state.session_id, user_text="  ", agent_text="\n") is False
+        assert (
+            await manager.record_voice_turn(state.session_id, user_text="  ", agent_text="\n")
+            is False
+        )
 
     @pytest.mark.asyncio
     async def test_one_sided_turn_is_recorded(self, manager):
         state = await manager.create_session(workflow_id="assistant_chat", user_id="u")
-        assert await manager.record_voice_turn(state.session_id, user_text="hello?", agent_text="") is True
+        assert (
+            await manager.record_voice_turn(state.session_id, user_text="hello?", agent_text="")
+            is True
+        )
         history = await manager.get_chat_history(state.session_id)
         assert [m["role"] for m in history["messages"]] == ["user"]
 

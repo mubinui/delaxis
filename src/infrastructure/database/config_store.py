@@ -1,12 +1,10 @@
-
 """PostgreSQL implementation of ConfigStore for Library (Workflows, Agents, Tools)."""
 
-from datetime import datetime
-from typing import List, Optional, Type, TypeVar, Union
+from datetime import UTC, datetime
+from typing import TypeVar
 from uuid import UUID
 
-from sqlalchemy import select, update, delete
-from sqlalchemy.orm import Session as DBSession
+from sqlalchemy import delete, select, update
 
 from src.infrastructure.database import schema
 from src.infrastructure.database.connection import DatabaseConnectionManager
@@ -42,7 +40,7 @@ class ConfigStore:
             pool_recycle=pool_recycle,
         )
 
-    def _get_model_class(self, item_type: str) -> Type[T]:
+    def _get_model_class(self, item_type: str) -> type[T]:
         """Get SQLAlchemy model class based on item type."""
         if item_type == "workflow":
             return schema.WorkflowDefinition
@@ -53,46 +51,48 @@ class ConfigStore:
         else:
             raise ValueError(f"Unknown item type: {item_type}")
 
-    def create_item(self, item_type: str, name: str, config: dict, description: Optional[str] = None, **kwargs) -> T:
+    def create_item(
+        self, item_type: str, name: str, config: dict, description: str | None = None, **kwargs
+    ) -> T:
         """Create a new library item."""
         model_class = self._get_model_class(item_type)
-        
+
         with self.db_manager.get_session() as session:
             item = model_class(
                 name=name,
                 description=description,
                 config=config,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
-                **kwargs
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                **kwargs,
             )
             session.add(item)
             session.commit()
             session.refresh(item)
             return item
 
-    def get_item(self, item_type: str, item_id: UUID) -> Optional[T]:
+    def get_item(self, item_type: str, item_id: UUID) -> T | None:
         """Get a library item by ID."""
         model_class = self._get_model_class(item_type)
-        
+
         with self.db_manager.get_session() as session:
             stmt = select(model_class).where(model_class.id == item_id)
             return session.execute(stmt).scalar_one_or_none()
 
-    def list_items(self, item_type: str) -> List[T]:
+    def list_items(self, item_type: str) -> list[T]:
         """List all library items of a specific type."""
         model_class = self._get_model_class(item_type)
-        
+
         with self.db_manager.get_session() as session:
             stmt = select(model_class).order_by(model_class.updated_at.desc())
             return session.execute(stmt).scalars().all()
 
-    def update_item(self, item_type: str, item_id: UUID, updates: dict) -> Optional[T]:
+    def update_item(self, item_type: str, item_id: UUID, updates: dict) -> T | None:
         """Update a library item."""
         model_class = self._get_model_class(item_type)
-        
+
         with self.db_manager.get_session() as session:
-            updates["updated_at"] = datetime.utcnow()
+            updates["updated_at"] = datetime.now(UTC)
             stmt = (
                 update(model_class)
                 .where(model_class.id == item_id)
@@ -106,7 +106,7 @@ class ConfigStore:
     def delete_item(self, item_type: str, item_id: UUID) -> bool:
         """Delete a library item."""
         model_class = self._get_model_class(item_type)
-        
+
         with self.db_manager.get_session() as session:
             stmt = delete(model_class).where(model_class.id == item_id)
             result = session.execute(stmt)

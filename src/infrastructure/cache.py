@@ -2,12 +2,11 @@
 
 import json
 import logging
-from typing import Any, Optional
-from datetime import timedelta
+from typing import Any
 
 import redis
 from redis.connection import ConnectionPool
-from redis.exceptions import ConnectionError, TimeoutError, RedisError
+from redis.exceptions import ConnectionError, RedisError, TimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class RedisCache:
         host: str = "localhost",
         port: int = 6379,
         db: int = 0,
-        password: Optional[str] = None,
+        password: str | None = None,
         max_connections: int = 50,
         socket_timeout: int = 5,
         socket_connect_timeout: int = 5,
@@ -62,8 +61,7 @@ class RedisCache:
         self.client = redis.Redis(connection_pool=self.pool)
 
         logger.info(
-            f"Redis cache initialized: {host}:{port}/{db} "
-            f"(max_connections={max_connections})"
+            f"Redis cache initialized: {host}:{port}/{db} (max_connections={max_connections})"
         )
 
     def ping(self) -> bool:
@@ -78,7 +76,7 @@ class RedisCache:
             logger.error(f"Redis ping failed: {e}")
             return False
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         """Get value from cache.
 
         Args:
@@ -102,7 +100,7 @@ class RedisCache:
         self,
         key: str,
         value: str,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> bool:
         """Set value in cache.
 
@@ -175,7 +173,7 @@ class RedisCache:
             logger.error(f"Redis expire failed for key '{key}': {e}")
             return False
 
-    def get_json(self, key: str) -> Optional[Any]:
+    def get_json(self, key: str) -> Any | None:
         """Get JSON value from cache.
 
         Args:
@@ -197,7 +195,7 @@ class RedisCache:
         self,
         key: str,
         value: Any,
-        ttl: Optional[int] = None,
+        ttl: int | None = None,
     ) -> bool:
         """Set JSON value in cache.
 
@@ -216,7 +214,7 @@ class RedisCache:
             logger.error(f"Failed to serialize JSON for key '{key}': {e}")
             return False
 
-    def increment(self, key: str, amount: int = 1) -> Optional[int]:
+    def increment(self, key: str, amount: int = 1) -> int | None:
         """Increment counter in cache.
 
         Args:
@@ -234,7 +232,7 @@ class RedisCache:
             logger.error(f"Redis increment failed for key '{key}': {e}")
             return None
 
-    def decrement(self, key: str, amount: int = 1) -> Optional[int]:
+    def decrement(self, key: str, amount: int = 1) -> int | None:
         """Decrement counter in cache.
 
         Args:
@@ -262,8 +260,9 @@ class RedisCache:
             List of matching keys
         """
         try:
-            return [key.decode() if isinstance(key, bytes) else key 
-                    for key in self.client.keys(pattern)]
+            return [
+                key.decode() if isinstance(key, bytes) else key for key in self.client.keys(pattern)
+            ]
         except (ConnectionError, TimeoutError, RedisError) as e:
             logger.error(f"Redis keys failed for pattern '{pattern}': {e}")
             return []

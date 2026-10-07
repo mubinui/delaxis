@@ -4,10 +4,9 @@ import asyncio
 import json
 import os
 import threading
-import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 import httpx
 import structlog
@@ -25,13 +24,13 @@ logger = structlog.get_logger(__name__)
 class ProviderAdapter:
     """
     Unified adapter for instantiating and managing all external service clients.
-    
+
     This adapter provides a single interface for:
     - LLM clients (OpenRouter, OpenAI, etc.)
     - Vector database clients (ChromaDB, PGVector, Qdrant, MongoDB)
     - Search clients (DuckDuckGo, etc.)
     - API clients (custom integrations)
-    
+
     Features:
     - Credential retrieval from environment variables or secret management systems
     - Client caching with TTL
@@ -64,20 +63,20 @@ class ProviderAdapter:
         self.watch_interval_seconds = watch_interval_seconds
 
         # Client caches with TTL
-        self._llm_clients: Dict[str, tuple[Any, datetime]] = {}
-        self._vector_db_clients: Dict[str, tuple[Any, datetime]] = {}
-        self._search_clients: Dict[str, tuple[Any, datetime]] = {}
-        self._api_clients: Dict[str, tuple[Any, datetime]] = {}
+        self._llm_clients: dict[str, tuple[Any, datetime]] = {}
+        self._vector_db_clients: dict[str, tuple[Any, datetime]] = {}
+        self._search_clients: dict[str, tuple[Any, datetime]] = {}
+        self._api_clients: dict[str, tuple[Any, datetime]] = {}
 
         # Configuration caches
-        self._providers: Dict[str, ProviderConfig] = {}
+        self._providers: dict[str, ProviderConfig] = {}
 
         # Credential manager
         self._credential_manager = get_global_credential_manager()
 
         # File watching
-        self._file_mtimes: Dict[Path, float] = {}
-        self._watcher_thread: Optional[threading.Thread] = None
+        self._file_mtimes: dict[Path, float] = {}
+        self._watcher_thread: threading.Thread | None = None
         self._stop_watching = threading.Event()
 
         # Load initial configurations
@@ -111,7 +110,7 @@ class ProviderAdapter:
         # Check cache
         if provider_id in self._llm_clients:
             client, cached_at = self._llm_clients[provider_id]
-            if datetime.utcnow() - cached_at < timedelta(seconds=self.cache_ttl_seconds):
+            if datetime.now(UTC) - cached_at < timedelta(seconds=self.cache_ttl_seconds):
                 logger.debug("llm_client_cache_hit", provider_id=provider_id)
                 return client
 
@@ -132,12 +131,10 @@ class ProviderAdapter:
         client = self._create_llm_client(provider)
 
         # Cache the client
-        self._llm_clients[provider_id] = (client, datetime.utcnow())
+        self._llm_clients[provider_id] = (client, datetime.now(UTC))
 
         # Emit metrics
-        provider_client_created_total.labels(
-            provider_id=provider_id, client_type="llm"
-        ).inc()
+        provider_client_created_total.labels(provider_id=provider_id, client_type="llm").inc()
 
         logger.info("llm_client_created", provider_id=provider_id)
         return client
@@ -176,7 +173,7 @@ class ProviderAdapter:
         # Check cache
         if provider_id in self._search_clients:
             client, cached_at = self._search_clients[provider_id]
-            if datetime.utcnow() - cached_at < timedelta(seconds=self.cache_ttl_seconds):
+            if datetime.now(UTC) - cached_at < timedelta(seconds=self.cache_ttl_seconds):
                 logger.debug("search_client_cache_hit", provider_id=provider_id)
                 return client
 
@@ -197,12 +194,10 @@ class ProviderAdapter:
         client = self._create_search_client(provider)
 
         # Cache the client
-        self._search_clients[provider_id] = (client, datetime.utcnow())
+        self._search_clients[provider_id] = (client, datetime.now(UTC))
 
         # Emit metrics
-        provider_client_created_total.labels(
-            provider_id=provider_id, client_type="search"
-        ).inc()
+        provider_client_created_total.labels(provider_id=provider_id, client_type="search").inc()
 
         logger.info("search_client_created", provider_id=provider_id)
         return client
@@ -223,7 +218,7 @@ class ProviderAdapter:
         # Check cache
         if provider_id in self._api_clients:
             client, cached_at = self._api_clients[provider_id]
-            if datetime.utcnow() - cached_at < timedelta(seconds=self.cache_ttl_seconds):
+            if datetime.now(UTC) - cached_at < timedelta(seconds=self.cache_ttl_seconds):
                 logger.debug("api_client_cache_hit", provider_id=provider_id)
                 return client
 
@@ -244,17 +239,15 @@ class ProviderAdapter:
         client = self._create_api_client(provider)
 
         # Cache the client
-        self._api_clients[provider_id] = (client, datetime.utcnow())
+        self._api_clients[provider_id] = (client, datetime.now(UTC))
 
         # Emit metrics
-        provider_client_created_total.labels(
-            provider_id=provider_id, client_type="api"
-        ).inc()
+        provider_client_created_total.labels(provider_id=provider_id, client_type="api").inc()
 
         logger.info("api_client_created", provider_id=provider_id)
         return client
 
-    def get_credentials(self, provider_id: str, credential_key: str) -> Optional[str]:
+    def get_credentials(self, provider_id: str, credential_key: str) -> str | None:
         """
         Retrieve credentials from environment or secret management system.
 
@@ -283,9 +276,7 @@ class ProviderAdapter:
         # Try secret management system
         try:
             credential = asyncio.run(
-                self._credential_manager.retrieve_credential(
-                    credential_key, encrypted=True
-                )
+                self._credential_manager.retrieve_credential(credential_key, encrypted=True)
             )
             if credential:
                 logger.debug(
@@ -349,7 +340,7 @@ class ProviderAdapter:
 
         # Load API providers
         if self.config_path.exists():
-            with open(self.config_path, "r") as f:
+            with open(self.config_path) as f:
                 data = json.load(f)
                 for provider_data in data.get("providers", []):
                     try:
@@ -362,9 +353,7 @@ class ProviderAdapter:
                             error=str(e),
                         )
         else:
-            logger.warning(
-                "provider_config_file_not_found", path=str(self.config_path)
-            )
+            logger.warning("provider_config_file_not_found", path=str(self.config_path))
 
     def _create_llm_client(self, provider: ProviderConfig) -> httpx.AsyncClient:
         """
@@ -402,11 +391,7 @@ class ProviderAdapter:
             headers.update(provider.request_defaults.headers)
 
         # Create client
-        timeout = (
-            provider.request_defaults.timeout_seconds
-            if provider.request_defaults
-            else 120
-        )
+        timeout = provider.request_defaults.timeout_seconds if provider.request_defaults else 120
 
         return httpx.AsyncClient(
             base_url=provider.base_url,
@@ -442,9 +427,7 @@ class ProviderAdapter:
                 provider_id=provider.id,
                 error=str(e),
             )
-            raise ValueError(
-                f"Failed to create search client for {provider.id}: {e}"
-            ) from e
+            raise ValueError(f"Failed to create search client for {provider.id}: {e}") from e
 
     def _create_api_client(self, provider: ProviderConfig) -> httpx.AsyncClient:
         """
@@ -488,11 +471,7 @@ class ProviderAdapter:
             headers.update(provider.request_defaults.headers)
 
         # Create client
-        timeout = (
-            provider.request_defaults.timeout_seconds
-            if provider.request_defaults
-            else 30
-        )
+        timeout = provider.request_defaults.timeout_seconds if provider.request_defaults else 30
 
         return httpx.AsyncClient(
             base_url=provider.base_url,
@@ -592,7 +571,7 @@ class ProviderAdapter:
 
 
 # Singleton instance
-_provider_adapter: Optional[ProviderAdapter] = None
+_provider_adapter: ProviderAdapter | None = None
 
 
 def get_provider_adapter() -> ProviderAdapter:

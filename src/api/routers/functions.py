@@ -4,8 +4,6 @@ Allows the AI Studio builder to save AI-generated Python code as executable
 tool files in src/tools/generated/ and auto-register them in configs/tools.json.
 """
 
-import importlib
-import inspect
 import json
 import re
 from pathlib import Path
@@ -29,6 +27,7 @@ _SAFE_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 # ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
+
 
 class FunctionToolCreateRequest(BaseModel):
     id: str = Field(description="Snake_case unique ID (used as filename and tool ID)")
@@ -55,10 +54,11 @@ class FunctionToolListResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _validate_id(tool_id: str) -> None:
     if not _SAFE_ID_RE.match(tool_id):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid tool ID '{tool_id}'. Must match ^[a-z][a-z0-9_]{{0,63}}$",
         )
 
@@ -115,7 +115,7 @@ def _sanitize_code(code: str, tool_id: str, name: str) -> str:
     for pattern in dangerous_patterns:
         if re.search(pattern, code):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Generated code contains disallowed pattern '{pattern}'. Edit the code to remove it.",
             )
     return code
@@ -125,6 +125,7 @@ def _sanitize_code(code: str, tool_id: str, name: str) -> str:
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("", response_model=FunctionToolResponse, status_code=status.HTTP_201_CREATED)
 async def create_function_tool(
     request: Request,
@@ -132,7 +133,7 @@ async def create_function_tool(
 ) -> FunctionToolResponse:
     """
     Save AI-generated Python code as a tool file and register it in configs/tools.json.
-    
+
     The function is written to src/tools/generated/{id}.py and registered with
     entrypoint `src.tools.generated.{id}:{name}` so agents can call it immediately.
     """
@@ -144,7 +145,7 @@ async def create_function_tool(
     # Verify the named function exists in the code
     if not re.search(rf"\bdef\s+{re.escape(body.name)}\s*\(", safe_code):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Function '{body.name}' not found in the provided code.",
         )
 
@@ -243,8 +244,7 @@ async def delete_function_tool(request: Request, tool_id: str) -> None:
     config = _load_tools_config()
     original_count = len(config.get("tools", []))
     config["tools"] = [
-        t for t in config.get("tools", [])
-        if not (t["id"] == tool_id and t.get("_generated"))
+        t for t in config.get("tools", []) if not (t["id"] == tool_id and t.get("_generated"))
     ]
     if len(config.get("tools", [])) == original_count:
         raise HTTPException(status_code=404, detail=f"Function tool '{tool_id}' not found.")

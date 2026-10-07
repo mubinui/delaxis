@@ -37,9 +37,7 @@ def shannon_entropy(value: str) -> float:
     for char in value:
         counts[char] = counts.get(char, 0) + 1
     length = len(value)
-    return -sum(
-        (count / length) * math.log2(count / length) for count in counts.values()
-    )
+    return -sum((count / length) * math.log2(count / length) for count in counts.values())
 
 
 @dataclass(frozen=True)
@@ -62,15 +60,27 @@ _SECRET_RULES: tuple[_SecretRule, ...] = (
         min_entropy=4.0,
         group=1,
     ),
-    _SecretRule("github_token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b"), "critical"),
+    _SecretRule(
+        "github_token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b"), "critical"
+    ),
     _SecretRule("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9\-]{10,}\b"), "high"),
-    _SecretRule("stripe_key", re.compile(r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,}\b"), "critical"),
+    _SecretRule(
+        "stripe_key", re.compile(r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,}\b"), "critical"
+    ),
     _SecretRule("openai_key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}\b"), "critical"),
     _SecretRule("anthropic_key", re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b"), "critical"),
     _SecretRule("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b"), "critical"),
     _SecretRule("openrouter_key", re.compile(r"\bsk-or-v1-[a-f0-9]{48,}\b"), "critical"),
-    _SecretRule("private_key_block", re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----"), "critical"),
-    _SecretRule("jwt", re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b"), "high"),
+    _SecretRule(
+        "private_key_block",
+        re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----"),
+        "critical",
+    ),
+    _SecretRule(
+        "jwt",
+        re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b"),
+        "high",
+    ),
     _SecretRule(
         "basic_auth_url",
         re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s/:@]+:([^\s/@]{4,})@"),
@@ -124,7 +134,15 @@ def _is_placeholder(value: str) -> bool:
     lowered = value.lower()
     return any(
         marker in lowered
-        for marker in ("your_", "yourkey", "example", "changeme", "placeholder", "xxxxx", "redacted")
+        for marker in (
+            "your_",
+            "yourkey",
+            "example",
+            "changeme",
+            "placeholder",
+            "xxxxx",
+            "redacted",
+        )
     )
 
 
@@ -267,14 +285,19 @@ _INJECTION_SIGNALS: tuple[_InjectionSignal, ...] = (
     ),
     _InjectionSignal(
         "encoded_payload",
-        re.compile(r"(?i)\b(?:base64|rot13|hex\s*decode|atob|fromCharCode)\b[^.\n]{0,30}"
-                   r"\b(?:decode|then|and)\b|[A-Za-z0-9+/]{80,}={0,2}"),
+        re.compile(
+            r"(?i)\b(?:base64|rot13|hex\s*decode|atob|fromCharCode)\b[^.\n]{0,30}"
+            r"\b(?:decode|then|and)\b|[A-Za-z0-9+/]{80,}={0,2}"
+        ),
         0.25,
         "carries an encoded payload the model is asked to decode",
     ),
     _InjectionSignal(
         "delimiter_escape",
-        re.compile(r"(?:```|\"\"\"|---)\s*(?:end\s+of\s+)?(?:instruction|prompt|context|document)s?\b", re.IGNORECASE),
+        re.compile(
+            r"(?:```|\"\"\"|---)\s*(?:end\s+of\s+)?(?:instruction|prompt|context|document)s?\b",
+            re.IGNORECASE,
+        ),
         0.3,
         "fakes the end of the surrounding context block",
     ),

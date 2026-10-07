@@ -95,7 +95,10 @@ def test_call_hits_the_provider_endpoint_with_its_key(client, monkeypatch):
 
     assert body["response"] == "connected."
     assert body["token_usage"]["total_tokens"] == 13
-    assert stub.last["url"] == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    assert (
+        stub.last["url"]
+        == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    )
     assert stub.last["headers"]["Authorization"] == "Bearer sk-gemini"
 
 
@@ -118,7 +121,12 @@ def test_request_api_key_overrides_the_configured_one(client, monkeypatch):
 
     client.post(
         "/api/v1/studio/test-llm",
-        json={"provider": "gemini", "model": "gemini-3.5-flash", "user_prompt": "hi", "api_key": "sk-pasted"},
+        json={
+            "provider": "gemini",
+            "model": "gemini-3.5-flash",
+            "user_prompt": "hi",
+            "api_key": "sk-pasted",
+        },
     )
 
     assert stub.last["headers"]["Authorization"] == "Bearer sk-pasted"

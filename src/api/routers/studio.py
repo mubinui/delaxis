@@ -3,24 +3,24 @@
 from __future__ import annotations
 
 import time
+from typing import Any
 
 import httpx
-from typing import Any
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, HTTPException, status
-
-from src.config.config_loader import get_config_loader
 from src.audit_logging import get_logger
+from src.config.config_loader import get_config_loader
+from src.config.provider_registry import ProviderResolutionError, resolve_openai_endpoint
 
 logger = get_logger(__name__)
-from src.config.provider_registry import ProviderResolutionError, resolve_openai_endpoint
 
 router = APIRouter(prefix="/api/v1/studio", tags=["studio"])
 
 
 class LiveLlmTestRequest(BaseModel):
     """Payload for executing instant live LLM evaluations."""
+
     provider: str = "openrouter"
     model: str = "google/gemini-3.5-flash-lite"
     api_key: str | None = None
@@ -32,6 +32,7 @@ class LiveLlmTestRequest(BaseModel):
 
 class LiveLlmTestResponse(BaseModel):
     """Execution output from the live testing API."""
+
     response: str
     provider: str
     model: str
@@ -137,7 +138,7 @@ async def test_live_llm(request: LiveLlmTestRequest) -> LiveLlmTestResponse:
     # caller supplied one (e.g. "gemini/gemini-3.5-flash").
     model_id = request.model
     if model_id.startswith(f"{request.provider}/"):
-        model_id = model_id[len(request.provider) + 1:]
+        model_id = model_id[len(request.provider) + 1 :]
 
     headers = {"Content-Type": "application/json"}
     if api_key:

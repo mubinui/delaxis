@@ -28,8 +28,9 @@ import hashlib
 import math
 import os
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol
 
 import httpx
 import structlog
@@ -106,7 +107,7 @@ class LocalEmbeddings:
             # the middle of "concatenate".
             padded = f" {word} "
             for index in range(len(padded) - 2):
-                seen(padded[index:index + 3], self.TRIGRAM_WEIGHT)
+                seen(padded[index : index + 3], self.TRIGRAM_WEIGHT)
 
         if not occurrences:
             return [0.0] * self.dimensions
@@ -169,7 +170,7 @@ class OpenAIEmbeddings:
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         out: list[list[float]] = []
         for start in range(0, len(texts), BATCH):
-            batch = [text or " " for text in texts[start:start + BATCH]]
+            batch = [text or " " for text in texts[start : start + BATCH]]
             out.extend(self._post({"model": self.model, "input": batch}))
         return out
 
@@ -259,7 +260,9 @@ def create_embedder(
             logger.warning("embeddings_no_api_key", provider=provider, falling_back="local")
             return LocalEmbeddings(dimensions=dimensions or 512)
         return OpenAIEmbeddings(
-            model=chosen, base_url=url, api_key=key,
+            model=chosen,
+            base_url=url,
+            api_key=key,
             dimensions=dimensions or KNOWN_DIMENSIONS.get(chosen, 1536),
         )
 
@@ -270,7 +273,8 @@ def create_embedder(
             return LocalEmbeddings(dimensions=dimensions or 512)
         chosen = model or "text-embedding-004"
         return GeminiEmbeddings(
-            model=chosen, api_key=key,
+            model=chosen,
+            api_key=key,
             dimensions=dimensions or KNOWN_DIMENSIONS.get(chosen, 768),
         )
 

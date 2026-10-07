@@ -843,7 +843,9 @@ def _parse_color(value: str) -> tuple[float, float, float] | None:
         parts = [p.strip() for p in re.split(r"[,\s/]+", match.group(1)) if p.strip()]
         if len(parts) >= 3:
             try:
-                return tuple(float(p.rstrip("%")) * (2.55 if p.endswith("%") else 1) for p in parts[:3])  # type: ignore[return-value]
+                return tuple(
+                    float(p.rstrip("%")) * (2.55 if p.endswith("%") else 1) for p in parts[:3]
+                )  # type: ignore[return-value]
             except ValueError:
                 return None
     return None
@@ -998,10 +1000,10 @@ def ensure_config_contract(html: str) -> str:
         return html
     match = _HEAD_OPEN_RE.search(html)
     if match:
-        return f"{html[:match.end()]}\n  {CONFIG_SNIPPET}{html[match.end():]}"
+        return f"{html[: match.end()]}\n  {CONFIG_SNIPPET}{html[match.end() :]}"
     match = _SCRIPT_OPEN_RE.search(html)
     if match:
-        return f"{html[:match.start()]}{CONFIG_SNIPPET}\n{html[match.start():]}"
+        return f"{html[: match.start()]}{CONFIG_SNIPPET}\n{html[match.start() :]}"
     return f"{CONFIG_SNIPPET}\n{html}"
 
 
@@ -1033,7 +1035,7 @@ def ensure_markdown_support(html: str) -> str:
     else:
         match = _SCRIPT_OPEN_RE.search(html)
         if match:
-            html = f"{html[:match.start()]}{script}\n{html[match.start():]}"
+            html = f"{html[: match.start()]}{script}\n{html[match.start() :]}"
         else:
             html = f"{html}\n{script}"
     return html
@@ -1078,7 +1080,9 @@ def page_defects(html: str) -> list[str]:
     lowered = html.lower()
 
     if "window.chatbot_config" not in lowered:
-        defects.append("Never reads window.CHATBOT_CONFIG, so it does not know which workflow to talk to.")
+        defects.append(
+            "Never reads window.CHATBOT_CONFIG, so it does not know which workflow to talk to."
+        )
     if "/api/v1/sessions" not in html:
         defects.append("Never calls /api/v1/sessions, so no conversation is ever created.")
     elif "/messages" not in html:
@@ -1086,7 +1090,10 @@ def page_defects(html: str) -> list[str]:
 
     # Something has to turn a user action into a request. Without any of these
     # the page renders and the buttons are inert.
-    if not any(token in html for token in ("addEventListener", "onsubmit", "onclick", "onSubmit", "onClick")):
+    if not any(
+        token in html
+        for token in ("addEventListener", "onsubmit", "onclick", "onSubmit", "onClick")
+    ):
         defects.append("No event handlers, so nothing happens when the user presses send.")
     if "fetch(" not in html and "XMLHttpRequest" not in html:
         defects.append("Never makes an HTTP request.")
@@ -1097,12 +1104,17 @@ def page_defects(html: str) -> list[str]:
 
     # Deployed pages are served from this app with no network egress guarantees;
     # a CDN reference is a blank screen for anyone behind a firewall.
-    for pattern in ("src=\"http", "src='http", "href=\"http"):
+    for pattern in ('src="http', "src='http", 'href="http'):
         index = lowered.find(pattern.lower())
         while index != -1:
             snippet = html[index : index + 160]
-            if any(host in snippet for host in ("cdn.", "unpkg.com", "jsdelivr", "googleapis.com", "cdnjs")):
-                defects.append("Loads an external CDN asset, which will not resolve in an offline deployment.")
+            if any(
+                host in snippet
+                for host in ("cdn.", "unpkg.com", "jsdelivr", "googleapis.com", "cdnjs")
+            ):
+                defects.append(
+                    "Loads an external CDN asset, which will not resolve in an offline deployment."
+                )
                 break
             index = lowered.find(pattern.lower(), index + 1)
 
@@ -1141,7 +1153,9 @@ def validate_page(html: str, *, voice_enabled: bool = False) -> list[str]:
     if "function rendermarkdown" not in lowered:
         warnings.append("Markdown renderer missing — assistant replies will render as plain text.")
     if voice_enabled and "/api/v1/voice/ticket" not in html:
-        warnings.append("Voice is enabled but the page has no voice client — the mic will not appear.")
+        warnings.append(
+            "Voice is enabled but the page has no voice client — the mic will not appear."
+        )
     warnings.extend(page_defects(html))
     return warnings
 
@@ -1245,8 +1259,7 @@ def embed_script(*, deployment_id: str, title: str, theme: str, origin: str = ""
     """The one-line embed widget: a floating launcher that opens the chat in an iframe."""
     accent = THEMES[normalize_theme(theme)]["accent"]
     return (
-        EMBED_TEMPLATE
-        .replace("__DEPLOYMENT_ID__", deployment_id)
+        EMBED_TEMPLATE.replace("__DEPLOYMENT_ID__", deployment_id)
         .replace("__TITLE__", title.replace("\\", "\\\\").replace("'", "\\'"))
         .replace("__ACCENT__", accent)
         .replace("__ORIGIN__", origin.rstrip("/"))
@@ -2175,9 +2188,7 @@ def page_generation(html: str) -> int | None:
     they can be refreshed too rather than being stranded on the version they
     happened to be deployed with.
     """
-    match = re.search(
-        rf'<meta name="generator" content="{re.escape(GENERATOR)}/(\d+)"', html
-    )
+    match = re.search(rf'<meta name="generator" content="{re.escape(GENERATOR)}/(\d+)"', html)
     if match:
         return int(match.group(1))
     if 'id="chats"' in html and 'class="composer"' in html and "__CHATBOT_CONFIG__" not in html:
@@ -2210,8 +2221,7 @@ def default_chatbot_html(
     one get exactly the same implementation.
     """
     return (
-        PAGE_TEMPLATE
-        .replace("__GENERATOR__", f"{GENERATOR}/{PAGE_VERSION}")
+        PAGE_TEMPLATE.replace("__GENERATOR__", f"{GENERATOR}/{PAGE_VERSION}")
         .replace("__VOICE_STYLE__", VOICE_STYLE if voice_enabled else "")
         .replace("__BRAND_CSS__", brand_css(brand))
         .replace("__TITLE__", escape(title))
@@ -2222,10 +2232,13 @@ def default_chatbot_html(
         .replace("__THEME_CSS__", all_theme_css(theme))
         .replace("__MARKDOWN_STYLE__", MARKDOWN_STYLE)
         .replace("__MARKDOWN_SCRIPT__", MARKDOWN_SCRIPT)
-        .replace("__THEME_OPTIONS__", "".join(
-            f'<option value="{theme_id}">{escape(THEME_LABELS.get(theme_id, theme_id.title()))}</option>'
-            for theme_id in THEMES
-        ))
+        .replace(
+            "__THEME_OPTIONS__",
+            "".join(
+                f'<option value="{theme_id}">{escape(THEME_LABELS.get(theme_id, theme_id.title()))}</option>'
+                for theme_id in THEMES
+            ),
+        )
         # Last: the config JSON must not be scanned for other placeholders.
         .replace("__CHATBOT_CONFIG__", safe_json(config))
     )

@@ -12,7 +12,7 @@ See the RAG service Swagger docs at <RAG_PIPELINE_BASE_URL>/docs
 import json
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -35,7 +35,7 @@ def _load_vector_dbs_config() -> dict:
     """Load vector databases configuration from file using config loader."""
     try:
         loader = get_config_loader()
-        # The config loader loads the file content. 
+        # The config loader loads the file content.
         # The file structure is { "qdrant": { ... }, "chroma": { ... } }
         # But get_config returns the whole dict.
         return loader.get_config("vector_databases")
@@ -47,10 +47,10 @@ def _save_vector_dbs_config(config: dict) -> None:
     """Save vector databases configuration to file."""
     config_path = _get_vector_dbs_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
-    
+
     # Trigger reload in config loader
     try:
         loader = get_config_loader()
@@ -68,7 +68,7 @@ class VectorDbConfigResponse(BaseModel):
     timeout: int
     description: str
     health_status: str | None = None
-    health_details: Dict[str, Any] | None = None
+    health_details: dict[str, Any] | None = None
 
 
 @router.get("", response_model=VectorDbConfigResponse)
@@ -78,35 +78,41 @@ async def get_rag_service_config(
 ) -> VectorDbConfigResponse:
     """
     Get RAG service configuration and health status.
-    
+
     Returns the remote RAG Pipeline service configuration including:
     - Base URL and connectivity settings
     - Default collection name
     - Current health status
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Getting RAG service config",
         request_id=request_id,
     )
-    
+
     try:
         config = _load_vector_dbs_config()
-        
+
         # Get rag_service config or fall back to env vars
         rag_config = config.get("rag_service", {})
-        
-        base_url = rag_config.get("base_url") or os.getenv("RAG_PIPELINE_BASE_URL", "http://localhost:8003")
-        enabled = rag_config.get("enabled", os.getenv("RAG_PIPELINE_ENABLED", "true").lower() == "true")
-        default_collection = rag_config.get("default_collection") or os.getenv("RAG_PIPELINE_DEFAULT_COLLECTION", "knowledge_base")
+
+        base_url = rag_config.get("base_url") or os.getenv(
+            "RAG_PIPELINE_BASE_URL", "http://localhost:8003"
+        )
+        enabled = rag_config.get(
+            "enabled", os.getenv("RAG_PIPELINE_ENABLED", "true").lower() == "true"
+        )
+        default_collection = rag_config.get("default_collection") or os.getenv(
+            "RAG_PIPELINE_DEFAULT_COLLECTION", "knowledge_base"
+        )
         timeout = rag_config.get("timeout", int(os.getenv("RAG_PIPELINE_TIMEOUT", "60")))
         description = rag_config.get("description", "Remote RAG Pipeline service")
-        
+
         # Check health
         health_status = "unknown"
         health_details = None
-        
+
         if enabled and base_url:
             try:
                 async with httpx.AsyncClient(timeout=5.0) as client:
@@ -120,7 +126,7 @@ async def get_rag_service_config(
             except Exception as e:
                 logger.warning(f"Failed to check RAG service health: {e}")
                 health_status = "unreachable"
-        
+
         return VectorDbConfigResponse(
             id="rag_service",
             type="rag_pipeline",
@@ -130,9 +136,9 @@ async def get_rag_service_config(
             timeout=timeout,
             description=description,
             health_status=health_status,
-            health_details=health_details
+            health_details=health_details,
         )
-        
+
     except Exception as e:
         logger.error(
             "Failed to get RAG service config",
@@ -143,37 +149,39 @@ async def get_rag_service_config(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get RAG service config: {str(e)}",
-        )
+        ) from e
 
 
-@router.get("/collections", response_model=Dict[str, Any])
+@router.get("/collections", response_model=dict[str, Any])
 async def list_rag_collections(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     List available collections in the RAG service.
-    
+
     Returns list of collections available for querying and ingestion.
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Listing RAG collections",
         request_id=request_id,
     )
-    
+
     try:
         config = _load_vector_dbs_config()
         rag_config = config.get("rag_service", {})
-        
-        base_url = rag_config.get("base_url") or os.getenv("RAG_PIPELINE_BASE_URL", "http://localhost:8003")
-        
+
+        base_url = rag_config.get("base_url") or os.getenv(
+            "RAG_PIPELINE_BASE_URL", "http://localhost:8003"
+        )
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(f"{base_url}/collections")
             response.raise_for_status()
             return response.json()
-            
+
     except httpx.HTTPError as e:
         logger.error(
             "Failed to list RAG collections",
@@ -183,7 +191,7 @@ async def list_rag_collections(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"RAG service unavailable: {str(e)}",
-        )
+        ) from e
     except Exception as e:
         logger.error(
             "Failed to list RAG collections",
@@ -194,5 +202,4 @@ async def list_rag_collections(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list RAG collections: {str(e)}",
-        )
-
+        ) from e

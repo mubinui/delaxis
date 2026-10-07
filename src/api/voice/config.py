@@ -183,9 +183,7 @@ def voice_providers() -> list[dict[str, Any]]:
             continue
         provider_id = str(provider.get("id"))
         models = [
-            str(m["name"])
-            for m in live.get("models", [])
-            if isinstance(m, dict) and m.get("name")
+            str(m["name"]) for m in live.get("models", []) if isinstance(m, dict) and m.get("name")
         ]
         result.append(
             {

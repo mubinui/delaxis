@@ -154,10 +154,7 @@ async def run_bridge(
     url = f"{config.ws_url}?{config.auth_query_param}={api_key}"
 
     byte_budget = int(
-        config.max_session_seconds
-        * config.input_sample_rate
-        * BYTES_PER_SAMPLE
-        * BYTE_BUDGET_SLACK
+        config.max_session_seconds * config.input_sample_rate * BYTES_PER_SAMPLE * BYTE_BUDGET_SLACK
     )
 
     try:
@@ -172,13 +169,20 @@ async def run_bridge(
         raise VoiceUpstreamError(str(exc)) from exc
 
     async with upstream_cm as upstream:
-        await upstream.send(json.dumps(build_setup_frame(
-            config, system_instruction=system_instruction, voice_name=voice_name, tools=tools,
-        )))
+        await upstream.send(
+            json.dumps(
+                build_setup_frame(
+                    config,
+                    system_instruction=system_instruction,
+                    voice_name=voice_name,
+                    tools=tools,
+                )
+            )
+        )
 
         try:
             first_raw = await asyncio.wait_for(upstream.recv(), timeout=15)
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             raise VoiceUpstreamError("timed out waiting for upstream setup") from exc
         first = _as_json(first_raw)
         if "setupComplete" not in first and "setup_complete" not in first:
@@ -224,9 +228,9 @@ async def run_bridge(
                     # the model can speak about the real outcome.
                     responses = frame.get("responses") or []
                     if responses:
-                        await upstream.send(json.dumps({
-                            "toolResponse": {"functionResponses": responses}
-                        }))
+                        await upstream.send(
+                            json.dumps({"toolResponse": {"functionResponses": responses}})
+                        )
                 elif kind == p.CLIENT_BYE:
                     stats.reason = p.REASON_CLIENT
                     return
@@ -241,12 +245,14 @@ async def run_bridge(
                     calls = tool_call.get("functionCalls") or tool_call.get("function_calls") or []
                     for call in calls:
                         stats.tool_calls += 1
-                        await client_send_json({
-                            "t": p.SERVER_TOOL_CALL,
-                            "id": call.get("id") or call.get("name"),
-                            "name": call.get("name"),
-                            "args": call.get("args") or {},
-                        })
+                        await client_send_json(
+                            {
+                                "t": p.SERVER_TOOL_CALL,
+                                "id": call.get("id") or call.get("name"),
+                                "name": call.get("name"),
+                                "args": call.get("args") or {},
+                            }
+                        )
                     continue
 
                 server_content = frame.get("serverContent") or frame.get("server_content")
@@ -255,15 +261,21 @@ async def run_bridge(
                         stats.bytes_out += len(chunk)
                         await client_send_bytes(chunk)
 
-                    inbound = server_content.get("inputTranscription") or server_content.get("input_transcription")
+                    inbound = server_content.get("inputTranscription") or server_content.get(
+                        "input_transcription"
+                    )
                     if inbound and inbound.get("text"):
                         stats.user_text.append(str(inbound["text"]))
                         await client_send_json({"t": p.SERVER_USER_TEXT, "d": str(inbound["text"])})
 
-                    outbound = server_content.get("outputTranscription") or server_content.get("output_transcription")
+                    outbound = server_content.get("outputTranscription") or server_content.get(
+                        "output_transcription"
+                    )
                     if outbound and outbound.get("text"):
                         stats.agent_text.append(str(outbound["text"]))
-                        await client_send_json({"t": p.SERVER_AGENT_TEXT, "d": str(outbound["text"])})
+                        await client_send_json(
+                            {"t": p.SERVER_AGENT_TEXT, "d": str(outbound["text"])}
+                        )
 
                     if server_content.get("interrupted"):
                         # Must reach the browser promptly or the model talks over

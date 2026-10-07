@@ -13,8 +13,8 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 
-from src.audit_logging import get_logger
 from src.api.auth import create_access_token, verify_token
+from src.audit_logging import get_logger
 from src.tools.gmail_tool import GMAIL_SCOPES, persist_credentials
 
 logger = get_logger(__name__)
@@ -89,7 +89,9 @@ async def gmail_auth_url() -> dict[str, str]:
 
 
 @router.get("/gmail/callback")
-async def gmail_callback(request: Request, code: str = "", state: str = "", error: str = "") -> HTMLResponse:
+async def gmail_callback(
+    request: Request, code: str = "", state: str = "", error: str = ""
+) -> HTMLResponse:
     """Browser-facing OAuth redirect target (renders HTML, not JSON)."""
 
     def _page(title: str, message: str, ok: bool) -> HTMLResponse:
@@ -116,7 +118,11 @@ async def gmail_callback(request: Request, code: str = "", state: str = "", erro
     try:
         verify_token(state)
     except Exception:
-        return _page("Gmail connection failed", "Invalid or expired state token. Start over from the studio.", ok=False)
+        return _page(
+            "Gmail connection failed",
+            "Invalid or expired state token. Start over from the studio.",
+            ok=False,
+        )
 
     try:
         flow = _build_flow(state=state)
@@ -125,10 +131,19 @@ async def gmail_callback(request: Request, code: str = "", state: str = "", erro
 
         from googleapiclient.discovery import build
 
-        profile = build("gmail", "v1", credentials=creds, cache_discovery=False).users().getProfile(userId="me").execute()
+        profile = (
+            build("gmail", "v1", credentials=creds, cache_discovery=False)
+            .users()
+            .getProfile(userId="me")
+            .execute()
+        )
         account_email = profile.get("emailAddress", "")
         if not account_email:
-            return _page("Gmail connection failed", "Could not resolve the account's email address.", ok=False)
+            return _page(
+                "Gmail connection failed",
+                "Could not resolve the account's email address.",
+                ok=False,
+            )
 
         persist_credentials(account_email, creds)
         logger.info("gmail_account_connected", account_email=account_email)
@@ -186,13 +201,18 @@ async def gmail_disconnect(account_email: str) -> None:
     store = get_integration_store()
     row = store.get_credential("gmail", account_email)
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Gmail account '{account_email}' is not connected")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Gmail account '{account_email}' is not connected",
+        )
 
     # Best-effort revoke at Google; local deletion proceeds regardless.
     try:
         import json as _json
 
-        token_data = _json.loads(get_global_credential_manager().decrypt_credential(row.encrypted_token))
+        token_data = _json.loads(
+            get_global_credential_manager().decrypt_credential(row.encrypted_token)
+        )
         token = token_data.get("refresh_token") or token_data.get("token")
         if token:
             async with httpx.AsyncClient(timeout=10) as client:

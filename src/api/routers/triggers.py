@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -73,7 +73,7 @@ class TriggerUpdateRequest(BaseModel):
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _slug(value: str) -> str:
@@ -95,7 +95,9 @@ def _save_config(config: dict[str, Any]) -> None:
 
 
 def _find_trigger(config: dict[str, Any], trigger_id: str) -> dict[str, Any] | None:
-    return next((trigger for trigger in config.get("triggers", []) if trigger["id"] == trigger_id), None)
+    return next(
+        (trigger for trigger in config.get("triggers", []) if trigger["id"] == trigger_id), None
+    )
 
 
 @router.get("", response_model=list[TriggerConfig])
@@ -111,7 +113,9 @@ async def list_triggers(workflow_id: str | None = None) -> list[TriggerConfig]:
 async def create_trigger(body: TriggerCreateRequest) -> TriggerConfig:
     config = _load_config()
     trigger_id = f"{body.type}_{_slug(body.workflow_id)}_{secrets.token_hex(3)}"
-    public_slug = body.public_slug or (f"{_slug(body.workflow_id)}-{secrets.token_hex(3)}" if body.type == "webhook" else None)
+    public_slug = body.public_slug or (
+        f"{_slug(body.workflow_id)}-{secrets.token_hex(3)}" if body.type == "webhook" else None
+    )
     now = _now()
     trigger = TriggerConfig(
         id=trigger_id,
@@ -123,7 +127,9 @@ async def create_trigger(body: TriggerCreateRequest) -> TriggerConfig:
         model_id=body.model_id,
         greeting=body.greeting,
         public_slug=public_slug,
-        secret=secrets.token_urlsafe(24) if body.auth_mode == "api_key" or body.type == "webhook" else None,
+        secret=secrets.token_urlsafe(24)
+        if body.auth_mode == "api_key" or body.type == "webhook"
+        else None,
         allowed_origins=body.allowed_origins,
         input_mapping=body.input_mapping,
         response_mapping=body.response_mapping,
@@ -159,7 +165,9 @@ async def update_trigger(trigger_id: str, body: TriggerUpdateRequest) -> Trigger
 async def delete_trigger(trigger_id: str) -> None:
     config = _load_config()
     before = len(config.get("triggers", []))
-    config["triggers"] = [trigger for trigger in config.get("triggers", []) if trigger["id"] != trigger_id]
+    config["triggers"] = [
+        trigger for trigger in config.get("triggers", []) if trigger["id"] != trigger_id
+    ]
     if len(config["triggers"]) == before:
         raise HTTPException(status_code=404, detail=f"Trigger not found: {trigger_id}")
     _save_config(config)
@@ -187,10 +195,7 @@ async def invoke_webhook(public_slug: str, request: Request) -> dict[str, Any]:
 
     payload = await request.json()
     message = (
-        payload.get("message")
-        or payload.get("text")
-        or payload.get("query")
-        or json.dumps(payload)
+        payload.get("message") or payload.get("text") or payload.get("query") or json.dumps(payload)
     )
     runner = get_test_runner()
     result = await runner.execute_workflow(

@@ -119,8 +119,14 @@ def audio_frame(pcm: bytes) -> dict:
     return {
         "serverContent": {
             "modelTurn": {
-                "parts": [{"inlineData": {"mimeType": "audio/pcm;rate=24000",
-                                          "data": base64.b64encode(pcm).decode()}}]
+                "parts": [
+                    {
+                        "inlineData": {
+                            "mimeType": "audio/pcm;rate=24000",
+                            "data": base64.b64encode(pcm).decode(),
+                        }
+                    }
+                ]
             }
         }
     }
@@ -153,11 +159,16 @@ class TestSetupFrame:
         assert "outputAudioTranscription" in frame
 
     def test_voice_name_is_optional(self):
-        assert "speechConfig" not in build_setup_frame(CONFIG, system_instruction="P")["setup"]["generationConfig"]
+        assert (
+            "speechConfig"
+            not in build_setup_frame(CONFIG, system_instruction="P")["setup"]["generationConfig"]
+        )
         with_voice = build_setup_frame(CONFIG, system_instruction="P", voice_name="Kore")
         assert (
-            with_voice["setup"]["generationConfig"]["speechConfig"]["voiceConfig"]
-            ["prebuiltVoiceConfig"]["voiceName"] == "Kore"
+            with_voice["setup"]["generationConfig"]["speechConfig"]["voiceConfig"][
+                "prebuiltVoiceConfig"
+            ]["voiceName"]
+            == "Kore"
         )
 
     def test_audio_chunk_is_base64_with_declared_mime(self):
@@ -193,12 +204,16 @@ class TestRelay:
     @pytest.mark.asyncio
     async def test_client_audio_is_forwarded(self, monkeypatch):
         upstream = FakeUpstream([])
-        client = FakeClient([
-            {"type": "websocket.receive", "bytes": b"\x10\x20\x30\x40"},
-            {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
-        ])
+        client = FakeClient(
+            [
+                {"type": "websocket.receive", "bytes": b"\x10\x20\x30\x40"},
+                {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
+            ]
+        )
         stats = await drive(upstream, client, monkeypatch)
-        chunks = [f for f in upstream.sent if "realtimeInput" in f and "audio" in f["realtimeInput"]]
+        chunks = [
+            f for f in upstream.sent if "realtimeInput" in f and "audio" in f["realtimeInput"]
+        ]
         assert len(chunks) == 1
         assert base64.b64decode(chunks[0]["realtimeInput"]["audio"]["data"]) == b"\x10\x20\x30\x40"
         assert stats.bytes_in == 4
@@ -206,10 +221,12 @@ class TestRelay:
     @pytest.mark.asyncio
     async def test_stop_sends_audio_stream_end(self, monkeypatch):
         upstream = FakeUpstream([])
-        client = FakeClient([
-            {"type": "websocket.receive", "text": json.dumps({"t": "stop"})},
-            {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
-        ])
+        client = FakeClient(
+            [
+                {"type": "websocket.receive", "text": json.dumps({"t": "stop"})},
+                {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
+            ]
+        )
         await drive(upstream, client, monkeypatch)
         assert {"realtimeInput": {"audioStreamEnd": True}} in upstream.sent
 
@@ -223,11 +240,13 @@ class TestRelay:
 
     @pytest.mark.asyncio
     async def test_transcripts_are_relayed_and_collected(self, monkeypatch):
-        upstream = FakeUpstream([
-            {"serverContent": {"inputTranscription": {"text": "hello there"}}},
-            {"serverContent": {"outputTranscription": {"text": "hi back"}}},
-            {"serverContent": {"turnComplete": True}},
-        ])
+        upstream = FakeUpstream(
+            [
+                {"serverContent": {"inputTranscription": {"text": "hello there"}}},
+                {"serverContent": {"outputTranscription": {"text": "hi back"}}},
+                {"serverContent": {"turnComplete": True}},
+            ]
+        )
         client = FakeClient([], after=upstream.drained)
         stats = await drive(upstream, client, monkeypatch)
         assert client.frames_of(p.SERVER_USER_TEXT)[0]["d"] == "hello there"
@@ -257,12 +276,16 @@ class TestLimits:
     @pytest.mark.asyncio
     async def test_oversized_audio_frame_is_dropped(self, monkeypatch):
         upstream = FakeUpstream([])
-        client = FakeClient([
-            {"type": "websocket.receive", "bytes": b"\x00" * (64 * 1024 + 1)},
-            {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
-        ])
+        client = FakeClient(
+            [
+                {"type": "websocket.receive", "bytes": b"\x00" * (64 * 1024 + 1)},
+                {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
+            ]
+        )
         stats = await drive(upstream, client, monkeypatch)
-        assert not [f for f in upstream.sent if "realtimeInput" in f and "audio" in f["realtimeInput"]]
+        assert not [
+            f for f in upstream.sent if "realtimeInput" in f and "audio" in f["realtimeInput"]
+        ]
         assert stats.bytes_in == 0
 
     @pytest.mark.asyncio
@@ -272,11 +295,13 @@ class TestLimits:
         tiny = LiveVoiceConfig(**{**CONFIG.__dict__, "max_session_seconds": 1})
         upstream = FakeUpstream([])
         # 1s * 16000 * 2 * 1.5 = 48000 byte budget.
-        client = FakeClient([
-            {"type": "websocket.receive", "bytes": b"\x00" * 32000},
-            {"type": "websocket.receive", "bytes": b"\x00" * 32000},
-            {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
-        ])
+        client = FakeClient(
+            [
+                {"type": "websocket.receive", "bytes": b"\x00" * 32000},
+                {"type": "websocket.receive", "bytes": b"\x00" * 32000},
+                {"type": "websocket.receive", "text": json.dumps({"t": "bye"})},
+            ]
+        )
         monkeypatch.setattr("src.api.voice.bridge.websockets.connect", upstream)
         stats = await run_bridge(
             config=tiny,

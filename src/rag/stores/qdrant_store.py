@@ -103,12 +103,14 @@ class QdrantVectorStore:
         leftover = dict(where or {})
         if "source" in leftover:
             # Filtering in the database beats over-fetching and discarding.
-            query_filter = self._models.Filter(must=[
-                self._models.FieldCondition(
-                    key="source",
-                    match=self._models.MatchValue(value=leftover.pop("source")),
-                )
-            ])
+            query_filter = self._models.Filter(
+                must=[
+                    self._models.FieldCondition(
+                        key="source",
+                        match=self._models.MatchValue(value=leftover.pop("source")),
+                    )
+                ]
+            )
 
         found = self._client.query_points(
             collection_name=collection,
@@ -124,12 +126,14 @@ class QdrantVectorStore:
             metadata = payload.get("metadata") or {}
             if not matches(metadata, leftover):
                 continue
-            hits.append(SearchHit(
-                id=payload.get("chunk_id", str(point.id)),
-                text=payload.get("text", ""),
-                score=float(point.score),
-                metadata=metadata,
-            ))
+            hits.append(
+                SearchHit(
+                    id=payload.get("chunk_id", str(point.id)),
+                    text=payload.get("text", ""),
+                    score=float(point.score),
+                    metadata=metadata,
+                )
+            )
             if len(hits) >= top_k:
                 break
         return hits
@@ -156,12 +160,14 @@ class QdrantVectorStore:
             self._client.delete(
                 collection_name=collection,
                 points_selector=self._models.FilterSelector(
-                    filter=self._models.Filter(must=[
-                        self._models.FieldCondition(
-                            key="source",
-                            match=self._models.MatchValue(value=where["source"]),
-                        )
-                    ])
+                    filter=self._models.Filter(
+                        must=[
+                            self._models.FieldCondition(
+                                key="source",
+                                match=self._models.MatchValue(value=where["source"]),
+                            )
+                        ]
+                    )
                 ),
                 wait=True,
             )
@@ -203,8 +209,14 @@ class QdrantVectorStore:
 
     def stats(self, collection: str) -> dict[str, Any]:
         if not self._client.collection_exists(collection):
-            return {"collection": collection, "chunks": 0, "documents": 0,
-                    "dimensions": 0, "characters": 0, "backend": self.name}
+            return {
+                "collection": collection,
+                "chunks": 0,
+                "documents": 0,
+                "dimensions": 0,
+                "characters": 0,
+                "backend": self.name,
+            }
         info = self._client.get_collection(collection)
         sources = self.sources(collection)
         vectors = info.config.params.vectors

@@ -142,7 +142,7 @@ def test_hostile_title_is_escaped(client):
     payload = {
         "workflow_id": "support_triage",
         "name": "xss-bot",
-        "title": '</title><script>alert(1)</script>',
+        "title": "</title><script>alert(1)</script>",
     }
     client.post("/api/v1/deployments/flash", json=payload)
     page = client.get("/d/xss-bot/").text

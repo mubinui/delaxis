@@ -21,9 +21,15 @@ from src.rag.stores.base import Record, VectorStoreError, cosine, matches
 from src.rag.stores.sqlite_store import SqliteVectorStore
 
 HANDBOOK = [
-    ("deploy.md", "Deployments are served at /d/<name> by the same app, so there are no extra ports."),
+    (
+        "deploy.md",
+        "Deployments are served at /d/<name> by the same app, so there are no extra ports.",
+    ),
     ("audit.md", "The audit trail is append only and hash chained, so a quiet edit is detectable."),
-    ("sql.md", "Read-only enforcement rejects INSERT, UPDATE, DELETE and DDL before the query runs."),
+    (
+        "sql.md",
+        "Read-only enforcement rejects INSERT, UPDATE, DELETE and DDL before the query runs.",
+    ),
 ]
 
 
@@ -38,8 +44,12 @@ def embedder() -> LocalEmbeddings:
 
 def records(embedder: LocalEmbeddings) -> list[Record]:
     return [
-        Record(id=f"c{index}", text=text, embedding=embedder.embed([text])[0],
-               metadata={"source": source, "kind": "doc"})
+        Record(
+            id=f"c{index}",
+            text=text,
+            embedding=embedder.embed([text])[0],
+            metadata={"source": source, "kind": "doc"},
+        )
         for index, (source, text) in enumerate(HANDBOOK)
     ]
 
@@ -118,10 +128,13 @@ class TestLocalEmbeddings:
             assert scores.index(max(scores)) == expected, query
 
     def test_unrelated_text_scores_near_zero(self, embedder):
-        assert cosine(
-            embedder.embed_query("photosynthesis in coastal mangroves"),
-            embedder.embed(["Read-only enforcement rejects INSERT and UPDATE."])[0],
-        ) < 0.1
+        assert (
+            cosine(
+                embedder.embed_query("photosynthesis in coastal mangroves"),
+                embedder.embed(["Read-only enforcement rejects INSERT and UPDATE."])[0],
+            )
+            < 0.1
+        )
 
     def test_missing_key_falls_back_rather_than_failing(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -165,16 +178,20 @@ class TestSqliteStore:
 
     def test_filter_restricts_to_one_source(self, store, embedder):
         store.upsert("knowledge", records(embedder))
-        hits = store.search("knowledge", embedder.embed_query("anything"),
-                            top_k=5, where={"source": "sql.md"})
+        hits = store.search(
+            "knowledge", embedder.embed_query("anything"), top_k=5, where={"source": "sql.md"}
+        )
         assert {hit.source for hit in hits} == {"sql.md"}
 
     def test_filter_on_other_metadata(self, store, embedder):
         store.upsert("knowledge", records(embedder))
-        assert len(store.search("knowledge", embedder.embed_query("a"), top_k=9,
-                                where={"kind": "doc"})) == len(HANDBOOK)
-        assert store.search("knowledge", embedder.embed_query("a"), top_k=9,
-                            where={"kind": "other"}) == []
+        assert len(
+            store.search("knowledge", embedder.embed_query("a"), top_k=9, where={"kind": "doc"})
+        ) == len(HANDBOOK)
+        assert (
+            store.search("knowledge", embedder.embed_query("a"), top_k=9, where={"kind": "other"})
+            == []
+        )
 
     def test_delete_by_source(self, store, embedder):
         store.upsert("knowledge", records(embedder))
@@ -192,8 +209,9 @@ class TestSqliteStore:
 
     def test_sources_are_grouped(self, store, embedder):
         store.upsert("knowledge", records(embedder))
-        assert {item["source"] for item in store.sources("knowledge")} == \
-            {source for source, _ in HANDBOOK}
+        assert {item["source"] for item in store.sources("knowledge")} == {
+            source for source, _ in HANDBOOK
+        }
 
     def test_dimension_mismatch_says_what_to_do(self, store, embedder):
         # Changing embedding provider against an existing collection is a real
@@ -210,14 +228,17 @@ class TestSqliteStore:
 
 
 class TestCollectionNames:
-    @pytest.mark.parametrize("raw,expected", [
-        ("knowledge", "knowledge"),
-        ("kb", "kb-collection"),          # Chroma rejects names under three characters
-        ("My Docs!", "My-Docs"),
-        ("", "default"),
-        ("--weird--", "weird"),
-        ("session/abc 123", "session-abc-123"),
-    ])
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("knowledge", "knowledge"),
+            ("kb", "kb-collection"),  # Chroma rejects names under three characters
+            ("My Docs!", "My-Docs"),
+            ("", "default"),
+            ("--weird--", "weird"),
+            ("session/abc 123", "session-abc-123"),
+        ],
+    )
     def test_normalises_to_a_portable_name(self, raw, expected):
         assert normalise_collection(raw) == expected
 
@@ -238,13 +259,18 @@ class TestBackendParity:
         built = [("sqlite", SqliteVectorStore(":memory:"))]
         if installed("faiss"):
             from src.rag.stores.faiss_store import FaissVectorStore
+
             built.append(("faiss", FaissVectorStore(path=str(tmp_path / "faiss"))))
         if installed("qdrant_client"):
             from src.rag.stores.qdrant_store import QdrantVectorStore
+
             built.append(("qdrant", QdrantVectorStore(path=":memory:")))
         if installed("chromadb"):
             from src.rag.stores.chroma_store import ChromaVectorStore
-            built.append(("chromadb", ChromaVectorStore(persist_directory=str(tmp_path / "chroma"))))
+
+            built.append(
+                ("chromadb", ChromaVectorStore(persist_directory=str(tmp_path / "chroma")))
+            )
         return built
 
     def test_every_backend_ranks_alike(self, tmp_path, embedder):
@@ -274,8 +300,9 @@ class TestBackendParity:
     def test_every_backend_filters_and_deletes(self, tmp_path, embedder):
         for name, store in self.stores(tmp_path):
             store.upsert("knowledge", records(embedder))
-            hits = store.search("knowledge", embedder.embed_query("statements"),
-                                top_k=5, where={"source": "sql.md"})
+            hits = store.search(
+                "knowledge", embedder.embed_query("statements"), top_k=5, where={"source": "sql.md"}
+            )
             assert {hit.source for hit in hits} == {"sql.md"}, name
             assert store.delete("knowledge", where={"source": "audit.md"}) == 1, name
             assert store.stats("knowledge")["chunks"] == len(HANDBOOK) - 1, name

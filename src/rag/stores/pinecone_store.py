@@ -112,7 +112,7 @@ class PineconeVectorStore:
         # Batched: Pinecone caps a single upsert request by size, and a few
         # hundred chunks of a long PDF will exceed it.
         for start in range(0, len(vectors), 100):
-            handle.upsert(vectors=vectors[start:start + 100], namespace=collection)
+            handle.upsert(vectors=vectors[start : start + 100], namespace=collection)
         return len(vectors)
 
     def search(
@@ -132,10 +132,14 @@ class PineconeVectorStore:
         hits: list[SearchHit] = []
         for match in response.get("matches", []):
             text, metadata = _restore(match.get("metadata") or {})
-            hits.append(SearchHit(
-                id=match["id"], text=text, score=float(match.get("score", 0.0)),
-                metadata=metadata,
-            ))
+            hits.append(
+                SearchHit(
+                    id=match["id"],
+                    text=text,
+                    score=float(match.get("score", 0.0)),
+                    metadata=metadata,
+                )
+            )
         return hits
 
     def delete(

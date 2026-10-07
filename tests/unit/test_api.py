@@ -62,7 +62,7 @@ def test_openapi_docs_available(client):
     """Test that OpenAPI documentation is available."""
     response = client.get("/docs")
     assert response.status_code == 200
-    
+
     response = client.get("/openapi.json")
     assert response.status_code == 200
     data = response.json()

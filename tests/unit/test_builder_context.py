@@ -29,38 +29,70 @@ from src.api.builder_prompts import BUILDER_TYPES, get_builder_prompt
 @pytest.fixture
 def fake_configs(tmp_path, monkeypatch):
     """A small, known configuration directory."""
-    (tmp_path / "tools.json").write_text(json.dumps({
-        "version": "1.0",
-        "tools": [
+    (tmp_path / "tools.json").write_text(
+        json.dumps(
             {
-                "id": "search_things", "name": "search_things", "category": "research",
-                "description": "Search for things.\n\nParameters:\n  - query (required): what to find",
-                "entrypoint": "x:y", "enabled": True, "settings": {},
-            },
+                "version": "1.0",
+                "tools": [
+                    {
+                        "id": "search_things",
+                        "name": "search_things",
+                        "category": "research",
+                        "description": "Search for things.\n\nParameters:\n  - query (required): what to find",
+                        "entrypoint": "x:y",
+                        "enabled": True,
+                        "settings": {},
+                    },
+                    {
+                        "id": "shop_db",
+                        "name": "shop_db",
+                        "category": "data",
+                        "description": "Query the shop database.",
+                        "enabled": True,
+                        "settings": {"type": "sql", "db_uri_env_var": "SHOP_DB_URI"},
+                    },
+                    {
+                        "id": "switched_off",
+                        "name": "switched_off",
+                        "category": "utilities",
+                        "description": "Should never appear.",
+                        "entrypoint": "x:y",
+                        "enabled": False,
+                        "settings": {},
+                    },
+                ],
+            }
+        )
+    )
+    (tmp_path / "agents.json").write_text(
+        json.dumps(
             {
-                "id": "shop_db", "name": "shop_db", "category": "data",
-                "description": "Query the shop database.",
-                "enabled": True,
-                "settings": {"type": "sql", "db_uri_env_var": "SHOP_DB_URI"},
-            },
+                "agents": [
+                    {
+                        "id": "triage",
+                        "name": "Triage",
+                        "description": "Routes requests",
+                        "tools": ["search_things"],
+                    },
+                ]
+            }
+        )
+    )
+    (tmp_path / "workflows.json").write_text(
+        json.dumps(
             {
-                "id": "switched_off", "name": "switched_off", "category": "utilities",
-                "description": "Should never appear.",
-                "entrypoint": "x:y", "enabled": False, "settings": {},
-            },
-        ],
-    }))
-    (tmp_path / "agents.json").write_text(json.dumps({
-        "agents": [
-            {"id": "triage", "name": "Triage", "description": "Routes requests", "tools": ["search_things"]},
-        ]
-    }))
-    (tmp_path / "workflows.json").write_text(json.dumps({
-        "workflows": [
-            {"id": "support", "name": "Support", "pattern": "selector", "enabled": True,
-             "topology": {"nodes": [{"id": "a"}, {"id": "b"}]}},
-        ]
-    }))
+                "workflows": [
+                    {
+                        "id": "support",
+                        "name": "Support",
+                        "pattern": "selector",
+                        "enabled": True,
+                        "topology": {"nodes": [{"id": "a"}, {"id": "b"}]},
+                    },
+                ]
+            }
+        )
+    )
     monkeypatch.setenv("DELAXIS_CONFIG_DIR", str(tmp_path))
     return tmp_path
 
@@ -114,7 +146,9 @@ class TestAgentAndWorkflowInventory:
         assert agent["tools"] == "search_things"
 
     def test_agent_without_tools_reads_as_none(self, fake_configs, tmp_path):
-        (fake_configs / "agents.json").write_text(json.dumps({"agents": [{"id": "a", "name": "A"}]}))
+        (fake_configs / "agents.json").write_text(
+            json.dumps({"agents": [{"id": "a", "name": "A"}]})
+        )
         assert agent_inventory()[0]["tools"] == "none"
 
     def test_lists_workflows_with_shape(self, fake_configs):
@@ -186,11 +220,17 @@ class TestFreshness:
         assert "brand_new_tool" not in render_tool_catalogue()
 
         config = json.loads((fake_configs / "tools.json").read_text())
-        config["tools"].append({
-            "id": "brand_new_tool", "name": "brand_new_tool", "category": "utilities",
-            "description": "Registered a moment ago.", "entrypoint": "x:y",
-            "enabled": True, "settings": {},
-        })
+        config["tools"].append(
+            {
+                "id": "brand_new_tool",
+                "name": "brand_new_tool",
+                "category": "utilities",
+                "description": "Registered a moment ago.",
+                "entrypoint": "x:y",
+                "enabled": True,
+                "settings": {},
+            }
+        )
         (fake_configs / "tools.json").write_text(json.dumps(config))
 
         # Read fresh per call: a tool registered in the Studio must be usable in

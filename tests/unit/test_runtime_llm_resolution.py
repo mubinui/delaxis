@@ -27,7 +27,9 @@ def providers_file(tmp_path, monkeypatch):
 
 def test_provider_id_routes_through_registry(runtime, monkeypatch):
     monkeypatch.delenv("OLLAMA_API_BASE", raising=False)
-    llm = runtime._resolve_llm_model({"provider_id": "ollama", "model": "llama3.1", "temperature": 0.2})
+    llm = runtime._resolve_llm_model(
+        {"provider_id": "ollama", "model": "llama3.1", "temperature": 0.2}
+    )
     assert llm.model == "llama3.1"
     assert llm.base_url == "http://localhost:11434/v1"
 
@@ -53,14 +55,16 @@ def test_gemini_falls_back_to_openai_compatible_endpoint(runtime, monkeypatch):
 
 
 def test_openai_compatible_provider_gets_base_url_and_key(runtime, providers_file, monkeypatch):
-    providers_file([
-        {
-            "id": "dashscope",
-            "type": "llm",
-            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-            "auth": {"scheme": "bearer", "env_var": "DASHSCOPE_API_KEY", "required": True},
-        }
-    ])
+    providers_file(
+        [
+            {
+                "id": "dashscope",
+                "type": "llm",
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "auth": {"scheme": "bearer", "env_var": "DASHSCOPE_API_KEY", "required": True},
+            }
+        ]
+    )
     monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-test")
     llm = runtime._resolve_llm_model({"provider_id": "dashscope", "model": "qwen-plus"})
     assert llm.model == "qwen-plus"
@@ -78,17 +82,21 @@ def test_agent_base_url_override_wins(runtime, monkeypatch):
 
 
 def test_agent_api_key_env_override_wins(runtime, providers_file, monkeypatch):
-    providers_file([
-        {
-            "id": "p1",
-            "type": "llm",
-            "base_url": "https://x.example/v1",
-            "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
-        }
-    ])
+    providers_file(
+        [
+            {
+                "id": "p1",
+                "type": "llm",
+                "base_url": "https://x.example/v1",
+                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+            }
+        ]
+    )
     monkeypatch.setenv("P1_KEY", "provider-key")
     monkeypatch.setenv("AGENT_KEY", "agent-key")
-    llm = runtime._resolve_llm_model({"provider_id": "p1", "model": "m", "api_key_env": "AGENT_KEY"})
+    llm = runtime._resolve_llm_model(
+        {"provider_id": "p1", "model": "m", "api_key_env": "AGENT_KEY"}
+    )
     assert llm.api_key == "agent-key"
 
 

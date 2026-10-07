@@ -14,13 +14,15 @@ from src.api.app_factory import create_app
 # appears contiguously in this file — such a literal trips GitHub push
 # protection and every other scanner that will ever read this repository, and a
 # test fixture is not worth a permanent repo-wide scanner exception.
-SAMPLE_AWS_KEY = "AKIA" "3FJK2LMNQ4XZ7BVC"
-SAMPLE_AWS_DOC_KEY = "AKIA" "IOSFODNN7EXAMPLE"
-SAMPLE_GITHUB_TOKEN = "ghp_" "aB3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2eF3"
-SAMPLE_SLACK_TOKEN = "xoxb-" "2451233-abcDEF123456"
-SAMPLE_STRIPE_KEY = "sk_" "live_aB3xY9zQ1mN7pR2sT4uV6wX8"
-SAMPLE_GOOGLE_KEY = "AIza" "SyD3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2e"
-SAMPLE_OPENAI_KEY = "sk-" "proj-Xk92mQvR4tYuIoPa8sDfGhJk1LzXcVbNm3"
+SAMPLE_AWS_KEY = "AKIA3FJK2LMNQ4XZ7BVC"
+SAMPLE_AWS_DOC_KEY = "AKIAIOSFODNN7EXAMPLE"
+# Each sample is two literals: the value is unchanged, but the source never
+# contains a key-shaped string, which GitHub's push protection would refuse.
+SAMPLE_GITHUB_TOKEN = "ghp_" + "aB3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2eF3"
+SAMPLE_SLACK_TOKEN = "xoxb-" + "2451233-abcDEF123456"
+SAMPLE_STRIPE_KEY = "sk_live_" + "aB3xY9zQ1mN7pR2sT4uV6wX8"
+SAMPLE_GOOGLE_KEY = "AIza" + "SyD3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2e"
+SAMPLE_OPENAI_KEY = "sk-proj-" + "Xk92mQvR4tYuIoPa8sDfGhJk1LzXcVbNm3"
 
 
 @pytest.fixture(autouse=True)
@@ -57,11 +59,18 @@ def png_bytes(width: int = 32, height: int = 16) -> bytes:
 
     ihdr = struct.pack(">II", width, height) + b"\x08\x02\x00\x00\x00"
     raw = b"".join(b"\x00" + b"\x00" * (width * 3) for _ in range(height))
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
 
 
 def upload(client, name: str, payload: bytes, content_type: str = "text/plain"):
-    return client.post("/api/v1/files", files=[("files", (name, io.BytesIO(payload), content_type))])
+    return client.post(
+        "/api/v1/files", files=[("files", (name, io.BytesIO(payload), content_type))]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +155,10 @@ class TestFileEndpoints:
         assert any(column["name"] == "amount" for column in body["columns"])
 
     def test_analyses_an_image(self, client):
-        client.post("/api/v1/files", files=[("files", ("shot.png", io.BytesIO(png_bytes(64, 32)), "image/png"))])
+        client.post(
+            "/api/v1/files",
+            files=[("files", ("shot.png", io.BytesIO(png_bytes(64, 32)), "image/png"))],
+        )
         body = client.get("/api/v1/files/shot.png/analysis").json()
         assert body["width"] == 64
         assert body["height"] == 32
@@ -184,8 +196,7 @@ class TestAuditEndpoints:
         upload(client, "gone.txt", b"x")
         client.delete("/api/v1/files/gone.txt")
         actions = [
-            entry["action"]
-            for entry in client.get("/api/v1/audit/entries").json()["entries"]
+            entry["action"] for entry in client.get("/api/v1/audit/entries").json()["entries"]
         ]
         assert "file_deleted" in actions
 
@@ -273,10 +284,19 @@ class TestToolsExposeCategories:
     def test_the_new_tool_families_are_registered(self, client):
         ids = {tool["id"] for tool in client.get("/api/v1/tools").json()}
         expected = {
-            "detect_pii", "redact_pii",
-            "security_scan", "scan_for_secrets", "detect_prompt_injection",
-            "record_audit_event", "query_audit_log", "verify_audit_integrity",
-            "context_tree", "read_context_file", "search_context_tree",
-            "analyze_file", "analyze_image", "list_uploaded_files",
+            "detect_pii",
+            "redact_pii",
+            "security_scan",
+            "scan_for_secrets",
+            "detect_prompt_injection",
+            "record_audit_event",
+            "query_audit_log",
+            "verify_audit_integrity",
+            "context_tree",
+            "read_context_file",
+            "search_context_tree",
+            "analyze_file",
+            "analyze_image",
+            "list_uploaded_files",
         }
         assert expected <= ids, f"missing: {sorted(expected - ids)}"

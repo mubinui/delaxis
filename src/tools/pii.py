@@ -66,9 +66,7 @@ def _iban_ok(candidate: str) -> bool:
     if not 15 <= len(compact) <= 34:
         return False
     rearranged = compact[4:] + compact[:4]
-    converted = "".join(
-        str(ord(char) - 55) if char.isalpha() else char for char in rearranged
-    )
+    converted = "".join(str(ord(char) - 55) if char.isalpha() else char for char in rearranged)
     if not converted.isdigit():
         return False
     return int(converted) % 97 == 1
@@ -207,7 +205,10 @@ _PATTERNS: tuple[_Pattern, ...] = (
     ),
     _Pattern(
         "MEDICAL_RECORD_NUMBER",
-        re.compile(r"\b(?:mrn|medical\s+record(?:\s+(?:no\.?|number|#))?)\W{0,6}([A-Z0-9\-]{5,15})\b", re.IGNORECASE),
+        re.compile(
+            r"\b(?:mrn|medical\s+record(?:\s+(?:no\.?|number|#))?)\W{0,6}([A-Z0-9\-]{5,15})\b",
+            re.IGNORECASE,
+        ),
         0.7,
         group=1,
     ),
@@ -307,7 +308,11 @@ def find_pii(
     """Locate PII in ``text``. The building block the tool functions share."""
     if not text:
         return []
-    wanted = {entity.strip().upper() for entity in entity_types if entity.strip()} if entity_types else None
+    wanted = (
+        {entity.strip().upper() for entity in entity_types if entity.strip()}
+        if entity_types
+        else None
+    )
     if wanted == set():
         wanted = None
 
@@ -408,7 +413,9 @@ def detect_pii(text: str, entity_types: str = "", min_confidence: float = 0.5) -
     )
 
 
-def redact_pii(text: str, strategy: str = "mask", entity_types: str = "", min_confidence: float = 0.5) -> str:
+def redact_pii(
+    text: str, strategy: str = "mask", entity_types: str = "", min_confidence: float = 0.5
+) -> str:
     """
     Remove personally identifiable information from text and return the clean version.
 
@@ -428,7 +435,9 @@ def redact_pii(text: str, strategy: str = "mask", entity_types: str = "", min_co
     """
     if strategy not in REDACTION_STRATEGIES:
         return json.dumps(
-            {"error": f"Unknown strategy '{strategy}'. Use one of: {', '.join(REDACTION_STRATEGIES)}"}
+            {
+                "error": f"Unknown strategy '{strategy}'. Use one of: {', '.join(REDACTION_STRATEGIES)}"
+            }
         )
 
     requested = [part for part in entity_types.split(",") if part.strip()] if entity_types else None

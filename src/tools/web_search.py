@@ -1,12 +1,9 @@
 """Web search tool using DuckDuckGo."""
 
-from typing import Optional
-
 from src.agents.connectors.duckduckgo import DuckDuckGoConnector
 
-
 # Global connector instance
-_connector: Optional[DuckDuckGoConnector] = None
+_connector: DuckDuckGoConnector | None = None
 
 
 def get_connector(max_results: int = 5) -> DuckDuckGoConnector:

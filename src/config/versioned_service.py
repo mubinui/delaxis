@@ -3,9 +3,7 @@
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Optional
-from uuid import UUID
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, desc, inspect, select
 
@@ -21,7 +19,7 @@ class ConfigVersion:
     version: int
     etag: str
     last_updated: datetime
-    updated_by: Optional[str]
+    updated_by: str | None
 
 
 @dataclass
@@ -32,15 +30,15 @@ class ConflictResponse:
     current_version: int = 0
     current_etag: str = ""
     current_config: dict = None
-    provided_version: Optional[int] = None
-    provided_etag: Optional[str] = None
+    provided_version: int | None = None
+    provided_etag: str | None = None
     diff: dict = None
 
 
 class VersionedConfigService:
     """
     Service for managing versioned configurations with optimistic locking.
-    
+
     Provides version token generation, conflict detection, configuration history,
     and rollback functionality for all configuration types (agents, workflows, tools).
     """
@@ -48,7 +46,7 @@ class VersionedConfigService:
     def __init__(
         self,
         database_url: str,
-        audit_logger: Optional[AuditLogger] = None,
+        audit_logger: AuditLogger | None = None,
         max_snapshots: int = 50,
     ):
         """
@@ -88,8 +86,8 @@ class VersionedConfigService:
         self,
         config_type: str,
         config_id: str,
-        user_id: Optional[str] = None,
-    ) -> tuple[Optional[dict], Optional[ConfigVersion]]:
+        user_id: str | None = None,
+    ) -> tuple[dict | None, ConfigVersion | None]:
         """
         Get configuration with version token.
 
@@ -147,10 +145,10 @@ class VersionedConfigService:
         config_type: str,
         config_id: str,
         updates: dict,
-        version_token: Optional[str] = None,
-        user_id: Optional[str] = None,
-        change_summary: Optional[str] = None,
-    ) -> tuple[bool, Optional[str], Optional[dict]]:
+        version_token: str | None = None,
+        user_id: str | None = None,
+        change_summary: str | None = None,
+    ) -> tuple[bool, str | None, dict | None]:
         """
         Update configuration with optimistic locking.
 
@@ -170,9 +168,7 @@ class VersionedConfigService:
         """
         with self.db_manager.get_session() as db_session:
             # Get current config
-            current_config, current_version = self.get_config(
-                config_type, config_id, user_id
-            )
+            current_config, current_version = self.get_config(config_type, config_id, user_id)
 
             # Check if config exists
             if current_config is None:
@@ -184,7 +180,7 @@ class VersionedConfigService:
                     version=1,
                     etag=new_etag,
                     config_data=updates,
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(UTC),
                     updated_by=str(user_id) if user_id else None,
                     change_summary=change_summary or "Initial configuration",
                 )
@@ -268,7 +264,7 @@ class VersionedConfigService:
                 version=new_version,
                 etag=new_etag,
                 config_data=updates,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
                 updated_by=str(user_id) if user_id else None,
                 change_summary=change_summary,
             )
@@ -300,7 +296,7 @@ class VersionedConfigService:
         config_type: str,
         config_id: str,
         limit: int = 10,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
     ) -> list[dict]:
         """
         Get configuration change history.
@@ -353,8 +349,8 @@ class VersionedConfigService:
         config_type: str,
         config_id: str,
         target_version: int,
-        user_id: Optional[str] = None,
-    ) -> tuple[bool, Optional[str]]:
+        user_id: str | None = None,
+    ) -> tuple[bool, str | None]:
         """
         Rollback configuration to a previous version.
 
@@ -380,9 +376,7 @@ class VersionedConfigService:
                 return False, f"Version {target_version} not found"
 
             # Get current version
-            current_config, current_version = self.get_config(
-                config_type, config_id, user_id
-            )
+            current_config, current_version = self.get_config(config_type, config_id, user_id)
 
             if current_version is None:
                 return False, "Configuration not found"
@@ -397,7 +391,7 @@ class VersionedConfigService:
                 version=new_version,
                 etag=new_etag,
                 config_data=target_snapshot.config_data,
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(UTC),
                 updated_by=str(user_id) if user_id else None,
                 change_summary=f"Rollback to version {target_version}",
             )
@@ -452,9 +446,7 @@ class VersionedConfigService:
 
         return diff
 
-    def _apply_retention_policy(
-        self, db_session, config_type: str, config_id: str
-    ) -> None:
+    def _apply_retention_policy(self, db_session, config_type: str, config_id: str) -> None:
         """
         Apply snapshot retention policy (keep last N versions).
 
@@ -485,9 +477,7 @@ class VersionedConfigService:
             ids_to_delete = db_session.execute(stmt).scalars().all()
 
             # Delete old snapshots
-            delete_stmt = delete(ConfigSnapshot).where(
-                ConfigSnapshot.id.in_(ids_to_delete)
-            )
+            delete_stmt = delete(ConfigSnapshot).where(ConfigSnapshot.id.in_(ids_to_delete))
             db_session.execute(delete_stmt)
 
     def health_check(self) -> bool:

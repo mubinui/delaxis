@@ -89,7 +89,7 @@ def cosine(left: list[float], right: list[float]) -> float:
     """Cosine similarity, for stores that do not compute it themselves."""
     if not left or not right:
         return 0.0
-    dot = sum(a * b for a, b in zip(left, right))
+    dot = sum(a * b for a, b in zip(left, right, strict=False))
     left_norm = sum(a * a for a in left) ** 0.5
     right_norm = sum(b * b for b in right) ** 0.5
     if not left_norm or not right_norm:

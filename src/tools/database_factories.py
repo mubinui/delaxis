@@ -36,9 +36,28 @@ logger = get_logger(__name__)
 # Verbs that mutate data or schema. Checked as whole words so a column named
 # "updated_at" or a table named "deleted_records" does not trip the guard.
 _WRITE_VERBS = (
-    "insert", "update", "delete", "drop", "truncate", "alter", "create",
-    "grant", "revoke", "replace", "merge", "upsert", "call", "execute",
-    "exec", "copy", "vacuum", "attach", "detach", "pragma", "set", "reset",
+    "insert",
+    "update",
+    "delete",
+    "drop",
+    "truncate",
+    "alter",
+    "create",
+    "grant",
+    "revoke",
+    "replace",
+    "merge",
+    "upsert",
+    "call",
+    "execute",
+    "exec",
+    "copy",
+    "vacuum",
+    "attach",
+    "detach",
+    "pragma",
+    "set",
+    "reset",
 )
 _WRITE_PATTERN = re.compile(r"(?i)\b(?:" + "|".join(_WRITE_VERBS) + r")\b")
 
@@ -63,9 +82,7 @@ def assert_read_only(sql: str) -> str:
     # which is how a read-only check is usually defeated.
     body = stripped.rstrip(";").strip()
     if ";" in body:
-        raise ReadOnlyError(
-            "Multiple statements are not allowed. Send one SELECT at a time."
-        )
+        raise ReadOnlyError("Multiple statements are not allowed. Send one SELECT at a time.")
 
     first_word = re.split(r"\s+", body, maxsplit=1)[0].lower()
     if first_word not in ("select", "with", "show", "describe", "desc", "explain"):
@@ -138,8 +155,7 @@ class SqlToolFactory(RuntimeToolFactory):
             inspector = sa_inspect(engine)
             allowed = self._allowed_tables()
             names = [
-                name for name in inspector.get_table_names()
-                if allowed is None or name in allowed
+                name for name in inspector.get_table_names() if allowed is None or name in allowed
             ]
             if table:
                 if table not in names:
@@ -232,7 +248,7 @@ class SqlToolFactory(RuntimeToolFactory):
                     connection.commit()
                     return json.dumps({"rows_affected": result.rowcount, "rows": []})
                 columns = list(result.keys())
-                rows = [dict(zip(columns, row)) for row in result.fetchmany(limit)]
+                rows = [dict(zip(columns, row, strict=False)) for row in result.fetchmany(limit)]
                 more = result.fetchone() is not None
             return json.dumps(
                 {
@@ -257,7 +273,9 @@ class SqlToolFactory(RuntimeToolFactory):
         allowed = self._allowed_tables()
         if allowed is not None and table not in allowed:
             return json.dumps(
-                {"error": f"Table '{table}' is not permitted. Allowed: {', '.join(sorted(allowed))}"}
+                {
+                    "error": f"Table '{table}' is not permitted. Allowed: {', '.join(sorted(allowed))}"
+                }
             )
         if not re.fullmatch(r"\w+", table or ""):
             return json.dumps({"error": "Table name must be a bare identifier."})
@@ -298,7 +316,9 @@ class SqlToolFactory(RuntimeToolFactory):
                 return factory.run_query(kwargs.get("sql", ""))
             if action == "sample":
                 return factory.sample_table(kwargs.get("table", ""), int(kwargs.get("limit", 10)))
-            return json.dumps({"error": f"Unknown action '{action}'. Use schema, query, or sample."})
+            return json.dumps(
+                {"error": f"Unknown action '{action}'. Use schema, query, or sample."}
+            )
 
         sql_action.__name__ = self.name
         return sql_action
@@ -317,9 +337,7 @@ class MongoToolFactory(RuntimeToolFactory):
         if env_var:
             uri = os.environ.get(env_var)
             if not uri:
-                raise ValueError(
-                    f"MongoDB tool '{self.tool_id}': env var '{env_var}' is not set."
-                )
+                raise ValueError(f"MongoDB tool '{self.tool_id}': env var '{env_var}' is not set.")
             return uri
         uri = self.settings.get("uri")
         if not uri:
@@ -363,7 +381,9 @@ class MongoToolFactory(RuntimeToolFactory):
     def _check_collection(self, collection: str) -> str | None:
         allowed = self._allowed_collections()
         if allowed is not None and collection not in allowed:
-            return f"Collection '{collection}' is not permitted. Allowed: {', '.join(sorted(allowed))}"
+            return (
+                f"Collection '{collection}' is not permitted. Allowed: {', '.join(sorted(allowed))}"
+            )
         return None
 
     def list_collections(self) -> str:
@@ -445,7 +465,9 @@ class MongoToolFactory(RuntimeToolFactory):
             forbidden = {"$where", "$function", "$accumulator", "$out", "$merge"}
             if forbidden & _all_keys(query):
                 return json.dumps(
-                    {"error": "This tool is read-only; server-side execution operators are not allowed."}
+                    {
+                        "error": "This tool is read-only; server-side execution operators are not allowed."
+                    }
                 )
 
         capped = max(1, min(int(limit), self._limit()))

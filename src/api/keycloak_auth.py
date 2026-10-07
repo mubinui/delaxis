@@ -1,7 +1,7 @@
 """Keycloak JWKS-based token validation and authentication utilities."""
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 import structlog
@@ -31,20 +31,20 @@ class KeycloakTokenData(BaseModel):
     """Decoded Keycloak token claims."""
 
     sub: str
-    preferred_username: Optional[str] = None
-    email: Optional[str] = None
-    email_verified: Optional[bool] = None
-    name: Optional[str] = None
-    given_name: Optional[str] = None
-    family_name: Optional[str] = None
-    realm_access: Optional[dict[str, Any]] = None
-    resource_access: Optional[dict[str, Any]] = None
-    authorities: Optional[list[str]] = None  # Direct authorities claim (custom Keycloak mappers)
-    scope: Optional[str] = None
-    azp: Optional[str] = None  # Authorized party (client_id)
-    iss: Optional[str] = None  # Issuer
-    exp: Optional[int] = None  # Expiration
-    iat: Optional[int] = None  # Issued at
+    preferred_username: str | None = None
+    email: str | None = None
+    email_verified: bool | None = None
+    name: str | None = None
+    given_name: str | None = None
+    family_name: str | None = None
+    realm_access: dict[str, Any] | None = None
+    resource_access: dict[str, Any] | None = None
+    authorities: list[str] | None = None  # Direct authorities claim (custom Keycloak mappers)
+    scope: str | None = None
+    azp: str | None = None  # Authorized party (client_id)
+    iss: str | None = None  # Issuer
+    exp: int | None = None  # Expiration
+    iat: int | None = None  # Issued at
 
     @property
     def roles(self) -> list[str]:
@@ -62,8 +62,7 @@ class KeycloakTokenData(BaseModel):
         """Extract client-specific roles from token."""
         if self.resource_access:
             return {
-                client: access.get("roles", [])
-                for client, access in self.resource_access.items()
+                client: access.get("roles", []) for client, access in self.resource_access.items()
             }
         return {}
 
@@ -80,11 +79,11 @@ class KeycloakTokenData(BaseModel):
 class KeycloakAuthContext(BaseModel):
     """Authentication context extracted from request."""
 
-    token_data: Optional[KeycloakTokenData] = None
-    client_roles: Optional[list[str]] = None  # From x-client-ref header
-    client_username: Optional[str] = None  # From x-client-username header
+    token_data: KeycloakTokenData | None = None
+    client_roles: list[str] | None = None  # From x-client-ref header
+    client_username: str | None = None  # From x-client-username header
     is_keycloak_authenticated: bool = False
-    raw_token: Optional[str] = None
+    raw_token: str | None = None
 
 
 async def fetch_jwks() -> dict[str, Any]:
@@ -111,7 +110,7 @@ async def fetch_jwks() -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Unable to fetch JWKS from Keycloak",
-        )
+        ) from e
 
 
 def clear_jwks_cache() -> None:
@@ -207,7 +206,7 @@ async def validate_keycloak_token(token: str) -> KeycloakTokenData:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid token: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -216,10 +215,10 @@ async def validate_keycloak_token(token: str) -> KeycloakTokenData:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token validation failed",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
 
 
-def extract_client_headers(request: Request) -> tuple[Optional[list[str]], Optional[str]]:
+def extract_client_headers(request: Request) -> tuple[list[str] | None, str | None]:
     """
     Extract x-client-ref (roles) and x-client-username headers from request.
 
@@ -327,4 +326,4 @@ async def get_admin_token() -> str:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Failed to acquire admin token from Keycloak",
-        )
+        ) from e

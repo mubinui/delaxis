@@ -11,7 +11,7 @@ COPY workflow-editor/ ./
 RUN npm run build
 
 # Stage 2: Install Python dependencies using uv
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -31,7 +31,7 @@ COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen --no-dev
 
 # Stage 3: Production - minimal runtime image
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 

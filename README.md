@@ -14,7 +14,7 @@
 [![Release](https://img.shields.io/github/v/release/mubinui/delaxis?label=release)](../../releases/latest)
 [![Docker](https://img.shields.io/github/actions/workflow/status/mubinui/delaxis/docker-release.yml?label=Docker%20Build)](../../actions/workflows/docker-release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![CrewAI](https://img.shields.io/badge/runtime-CrewAI-orange.svg)](https://crewai.com)
 
 ### [▶ Try the live demo](https://mubinui.github.io/delaxis/)
@@ -81,7 +81,7 @@ Every screenshot above is from the [live demo](https://mubinui.github.io/delaxis
 | Method | Requirements |
 |---|---|
 | Docker (recommended) | Docker 24+ (or Docker Desktop) |
-| Local development | Python 3.10+, [uv](https://docs.astral.sh/uv/), Node.js 22+ |
+| Local development | Python 3.11+, [uv](https://docs.astral.sh/uv/), Node.js 22+ |
 
 You'll also want an LLM API key — see [Choosing an LLM provider](#choosing-an-llm-provider). An [OpenRouter](https://openrouter.ai/keys) key works out of the box and reaches every major model with one credential.
 
@@ -132,7 +132,7 @@ With the `postgres` profile, set `DATABASE_URL=postgresql://delaxis:delaxis_pass
 
 ### Option 3 — Local development
 
-Backend (Python 3.10+, [uv](https://docs.astral.sh/uv/)):
+Backend (Python 3.11+, [uv](https://docs.astral.sh/uv/)):
 
 ```bash
 uv sync --extra dev

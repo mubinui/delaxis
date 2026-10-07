@@ -77,7 +77,9 @@ def get_gmail_credentials(account_email: str) -> Any:
     expiry = token_data.get("expiry")
     if expiry:
         try:
-            creds.expiry = datetime.fromisoformat(str(expiry).replace("Z", "+00:00")).replace(tzinfo=None)
+            creds.expiry = datetime.fromisoformat(str(expiry).replace("Z", "+00:00")).replace(
+                tzinfo=None
+            )
         except ValueError:
             pass
 
@@ -120,10 +122,14 @@ def _gmail_service(account_email: str) -> Any:
 
 
 def _header(headers: list[dict[str, str]], name: str) -> str:
-    return next((h.get("value", "") for h in headers if h.get("name", "").lower() == name.lower()), "")
+    return next(
+        (h.get("value", "") for h in headers if h.get("name", "").lower() == name.lower()), ""
+    )
 
 
-def send_email(account_email: str, to: str, subject: str, body: str, cc: str = "", bcc: str = "") -> str:
+def send_email(
+    account_email: str, to: str, subject: str, body: str, cc: str = "", bcc: str = ""
+) -> str:
     """Send an email from the connected Gmail account; returns the sent message id."""
     if not to:
         return json.dumps({"error": "Recipient ('to') is required."})
@@ -142,7 +148,9 @@ def send_email(account_email: str, to: str, subject: str, body: str, cc: str = "
     service = _gmail_service(account_email)
     result = service.users().messages().send(userId="me", body={"raw": raw}).execute()
     logger.info("gmail_message_sent", account_email=account_email, message_id=result.get("id"))
-    return json.dumps({"status": "sent", "message_id": result.get("id"), "to": to, "subject": subject})
+    return json.dumps(
+        {"status": "sent", "message_id": result.get("id"), "to": to, "subject": subject}
+    )
 
 
 def search_emails(account_email: str, query: str, max_results: int = 10) -> str:
@@ -184,6 +192,7 @@ def search_emails(account_email: str, query: str, max_results: int = 10) -> str:
 
 def _extract_plain_text(payload: dict[str, Any]) -> str:
     """Walk a Gmail message payload for the text/plain body (fallback: any text part)."""
+
     def decode(data: str) -> str:
         return base64.urlsafe_b64decode(data.encode()).decode(errors="replace")
 

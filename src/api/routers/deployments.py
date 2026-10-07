@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,20 +17,20 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field, field_validator
 
-from src.audit_logging import get_logger
 from src.api.chatbot_page import (
     PAGE_VERSION,
     default_chatbot_html,
-    page_generation,
     embed_script,
     ensure_config_contract,
     ensure_markdown_support,
     ensure_voice_support,
     inject_runtime_config,
     normalize_theme,
+    page_generation,
     theme_presets,
     validate_page,
 )
+from src.audit_logging import get_logger
 from src.config.env_compat import env
 
 router = APIRouter(prefix="/api/v1/deployments", tags=["deployments"])
@@ -120,7 +120,7 @@ class DeploymentResponse(BaseModel):
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _slug(value: str) -> str:
@@ -195,7 +195,9 @@ def _write_deployment(deployment_id: str, body: DeploymentCreateRequest) -> Path
     path.mkdir(parents=True, exist_ok=True)
     html, _warnings = _render_deployment_html(body)
     (path / "index.html").write_text(html, encoding="utf-8")
-    (path / "deployment.json").write_text(json.dumps(body.model_dump(exclude={"frontend_html"}), indent=2), encoding="utf-8")
+    (path / "deployment.json").write_text(
+        json.dumps(body.model_dump(exclude={"frontend_html"}), indent=2), encoding="utf-8"
+    )
     return path
 
 
@@ -213,9 +215,7 @@ def deployment_model_override(deployment_ref: str) -> dict[str, str] | None:
         config = _load_config()
     except (OSError, json.JSONDecodeError):
         return None
-    record = next(
-        (d for d in config.get("deployments", []) if d.get("id") == deployment_id), None
-    )
+    record = next((d for d in config.get("deployments", []) if d.get("id") == deployment_id), None)
     if record is None:
         return None
     override: dict[str, str] = {}
@@ -241,9 +241,7 @@ def deployment_voice_config(deployment_ref: str) -> DeploymentVoiceConfig | None
         config = _load_config()
     except (OSError, json.JSONDecodeError):
         return None
-    record = next(
-        (d for d in config.get("deployments", []) if d.get("id") == deployment_id), None
-    )
+    record = next((d for d in config.get("deployments", []) if d.get("id") == deployment_id), None)
     if record is None:
         return None
     voice = record.get("voice")
@@ -304,7 +302,9 @@ async def flash_deploy(body: DeploymentCreateRequest) -> DeploymentResponse:
         record["error"] = str(exc)
 
     config["deployments"] = [
-        deployment for deployment in config.get("deployments", []) if deployment["id"] != deployment_id
+        deployment
+        for deployment in config.get("deployments", [])
+        if deployment["id"] != deployment_id
     ]
     config.setdefault("deployments", []).append(record)
     _save_config(config)
@@ -320,7 +320,9 @@ async def flash_deploy(body: DeploymentCreateRequest) -> DeploymentResponse:
 async def delete_deployment(deployment_id: str) -> None:
     config = _load_config()
     deployments = config.get("deployments", [])
-    record = next((deployment for deployment in deployments if deployment["id"] == deployment_id), None)
+    record = next(
+        (deployment for deployment in deployments if deployment["id"] == deployment_id), None
+    )
     if record is None:
         raise HTTPException(status_code=404, detail=f"Deployment not found: {deployment_id}")
 
@@ -374,14 +376,14 @@ async def deployment_integration(deployment_id: str, request: Request) -> dict[s
             "link": page_url,
             "curl": (
                 f"# 1. open a session\n"
-                f'SESSION=$(curl -s -X POST {origin}/api/v1/sessions \\\n'
-                f"  -H \"Content-Type: application/json\" \\\n"
-                f"  -d '{{\"workflow_id\": \"{record.get('workflow_id')}\", \"user_id\": \"alice\"}}' \\\n"
+                f"SESSION=$(curl -s -X POST {origin}/api/v1/sessions \\\n"
+                f'  -H "Content-Type: application/json" \\\n'
+                f'  -d \'{{"workflow_id": "{record.get("workflow_id")}", "user_id": "alice"}}\' \\\n'
                 f"  | python -c \"import sys,json; print(json.load(sys.stdin)['session_id'])\")\n\n"
                 f"# 2. send a message (repeat for each turn)\n"
-                f'curl -s -X POST {origin}/api/v1/sessions/$SESSION/messages \\\n'
-                f"  -H \"Content-Type: application/json\" \\\n"
-                f"  -d '{{\"message\": \"Hello\"}}'"
+                f"curl -s -X POST {origin}/api/v1/sessions/$SESSION/messages \\\n"
+                f'  -H "Content-Type: application/json" \\\n'
+                f'  -d \'{{"message": "Hello"}}\''
             ),
         },
     }
@@ -449,7 +451,9 @@ def _refresh_page_if_stale(deployment_id: str, index: Path) -> None:
 
     logger.info(
         "deployment_page_refreshed",
-        deployment_id=deployment_id, previous=generation, current=PAGE_VERSION,
+        deployment_id=deployment_id,
+        previous=generation,
+        current=PAGE_VERSION,
     )
 
 
@@ -459,8 +463,8 @@ async def serve_deployment_page(deployment_id: str) -> FileResponse:
     index = DEPLOYMENTS_DIR / deployment_id / "index.html"
     try:
         index.resolve().relative_to(DEPLOYMENTS_DIR.resolve())
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Deployment not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Deployment not found") from exc
     if not index.exists():
         raise HTTPException(status_code=404, detail=f"Deployment not found: {deployment_id}")
     _refresh_page_if_stale(deployment_id, index)

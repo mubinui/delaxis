@@ -10,7 +10,7 @@ checked for containment, so a crafted name cannot walk out of it.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse
@@ -44,11 +44,12 @@ _MIME = {
 
 
 class GenerateRequest(BaseModel):
-    content: str = Field(min_length=1, max_length=MAX_CONTENT_CHARS,
-                         description="Document body, written as Markdown")
+    content: str = Field(
+        min_length=1, max_length=MAX_CONTENT_CHARS, description="Document body, written as Markdown"
+    )
     filename: str = Field(default="document", max_length=120)
     format: str = Field(default="pdf", description=f"One of: {', '.join(FORMATS)}")
-    title: Optional[str] = Field(default="", max_length=300)
+    title: str | None = Field(default="", max_length=300)
 
 
 @router.get("/formats")

@@ -9,18 +9,17 @@ from src.api.models import (
     WorkflowExecutionStatusResponse,
 )
 from src.api.session_manager import get_session_manager
+from src.api.workflow_diagnostics import structural_checks_applicable
 from src.audit_logging import get_logger
 from src.config.topology_models import (
-    AgentNode,
     AgentEdge,
+    AgentNode,
     ContextStrategy,
     TerminationCondition,
     TerminationConditionType,
     TopologyConfig,
     TopologyType,
 )
-
-from src.api.workflow_diagnostics import structural_checks_applicable
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/topologies", tags=["topologies"])
@@ -33,29 +32,29 @@ async def create_topology(
 ) -> TopologyResponse:
     """
     Create a workflow topology configuration.
-    
+
     Args:
         request: FastAPI request object
         body: Topology creation request
-        
+
     Returns:
         Created topology configuration
-        
+
     Requirements: 2.1, 2.5
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Creating topology",
         request_id=request_id,
         workflow_id=body.workflow_id,
         topology_type=body.type,
     )
-    
+
     try:
         # Convert request to topology config
         topology_type = TopologyType(body.type)
-        
+
         # Create nodes
         nodes = [
             AgentNode(
@@ -68,7 +67,7 @@ async def create_topology(
             )
             for node in body.nodes
         ]
-        
+
         # Create edges
         edges = [
             AgentEdge(
@@ -80,7 +79,7 @@ async def create_topology(
             )
             for edge in body.edges
         ]
-        
+
         # Create termination conditions for cyclic graphs
         termination_conditions = []
         if body.max_iterations is not None:
@@ -90,7 +89,7 @@ async def create_topology(
                     value=body.max_iterations,
                 )
             )
-        
+
         # Create topology config
         topology_config = TopologyConfig(
             type=topology_type,
@@ -99,25 +98,24 @@ async def create_topology(
             entry_node=body.entry_node,
             termination_conditions=termination_conditions,
         )
-        
-        # Validate topology
-        workflow_graph = WorkflowGraph(topology_config)
-        validation = workflow_graph.validate()
-        
-        if not validation.is_valid:
+
+        # Validate topology. Construction already checked the ids and the entry
+        # node; this walks the graph for unreachable nodes and cycles.
+        topology_errors = topology_config.validate_topology()
+        if topology_errors:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail={
                     "type": "validation_error",
                     "message": "Invalid topology configuration",
-                    "errors": validation.errors,
-                    "warnings": validation.warnings,
+                    "errors": topology_errors,
+                    "warnings": [],
                 },
             )
-        
+
         # TODO: Store topology configuration in workflow
         # For now, return the validated topology
-        
+
         logger.info(
             "Created topology",
             request_id=request_id,
@@ -125,7 +123,7 @@ async def create_topology(
             node_count=len(nodes),
             edge_count=len(edges),
         )
-        
+
         return TopologyResponse(
             workflow_id=body.workflow_id,
             type=body.type,
@@ -133,18 +131,14 @@ async def create_topology(
             edges=[edge.model_dump() for edge in edges],
             entry_node=body.entry_node,
             max_iterations=body.max_iterations,
-            validation={
-                "is_valid": validation.is_valid,
-                "errors": validation.errors,
-                "warnings": validation.warnings,
-            },
+            validation={"is_valid": True, "errors": [], "warnings": []},
         )
-        
+
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid topology configuration: {str(e)}",
-        )
+        ) from e
     except Exception as e:
         logger.error(
             "Failed to create topology",
@@ -156,7 +150,7 @@ async def create_topology(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create topology: {str(e)}",
-        )
+        ) from e
 
 
 @router.post("/validate", response_model=TopologyValidationResponse)
@@ -166,29 +160,29 @@ async def validate_topology(
 ) -> TopologyValidationResponse:
     """
     Validate a workflow topology configuration without creating it.
-    
+
     Args:
         request: FastAPI request object
         body: Topology configuration to validate
-        
+
     Returns:
         Validation result
-        
+
     Requirements: 2.5
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Validating topology",
         request_id=request_id,
         workflow_id=body.workflow_id,
         topology_type=body.type,
     )
-    
+
     try:
         # Convert request to topology config
         topology_type = TopologyType(body.type)
-        
+
         nodes = [
             AgentNode(
                 id=node.id,
@@ -200,7 +194,7 @@ async def validate_topology(
             )
             for node in body.nodes
         ]
-        
+
         edges = [
             AgentEdge(
                 from_node=edge.from_node,
@@ -211,7 +205,7 @@ async def validate_topology(
             )
             for edge in body.edges
         ]
-        
+
         termination_conditions = []
         if body.max_iterations is not None:
             termination_conditions.append(
@@ -220,7 +214,7 @@ async def validate_topology(
                     value=body.max_iterations,
                 )
             )
-        
+
         topology_config = TopologyConfig(
             type=topology_type,
             nodes=nodes,
@@ -228,7 +222,7 @@ async def validate_topology(
             entry_node=body.entry_node,
             termination_conditions=termination_conditions,
         )
-        
+
         # Reachability and edge-count rules assume an explicit edge graph. Most
         # shipped workflows declare no edges at all — selectors route via an LLM
         # at run time, other crews run nodes in declaration order — so applying
@@ -262,7 +256,7 @@ async def validate_topology(
             errors=errors,
             warnings=warnings,
         )
-        
+
     except ValueError as e:
         return TopologyValidationResponse(
             is_valid=False,
@@ -280,7 +274,7 @@ async def validate_topology(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to validate topology: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/{workflow_id}/status", response_model=WorkflowExecutionStatusResponse)
@@ -290,41 +284,41 @@ async def get_workflow_execution_status(
 ) -> WorkflowExecutionStatusResponse:
     """
     Get execution status for a workflow including resource limits.
-    
+
     Args:
         request: FastAPI request object
         workflow_id: Workflow identifier
-        
+
     Returns:
         Workflow execution status
-        
+
     Requirements: 7.1, 7.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Getting workflow execution status",
         request_id=request_id,
         workflow_id=workflow_id,
     )
-    
+
     try:
         session_manager = get_session_manager()
         execution_engine = session_manager.execution_engine
-        
+
         # Get current execution count
         active_executions = execution_engine.get_workflow_execution_count(workflow_id)
-        
+
         # Get max concurrent from config
         max_concurrent = execution_engine.config.resource_limits.max_concurrent_executions
-        
+
         # Get pending queue size
         pending_queue = execution_engine._get_pending_queue(workflow_id)
         queued_requests = pending_queue.qsize()
-        
+
         # Check if resource limit is reached
         resource_limit_reached = active_executions >= max_concurrent
-        
+
         logger.info(
             "Retrieved workflow execution status",
             request_id=request_id,
@@ -333,7 +327,7 @@ async def get_workflow_execution_status(
             max_concurrent=max_concurrent,
             queued_requests=queued_requests,
         )
-        
+
         return WorkflowExecutionStatusResponse(
             workflow_id=workflow_id,
             active_executions=active_executions,
@@ -341,7 +335,7 @@ async def get_workflow_execution_status(
             queued_requests=queued_requests,
             resource_limit_reached=resource_limit_reached,
         )
-        
+
     except Exception as e:
         logger.error(
             "Failed to get workflow execution status",
@@ -353,4 +347,4 @@ async def get_workflow_execution_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get workflow execution status: {str(e)}",
-        )
+        ) from e

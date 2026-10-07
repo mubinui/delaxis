@@ -34,19 +34,57 @@ class TestSeededProviders:
         [
             ("openai", "gpt-4o", "gpt-4o", "openai", "https://api.openai.com/v1"),
             ("gemini", "gemini-2.5-flash", "gemini-2.5-flash", "gemini", None),
-            ("deepseek", "deepseek-chat", "deepseek-chat", "deepseek", "https://api.deepseek.com/v1"),
+            (
+                "deepseek",
+                "deepseek-chat",
+                "deepseek-chat",
+                "deepseek",
+                "https://api.deepseek.com/v1",
+            ),
             ("ollama", "llama3.1", "llama3.1", "ollama", "http://localhost:11434/v1"),
             ("lm-studio", "local-model", "local-model", "openai", "http://localhost:1234/v1"),
-            ("dashscope", "qwen-plus", "qwen-plus", "openai", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+            (
+                "dashscope",
+                "qwen-plus",
+                "qwen-plus",
+                "openai",
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ),
             ("zhipu", "glm-4.5", "glm-4.5", "openai", "https://open.bigmodel.cn/api/paas/v4"),
-            ("moonshot", "moonshot-v1-8k", "moonshot-v1-8k", "openai", "https://api.moonshot.cn/v1"),
-            ("openrouter", "google/gemma-3-27b-it", "google/gemma-3-27b-it", "openrouter", "https://openrouter.ai/api/v1"),
+            (
+                "moonshot",
+                "moonshot-v1-8k",
+                "moonshot-v1-8k",
+                "openai",
+                "https://api.moonshot.cn/v1",
+            ),
+            (
+                "openrouter",
+                "google/gemma-3-27b-it",
+                "google/gemma-3-27b-it",
+                "openrouter",
+                "https://openrouter.ai/api/v1",
+            ),
             # Pinned litellm_string on the model entry keeps the org/model tail
-            ("openrouter", "openai/gpt-oss-20b", "openai/gpt-oss-20b", "openrouter", "https://openrouter.ai/api/v1"),
-            ("vllm", "openai/gpt-oss-20b", "openai/gpt-oss-20b", "hosted_vllm", "http://localhost:8000/v1"),
+            (
+                "openrouter",
+                "openai/gpt-oss-20b",
+                "openai/gpt-oss-20b",
+                "openrouter",
+                "https://openrouter.ai/api/v1",
+            ),
+            (
+                "vllm",
+                "openai/gpt-oss-20b",
+                "openai/gpt-oss-20b",
+                "hosted_vllm",
+                "http://localhost:8000/v1",
+            ),
         ],
     )
-    def test_resolution(self, provider_id, model, expected_model, expected_provider, expected_base, monkeypatch):
+    def test_resolution(
+        self, provider_id, model, expected_model, expected_provider, expected_base, monkeypatch
+    ):
         monkeypatch.delenv("VLLM_API_BASE", raising=False)
         monkeypatch.delenv("OLLAMA_API_BASE", raising=False)
         monkeypatch.delenv("LM_STUDIO_API_BASE", raising=False)
@@ -58,7 +96,11 @@ class TestSeededProviders:
     def test_model_names_are_never_prefixed(self):
         """CrewAI validates prefixed names against naming patterns; bare + explicit
         provider is what makes arbitrary models (qwen-plus, glm-4.5) work."""
-        for provider_id, model in [("dashscope", "qwen-plus"), ("zhipu", "glm-4.5"), ("openai", "gpt-4o")]:
+        for provider_id, model in [
+            ("dashscope", "qwen-plus"),
+            ("zhipu", "glm-4.5"),
+            ("openai", "gpt-4o"),
+        ]:
             assert "/" not in resolve_llm(provider_id, model).model
 
     def test_local_providers_do_not_require_auth(self):
@@ -126,54 +168,64 @@ class TestResolutionErrors:
 
 class TestKeyAndBaseUrlResolution:
     def test_inline_api_key_beats_env_var(self, providers_file, monkeypatch):
-        providers_file([
-            {
-                "id": "p1",
-                "type": "llm",
-                "base_url": "https://x.example/v1",
-                "api_key": "inline-key",
-                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
-            }
-        ])
+        providers_file(
+            [
+                {
+                    "id": "p1",
+                    "type": "llm",
+                    "base_url": "https://x.example/v1",
+                    "api_key": "inline-key",
+                    "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+                }
+            ]
+        )
         monkeypatch.setenv("P1_KEY", "env-key")
         assert resolve_llm("p1", "m").api_key == "inline-key"
 
     def test_env_var_fallback(self, providers_file, monkeypatch):
-        providers_file([
-            {
-                "id": "p1",
-                "type": "llm",
-                "base_url": "https://x.example/v1",
-                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
-            }
-        ])
+        providers_file(
+            [
+                {
+                    "id": "p1",
+                    "type": "llm",
+                    "base_url": "https://x.example/v1",
+                    "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+                }
+            ]
+        )
         monkeypatch.setenv("P1_KEY", "env-key")
         assert resolve_llm("p1", "m").api_key == "env-key"
         monkeypatch.delenv("P1_KEY")
         assert resolve_llm("p1", "m").api_key is None
 
     def test_base_url_env_overrides_configured_url(self, providers_file, monkeypatch):
-        providers_file([
-            {
-                "id": "p1",
-                "type": "llm",
-                "base_url": "http://localhost:1234/v1",
-                "base_url_env": "P1_BASE",
-            }
-        ])
+        providers_file(
+            [
+                {
+                    "id": "p1",
+                    "type": "llm",
+                    "base_url": "http://localhost:1234/v1",
+                    "base_url_env": "P1_BASE",
+                }
+            ]
+        )
         monkeypatch.setenv("P1_BASE", "http://gpu-box:9999/v1/")
         resolved = resolve_llm("p1", "m")
         assert resolved.base_url == "http://gpu-box:9999/v1"
         assert resolved.openai_endpoint == "http://gpu-box:9999/v1"
 
     def test_ui_added_provider_visible_without_restart(self, providers_file):
-        path = providers_file([
-            {"id": "p1", "type": "llm", "base_url": "https://x.example/v1"},
-        ])
+        path = providers_file(
+            [
+                {"id": "p1", "type": "llm", "base_url": "https://x.example/v1"},
+            ]
+        )
         assert [p["id"] for p in list_llm_providers()] == ["p1"]
         # Simulate the api-providers CRUD endpoint appending a provider
         config = json.loads(path.read_text())
-        config["providers"].append({"id": "added-later", "type": "llm", "base_url": "https://y.example/v1"})
+        config["providers"].append(
+            {"id": "added-later", "type": "llm", "base_url": "https://y.example/v1"}
+        )
         path.write_text(json.dumps(config))
         assert [p["id"] for p in list_llm_providers()] == ["p1", "added-later"]
         resolved = resolve_llm("added-later", "m")
@@ -182,13 +234,15 @@ class TestKeyAndBaseUrlResolution:
 
 class TestOpenAIEndpoint:
     def test_returns_endpoint_key_and_auth_flag(self, providers_file, monkeypatch):
-        providers_file([
-            {
-                "id": "p1",
-                "type": "llm",
-                "base_url": "https://x.example/v1",
-                "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
-            }
-        ])
+        providers_file(
+            [
+                {
+                    "id": "p1",
+                    "type": "llm",
+                    "base_url": "https://x.example/v1",
+                    "auth": {"scheme": "bearer", "env_var": "P1_KEY", "required": True},
+                }
+            ]
+        )
         monkeypatch.setenv("P1_KEY", "k")
         assert resolve_openai_endpoint("p1") == ("https://x.example/v1", "k", True)

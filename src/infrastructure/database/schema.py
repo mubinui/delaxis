@@ -280,7 +280,9 @@ class WorkflowTestCase(Base):
     meta_data = Column(JSON, nullable=False, default=dict)
 
     # Relationships
-    results = relationship("WorkflowTestResult", back_populates="test_case", cascade="all, delete-orphan")
+    results = relationship(
+        "WorkflowTestResult", back_populates="test_case", cascade="all, delete-orphan"
+    )
 
 
 class WorkflowTestResult(Base):

@@ -19,7 +19,9 @@ def _resolve_workflow_id(requested: str | None) -> str:
     registry = get_workflow_registry()
     if requested:
         if registry.get_workflow(requested) is None:
-            available = ", ".join(w.id for w in registry.list_workflows(enabled_only=True)) or "<none>"
+            available = (
+                ", ".join(w.id for w in registry.list_workflows(enabled_only=True)) or "<none>"
+            )
             raise SystemExit(f"Workflow not found: {requested}. Available: {available}")
         return requested
 
@@ -165,7 +167,9 @@ def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(prog="delaxis", description="Delaxis CLI chat")
     parser.add_argument("--message", "-m", nargs="+", help="Send a single message and exit")
-    parser.add_argument("--workflow", "-w", help="Workflow id to chat with (default: first enabled)")
+    parser.add_argument(
+        "--workflow", "-w", help="Workflow id to chat with (default: first enabled)"
+    )
     parser.add_argument("message_words", nargs="*", help="Message text (same as --message)")
     args = parser.parse_args()
 

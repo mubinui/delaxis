@@ -36,13 +36,15 @@ from typing import Any
 # appears contiguously in this file — such a literal trips GitHub push
 # protection and every other scanner that will ever read this repository, and a
 # test fixture is not worth a permanent repo-wide scanner exception.
-SAMPLE_AWS_KEY = "AKIA" "3FJK2LMNQ4XZ7BVC"
-SAMPLE_AWS_DOC_KEY = "AKIA" "IOSFODNN7EXAMPLE"
-SAMPLE_GITHUB_TOKEN = "ghp_" "aB3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2eF3"
-SAMPLE_SLACK_TOKEN = "xoxb-" "2451233-abcDEF123456"
-SAMPLE_STRIPE_KEY = "sk_" "live_aB3xY9zQ1mN7pR2sT4uV6wX8"
-SAMPLE_GOOGLE_KEY = "AIza" "SyD3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2e"
-SAMPLE_OPENAI_KEY = "sk-" "proj-Xk92mQvR4tYuIoPa8sDfGhJk1LzXcVbNm3"
+SAMPLE_AWS_KEY = "AKIA3FJK2LMNQ4XZ7BVC"
+SAMPLE_AWS_DOC_KEY = "AKIAIOSFODNN7EXAMPLE"
+# Each sample is two literals: the value is unchanged, but the source never
+# contains a key-shaped string, which GitHub's push protection would refuse.
+SAMPLE_GITHUB_TOKEN = "ghp_" + "aB3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2eF3"
+SAMPLE_SLACK_TOKEN = "xoxb-" + "2451233-abcDEF123456"
+SAMPLE_STRIPE_KEY = "sk_live_" + "aB3xY9zQ1mN7pR2sT4uV6wX8"
+SAMPLE_GOOGLE_KEY = "AIza" + "SyD3xY9zQ1mN7pR2sT4uV6wX8yZ0aB1cD2e"
+SAMPLE_OPENAI_KEY = "sk-proj-" + "Xk92mQvR4tYuIoPa8sDfGhJk1LzXcVbNm3"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -157,7 +159,6 @@ PROBES: dict[str, Probe] = {
         {},
         expects(lambda body: len(body["pattern_entities"]) > 5, "more than 5 entity types"),
     ),
-
     # --- security --------------------------------------------------------
     "scan_for_secrets": Probe(
         {"text": SAMPLE_TEXT},
@@ -171,7 +172,6 @@ PROBES: dict[str, Probe] = {
         {"text": SAMPLE_TEXT},
         expects(lambda body: body["verdict"] == "block", "a block verdict"),
     ),
-
     # --- audit -----------------------------------------------------------
     "record_audit_event": Probe(
         {
@@ -190,7 +190,6 @@ PROBES: dict[str, Probe] = {
         {},
         expects(lambda body: body["valid"] is True, "an intact hash chain"),
     ),
-
     # --- context tree ----------------------------------------------------
     "context_tree": Probe(
         {"max_depth": 3},
@@ -209,7 +208,6 @@ PROBES: dict[str, Probe] = {
         expects(lambda body: body["outline"], "a non-empty outline"),
     ),
     "list_context_roots": Probe({}, expects(lambda body: body["count"] >= 1, "at least one root")),
-
     # --- files -----------------------------------------------------------
     "list_uploaded_files": Probe({}, requires_keys("count", "files")),
     "analyze_file": Probe(
@@ -224,13 +222,11 @@ PROBES: dict[str, Probe] = {
         {"path": "invoices.csv"},
         expects(lambda body: "Acme" in body["text"], "the fixture's content"),
     ),
-
     # --- utilities -------------------------------------------------------
     "calculate": Probe(
         {"expression": "2 * (3 + 4)"},
         expects(lambda body: body == 14.0, "14.0"),
     ),
-
     # --- needs the outside world -----------------------------------------
     "web_search": Probe(
         {"query": "python programming", "max_results": 3},
@@ -288,7 +284,10 @@ def seed_workspace(root: Path) -> None:
     ihdr = struct.pack(">II", width, height) + b"\x08\x02\x00\x00\x00"
     raw = b"".join(b"\x00" + b"\x00" * (width * 3) for _ in range(height))
     (uploads / "probe.png").write_bytes(
-        b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
     )
 
 
@@ -367,7 +366,12 @@ def exercise(verbose: bool = False, allow_network: bool = False) -> list[Outcome
         definition = registry.get_tool(tool_id)
         if definition is None:
             outcomes.append(
-                Outcome(tool_id, FAIL, "registered but not retrievable from the registry", category=category)
+                Outcome(
+                    tool_id,
+                    FAIL,
+                    "registered but not retrievable from the registry",
+                    category=category,
+                )
             )
             continue
 
@@ -378,14 +382,24 @@ def exercise(verbose: bool = False, allow_network: bool = False) -> list[Outcome
             # The tool's signature does not accept the arguments its description
             # advertises — an agent following the description would fail too.
             outcomes.append(
-                Outcome(tool_id, FAIL, f"signature mismatch: {exc}",
-                        (time.perf_counter() - started) * 1000, category=category)
+                Outcome(
+                    tool_id,
+                    FAIL,
+                    f"signature mismatch: {exc}",
+                    (time.perf_counter() - started) * 1000,
+                    category=category,
+                )
             )
             continue
         except Exception as exc:
             outcomes.append(
-                Outcome(tool_id, FAIL, f"raised {type(exc).__name__}: {exc}",
-                        (time.perf_counter() - started) * 1000, category=category)
+                Outcome(
+                    tool_id,
+                    FAIL,
+                    f"raised {type(exc).__name__}: {exc}",
+                    (time.perf_counter() - started) * 1000,
+                    category=category,
+                )
             )
             if verbose:
                 traceback.print_exc()
@@ -459,7 +473,9 @@ def render(outcomes: list[Outcome], verbose: bool) -> None:
         f"  {score['passed']} passed   {score['failed']} failed   {score['skipped']} skipped"
         f"   ({score['total']} tools)"
     )
-    print(f"  Pass rate: {score['pass_rate']}% of the {score['exercised']} tools actually exercised")
+    print(
+        f"  Pass rate: {score['pass_rate']}% of the {score['exercised']} tools actually exercised"
+    )
     print(f"  Coverage:  {score['coverage']}% of registered tools could be exercised here")
     if score["skipped"]:
         print("  Skipped tools need network, credentials, or a live service — not a pass.")
@@ -508,22 +524,24 @@ def main() -> int:
         outcomes = exercise(args.verbose, args.network)
 
     if args.json:
-        print(json.dumps(
-            {
-                "score": confidence(outcomes),
-                "results": [
-                    {
-                        "tool_id": outcome.tool_id,
-                        "status": outcome.status,
-                        "detail": outcome.detail,
-                        "duration_ms": round(outcome.duration_ms, 2),
-                        "category": outcome.category,
-                    }
-                    for outcome in outcomes
-                ],
-            },
-            indent=2,
-        ))
+        print(
+            json.dumps(
+                {
+                    "score": confidence(outcomes),
+                    "results": [
+                        {
+                            "tool_id": outcome.tool_id,
+                            "status": outcome.status,
+                            "detail": outcome.detail,
+                            "duration_ms": round(outcome.duration_ms, 2),
+                            "category": outcome.category,
+                        }
+                        for outcome in outcomes
+                    ],
+                },
+                indent=2,
+            )
+        )
     else:
         render(outcomes, args.verbose)
 

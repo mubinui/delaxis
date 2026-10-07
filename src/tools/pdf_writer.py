@@ -52,9 +52,17 @@ def _latin1(text: str) -> str:
     curly quote degrades to something readable rather than disappearing.
     """
     replacements = {
-        "—": "-", "–": "-", "‘": "'", "’": "'",
-        "“": '"', "”": '"', "…": "...", " ": " ",
-        "•": "-", "→": "->", "·": "-",
+        "—": "-",
+        "–": "-",
+        "‘": "'",
+        "’": "'",
+        "“": '"',
+        "”": '"',
+        "…": "...",
+        " ": " ",
+        "•": "-",
+        "→": "->",
+        "·": "-",
     }
     for source, target in replacements.items():
         text = text.replace(source, target)
@@ -126,50 +134,53 @@ def build(lines: list[Line], title: str = "") -> bytes:
     """Render lines into a complete PDF document."""
     pages = paginate(lines)
 
-    objects: list[bytes] = []          # object 1 is objects[0]
+    objects: list[bytes] = []  # object 1 is objects[0]
 
     def add(body: bytes) -> int:
         objects.append(body)
         return len(objects)
 
-    catalog_id = add(b"")              # placeholder, filled once ids are known
+    catalog_id = add(b"")  # placeholder, filled once ids are known
     pages_id = add(b"")
     regular_id = add(
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
-        b"/Encoding /WinAnsiEncoding >>"
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
     )
     bold_id = add(
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold "
-        b"/Encoding /WinAnsiEncoding >>"
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
     )
 
     page_ids: list[int] = []
     for page in pages:
         stream = _content_stream(page)
         content_id = add(
-            b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n"
-            + stream + b"\nendstream"
+            b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream"
         )
-        page_ids.append(add(
-            b"<< /Type /Page /Parent " + str(pages_id).encode() + b" 0 R "
-            b"/MediaBox [0 0 " + f"{PAGE_WIDTH} {PAGE_HEIGHT}".encode() + b"] "
-            b"/Resources << /Font << /" + REGULAR.encode() + b" "
-            + str(regular_id).encode() + b" 0 R /" + BOLD.encode() + b" "
-            + str(bold_id).encode() + b" 0 R >> >> "
-            b"/Contents " + str(content_id).encode() + b" 0 R >>"
-        ))
+        page_ids.append(
+            add(
+                b"<< /Type /Page /Parent " + str(pages_id).encode() + b" 0 R "
+                b"/MediaBox [0 0 " + f"{PAGE_WIDTH} {PAGE_HEIGHT}".encode() + b"] "
+                b"/Resources << /Font << /"
+                + REGULAR.encode()
+                + b" "
+                + str(regular_id).encode()
+                + b" 0 R /"
+                + BOLD.encode()
+                + b" "
+                + str(bold_id).encode()
+                + b" 0 R >> >> "
+                b"/Contents " + str(content_id).encode() + b" 0 R >>"
+            )
+        )
 
     kids = b" ".join(f"{pid} 0 R".encode() for pid in page_ids)
     objects[pages_id - 1] = (
-        b"<< /Type /Pages /Kids [" + kids + b"] /Count "
-        + str(len(page_ids)).encode() + b" >>"
+        b"<< /Type /Pages /Kids [" + kids + b"] /Count " + str(len(page_ids)).encode() + b" >>"
     )
-    objects[catalog_id - 1] = (
-        b"<< /Type /Catalog /Pages " + str(pages_id).encode() + b" 0 R >>"
-    )
+    objects[catalog_id - 1] = b"<< /Type /Catalog /Pages " + str(pages_id).encode() + b" 0 R >>"
 
     info_id = add(
-        b"<< /Title (" + _escape(_latin1(title or "Document")).encode("latin-1")
+        b"<< /Title ("
+        + _escape(_latin1(title or "Document")).encode("latin-1")
         + b") /Producer (Delaxis) >>"
     )
 
@@ -187,9 +198,14 @@ def build(lines: list[Line], title: str = "") -> bytes:
     for offset in offsets:
         out += f"{offset:010d} 00000 n \n".encode()
     out += (
-        b"trailer\n<< /Size " + str(len(objects) + 1).encode()
-        + b" /Root " + str(catalog_id).encode() + b" 0 R"
-        + b" /Info " + str(info_id).encode() + b" 0 R >>\n"
+        b"trailer\n<< /Size "
+        + str(len(objects) + 1).encode()
+        + b" /Root "
+        + str(catalog_id).encode()
+        + b" 0 R"
+        + b" /Info "
+        + str(info_id).encode()
+        + b" 0 R >>\n"
         b"startxref\n" + str(xref_at).encode() + b"\n%%EOF\n"
     )
     return bytes(out)

@@ -2,7 +2,6 @@
 
 import logging
 import sys
-from typing import Optional
 from uuid import UUID
 
 import structlog
@@ -13,10 +12,10 @@ from src.config import get_settings
 def configure_logging() -> None:
     """
     Configure structured logging for the application.
-    
+
     This configures structlog with appropriate processors for
     structured logging with correlation IDs and context.
-    
+
     Requirements: 6.1, 6.2, 12.1, 12.2
     """
     settings = get_settings()
@@ -34,7 +33,7 @@ def configure_logging() -> None:
         # Add timestamp
         structlog.processors.TimeStamper(fmt="iso"),
     ]
-    
+
     # Add appropriate renderer based on environment
     if settings.app.log_level == "DEBUG" or settings.app.environment == "development":
         # Use console renderer for development
@@ -58,10 +57,10 @@ def configure_logging() -> None:
 def get_logger(name: str) -> structlog.BoundLogger:
     """
     Get a logger instance with the given name.
-    
+
     Args:
         name: Logger name (typically __name__)
-        
+
     Returns:
         Configured structlog logger
     """
@@ -69,19 +68,19 @@ def get_logger(name: str) -> structlog.BoundLogger:
 
 
 def bind_correlation_ids(
-    request_id: Optional[str] = None,
-    session_id: Optional[UUID] = None,
-    user_id: Optional[str] = None,
-    workflow_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    node_id: Optional[str] = None,
+    request_id: str | None = None,
+    session_id: UUID | None = None,
+    user_id: str | None = None,
+    workflow_id: str | None = None,
+    agent_id: str | None = None,
+    node_id: str | None = None,
 ) -> None:
     """
     Bind correlation IDs to the logging context.
-    
+
     This adds correlation IDs to all subsequent log messages
     in the current context.
-    
+
     Args:
         request_id: HTTP request ID
         session_id: Conversation session ID
@@ -89,11 +88,11 @@ def bind_correlation_ids(
         workflow_id: Workflow identifier
         agent_id: Agent identifier
         node_id: Node identifier in workflow graph
-        
+
     Requirements: 6.1, 6.2, 9.1, 12.1, 12.2
     """
     context = {}
-    
+
     if request_id:
         context["request_id"] = request_id
     if session_id:
@@ -106,7 +105,7 @@ def bind_correlation_ids(
         context["agent_id"] = agent_id
     if node_id:
         context["node_id"] = node_id
-    
+
     if context:
         structlog.contextvars.bind_contextvars(**context)
 
@@ -114,10 +113,10 @@ def bind_correlation_ids(
 def clear_correlation_ids() -> None:
     """
     Clear correlation IDs from the logging context.
-    
+
     This should be called at the end of a request or operation
     to prevent context leakage.
-    
+
     Requirements: 6.1, 6.2
     """
     structlog.contextvars.clear_contextvars()
@@ -127,19 +126,19 @@ def log_agent_decision(
     logger: structlog.BoundLogger,
     agent_id: str,
     decision: str,
-    reasoning: Optional[str] = None,
-    context: Optional[dict] = None,
+    reasoning: str | None = None,
+    context: dict | None = None,
 ) -> None:
     """
     Log an agent decision with structured context.
-    
+
     Args:
         logger: Logger instance
         agent_id: Agent identifier
         decision: Decision made by the agent
         reasoning: Reasoning behind the decision
         context: Additional context
-        
+
     Requirements: 6.1, 6.2, 12.1, 12.2
     """
     logger.info(
@@ -156,12 +155,12 @@ def log_tool_call(
     agent_id: str,
     tool_name: str,
     tool_args: dict,
-    result: Optional[str] = None,
-    error: Optional[str] = None,
+    result: str | None = None,
+    error: str | None = None,
 ) -> None:
     """
     Log a tool call with structured context.
-    
+
     Args:
         logger: Logger instance
         agent_id: Agent identifier
@@ -169,7 +168,7 @@ def log_tool_call(
         tool_args: Tool arguments
         result: Tool execution result
         error: Error message if tool failed
-        
+
     Requirements: 6.1, 6.2, 12.1, 12.2
     """
     log_data = {
@@ -177,12 +176,12 @@ def log_tool_call(
         "tool_name": tool_name,
         "tool_args": tool_args,
     }
-    
+
     if result:
         log_data["result"] = result
     if error:
         log_data["error"] = error
-    
+
     if error:
         logger.error("tool_call_failed", **log_data)
     else:
@@ -194,18 +193,18 @@ def log_agent_execution_start(
     agent_id: str,
     node_id: str,
     workflow_id: str,
-    input_message: Optional[str] = None,
+    input_message: str | None = None,
 ) -> None:
     """
     Log the start of agent execution.
-    
+
     Args:
         logger: Logger instance
         agent_id: Agent identifier
         node_id: Node identifier in workflow
         workflow_id: Workflow identifier
         input_message: Input message to agent
-        
+
     Requirements: 9.1, 9.2
     """
     logger.info(
@@ -224,12 +223,12 @@ def log_agent_execution_end(
     workflow_id: str,
     status: str,
     execution_time: float,
-    output: Optional[str] = None,
-    error: Optional[str] = None,
+    output: str | None = None,
+    error: str | None = None,
 ) -> None:
     """
     Log the end of agent execution.
-    
+
     Args:
         logger: Logger instance
         agent_id: Agent identifier
@@ -239,7 +238,7 @@ def log_agent_execution_end(
         execution_time: Execution time in seconds
         output: Agent output
         error: Error message if failed
-        
+
     Requirements: 9.1, 9.2, 9.4
     """
     log_data = {
@@ -249,12 +248,12 @@ def log_agent_execution_end(
         "status": status,
         "execution_time_seconds": execution_time,
     }
-    
+
     if output:
         log_data["output"] = output
     if error:
         log_data["error"] = error
-    
+
     if status == "success":
         logger.info("agent_execution_end", **log_data)
     else:
@@ -269,13 +268,13 @@ def log_workflow_execution_start(
 ) -> None:
     """
     Log the start of workflow execution.
-    
+
     Args:
         logger: Logger instance
         workflow_id: Workflow identifier
         session_id: Session identifier
         message: Initial message
-        
+
     Requirements: 9.1, 9.2
     """
     logger.info(
@@ -293,11 +292,11 @@ def log_workflow_execution_end(
     status: str,
     execution_time: float,
     agent_count: int,
-    final_response: Optional[str] = None,
+    final_response: str | None = None,
 ) -> None:
     """
     Log the end of workflow execution.
-    
+
     Args:
         logger: Logger instance
         workflow_id: Workflow identifier
@@ -306,7 +305,7 @@ def log_workflow_execution_end(
         execution_time: Total execution time in seconds
         agent_count: Number of agents executed
         final_response: Final response from workflow
-        
+
     Requirements: 9.1, 9.2, 9.4
     """
     log_data = {
@@ -316,10 +315,10 @@ def log_workflow_execution_end(
         "execution_time_seconds": execution_time,
         "agent_count": agent_count,
     }
-    
+
     if final_response:
         log_data["final_response"] = final_response
-    
+
     if status == "success":
         logger.info("workflow_execution_end", **log_data)
     else:
@@ -331,16 +330,16 @@ def log_llm_call(
     agent_id: str,
     provider: str,
     model: str,
-    prompt: Optional[str] = None,
-    response: Optional[str] = None,
-    prompt_tokens: Optional[int] = None,
-    completion_tokens: Optional[int] = None,
-    execution_time: Optional[float] = None,
+    prompt: str | None = None,
+    response: str | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    execution_time: float | None = None,
     cache_hit: bool = False,
 ) -> None:
     """
     Log an LLM API call with optional prompt/response in debug mode.
-    
+
     Args:
         logger: Logger instance
         agent_id: Agent identifier
@@ -352,52 +351,53 @@ def log_llm_call(
         completion_tokens: Number of completion tokens
         execution_time: Execution time in seconds
         cache_hit: Whether response was from cache
-        
+
     Requirements: 9.3, 9.4
     """
     from src.config import get_settings
+
     settings = get_settings()
-    
+
     log_data = {
         "agent_id": agent_id,
         "provider": provider,
         "model": model,
         "cache_hit": cache_hit,
     }
-    
+
     if prompt_tokens is not None:
         log_data["prompt_tokens"] = prompt_tokens
     if completion_tokens is not None:
         log_data["completion_tokens"] = completion_tokens
     if execution_time is not None:
         log_data["execution_time_seconds"] = execution_time
-    
+
     # Only log prompts and responses in debug mode
     if settings.telemetry.debug_mode or settings.telemetry.log_llm_prompts:
         if prompt:
             log_data["prompt"] = prompt
-    
+
     if settings.telemetry.debug_mode or settings.telemetry.log_llm_responses:
         if response:
             log_data["response"] = response
-    
+
     logger.info("llm_call", **log_data)
 
 
 def log_error_context(
     logger: structlog.BoundLogger,
     error: Exception,
-    agent_id: Optional[str] = None,
-    node_id: Optional[str] = None,
-    workflow_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    agent_state: Optional[dict] = None,
-    conversation_history: Optional[list] = None,
+    agent_id: str | None = None,
+    node_id: str | None = None,
+    workflow_id: str | None = None,
+    session_id: str | None = None,
+    agent_state: dict | None = None,
+    conversation_history: list | None = None,
     retry_count: int = 0,
 ) -> None:
     """
     Log error with full context for debugging.
-    
+
     Args:
         logger: Logger instance
         error: Exception that occurred
@@ -408,18 +408,19 @@ def log_error_context(
         agent_state: Current agent state
         conversation_history: Conversation history
         retry_count: Number of retries attempted
-        
+
     Requirements: 9.3, 9.5
     """
     from src.config import get_settings
+
     settings = get_settings()
-    
+
     log_data = {
         "error_type": type(error).__name__,
         "error_message": str(error),
         "retry_count": retry_count,
     }
-    
+
     if agent_id:
         log_data["agent_id"] = agent_id
     if node_id:
@@ -428,7 +429,7 @@ def log_error_context(
         log_data["workflow_id"] = workflow_id
     if session_id:
         log_data["session_id"] = session_id
-    
+
     # Include agent state and conversation history in debug mode
     if settings.telemetry.debug_mode or settings.telemetry.log_agent_state:
         if agent_state:
@@ -436,5 +437,5 @@ def log_error_context(
         if conversation_history:
             # Limit conversation history to last 5 messages to avoid log bloat
             log_data["conversation_history"] = conversation_history[-5:]
-    
+
     logger.error("error_with_context", **log_data, exc_info=True)

@@ -5,7 +5,6 @@ this store never sees plaintext tokens.
 """
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 import structlog
@@ -28,8 +27,8 @@ class IntegrationStore:
         account_email: str,
         encrypted_token: str,
         scopes: list[str],
-        token_expiry: Optional[datetime] = None,
-        user_id: Optional[UUID] = None,
+        token_expiry: datetime | None = None,
+        user_id: UUID | None = None,
     ) -> IntegrationCredential:
         with self._db.get_session() as session:
             credential = (
@@ -66,7 +65,7 @@ class IntegrationStore:
             )
             return credential
 
-    def get_credential(self, provider: str, account_email: str) -> Optional[IntegrationCredential]:
+    def get_credential(self, provider: str, account_email: str) -> IntegrationCredential | None:
         with self._db.get_session() as session:
             credential = (
                 session.query(IntegrationCredential)
@@ -111,7 +110,7 @@ class IntegrationStore:
             return bool(deleted)
 
 
-_integration_store: Optional[IntegrationStore] = None
+_integration_store: IntegrationStore | None = None
 
 
 def get_integration_store() -> IntegrationStore:

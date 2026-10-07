@@ -90,13 +90,13 @@ class TestPdfWriter:
         # Follow startxref to the table, which also checks startxref itself.
         # Searching for the last "xref" finds the one inside "startxref".
         declared = int(pdf.rsplit(b"startxref\n", 1)[1].split(b"\n")[0])
-        assert pdf[declared:declared + 4] == b"xref"
+        assert pdf[declared : declared + 4] == b"xref"
 
         rows = pdf[declared:].split(b"\n")[2:]
         entries = [int(row.split()[0]) for row in rows if row.rstrip().endswith(b" n")]
         assert entries
         for number, offset in enumerate(entries, start=1):
-            assert pdf[offset:offset + 12].startswith(f"{number} 0 obj".encode())
+            assert pdf[offset : offset + 12].startswith(f"{number} 0 obj".encode())
 
     def test_long_documents_paginate(self):
         pages = paginate([Line(f"Line {n}") for n in range(300)])

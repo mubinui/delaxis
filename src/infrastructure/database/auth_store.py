@@ -7,8 +7,7 @@ stored — the plaintext API key is returned exactly once at creation.
 
 import hashlib
 import secrets
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
@@ -47,7 +46,7 @@ class AuthStore:
         username: str,
         password_hash: str,
         role: str = "user",
-        email: Optional[str] = None,
+        email: str | None = None,
     ) -> User:
         with self._db.get_session() as session:
             user = User(
@@ -62,19 +61,17 @@ class AuthStore:
             session.expunge(user)
             return user
 
-    def get_user_by_username(self, username: str) -> Optional[User]:
+    def get_user_by_username(self, username: str) -> User | None:
         with self._db.get_session() as session:
             user = session.query(User).filter(User.username == username).one_or_none()
             if user:
                 session.expunge(user)
             return user
 
-    def get_active_user(self, user_id: UUID) -> Optional[User]:
+    def get_active_user(self, user_id: UUID) -> User | None:
         with self._db.get_session() as session:
             user = (
-                session.query(User)
-                .filter(User.id == user_id, User.active.is_(True))
-                .one_or_none()
+                session.query(User).filter(User.id == user_id, User.active.is_(True)).one_or_none()
             )
             if user:
                 session.expunge(user)
@@ -87,7 +84,7 @@ class AuthStore:
     def record_login(self, user_id: UUID) -> None:
         with self._db.get_session() as session:
             session.query(User).filter(User.id == user_id).update(
-                {"last_login_at": datetime.utcnow()}
+                {"last_login_at": datetime.now(UTC)}
             )
 
     # --------------------------------------------------------------- api keys
@@ -97,8 +94,8 @@ class AuthStore:
         name: str,
         key_hash: str,
         role: str = "user",
-        user_id: Optional[UUID] = None,
-        expires_at: Optional[datetime] = None,
+        user_id: UUID | None = None,
+        expires_at: datetime | None = None,
     ) -> ApiKey:
         with self._db.get_session() as session:
             api_key = ApiKey(
@@ -114,7 +111,7 @@ class AuthStore:
             session.expunge(api_key)
             return api_key
 
-    def get_api_key_by_hash(self, key_hash: str) -> Optional[ApiKey]:
+    def get_api_key_by_hash(self, key_hash: str) -> ApiKey | None:
         with self._db.get_session() as session:
             api_key = (
                 session.query(ApiKey)
@@ -125,14 +122,14 @@ class AuthStore:
                 session.expunge(api_key)
             return api_key
 
-    def get_api_key(self, api_key_id: UUID) -> Optional[ApiKey]:
+    def get_api_key(self, api_key_id: UUID) -> ApiKey | None:
         with self._db.get_session() as session:
             api_key = session.query(ApiKey).filter(ApiKey.id == api_key_id).one_or_none()
             if api_key:
                 session.expunge(api_key)
             return api_key
 
-    def list_api_keys(self, user_id: Optional[UUID] = None) -> list[ApiKey]:
+    def list_api_keys(self, user_id: UUID | None = None) -> list[ApiKey]:
         with self._db.get_session() as session:
             query = session.query(ApiKey).filter(ApiKey.active.is_(True))
             if user_id is not None:
@@ -145,7 +142,7 @@ class AuthStore:
     def update_api_key_last_used(self, api_key_id: UUID) -> None:
         with self._db.get_session() as session:
             session.query(ApiKey).filter(ApiKey.id == api_key_id).update(
-                {"last_used_at": datetime.utcnow()}
+                {"last_used_at": datetime.now(UTC)}
             )
 
     def revoke_api_key(self, api_key_id: UUID) -> bool:
@@ -157,7 +154,7 @@ class AuthStore:
             )
             return updated > 0
 
-    def rotate_api_key(self, api_key_id: UUID, new_key_hash: str) -> Optional[ApiKey]:
+    def rotate_api_key(self, api_key_id: UUID, new_key_hash: str) -> ApiKey | None:
         with self._db.get_session() as session:
             api_key = session.query(ApiKey).filter(ApiKey.id == api_key_id).one_or_none()
             if api_key is None:
@@ -170,7 +167,7 @@ class AuthStore:
             return api_key
 
 
-_auth_store: Optional[AuthStore] = None
+_auth_store: AuthStore | None = None
 
 
 def get_auth_store() -> AuthStore:

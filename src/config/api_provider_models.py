@@ -1,6 +1,6 @@
 """Pydantic models for API provider configuration."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -12,17 +12,20 @@ class APIProviderCreateRequest(BaseModel):
     name: str = Field(min_length=1, description="Provider display name")
     type: str = Field(description="Provider type (llm, tool, api)")
     description: str = Field(min_length=1, description="Provider description")
-    base_url: Optional[str] = Field(default=None, description="Base URL for API")
-    api_key: Optional[str] = Field(default=None, description="API key for authentication")
-    api_key_env: Optional[str] = Field(default=None, description="Env var holding the API key (stored as auth.env_var)")
-    litellm_prefix: Optional[str] = Field(
-        default=None, description="Native LiteLLM route prefix; leave unset for OpenAI-compatible endpoints"
+    base_url: str | None = Field(default=None, description="Base URL for API")
+    api_key: str | None = Field(default=None, description="API key for authentication")
+    api_key_env: str | None = Field(
+        default=None, description="Env var holding the API key (stored as auth.env_var)"
     )
-    models: Optional[List[Dict[str, Any]]] = Field(
-        default=None, description="Model entries, e.g. [{\"name\": \"qwen-plus\"}]"
+    litellm_prefix: str | None = Field(
+        default=None,
+        description="Native LiteLLM route prefix; leave unset for OpenAI-compatible endpoints",
+    )
+    models: list[dict[str, Any]] | None = Field(
+        default=None, description='Model entries, e.g. [{"name": "qwen-plus"}]'
     )
     enabled: bool = Field(default=True, description="Whether provider is enabled")
-    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
+    config: dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
 
     @field_validator("type")
     @classmethod
@@ -37,20 +40,20 @@ class APIProviderCreateRequest(BaseModel):
 class APIProviderUpdateRequest(BaseModel):
     """Request to update an API provider."""
 
-    name: Optional[str] = None
-    type: Optional[str] = None
-    description: Optional[str] = None
-    base_url: Optional[str] = None
-    api_key: Optional[str] = None
-    api_key_env: Optional[str] = None
-    litellm_prefix: Optional[str] = None
-    models: Optional[List[Dict[str, Any]]] = None
-    enabled: Optional[bool] = None
-    config: Optional[Dict[str, Any]] = None
+    name: str | None = None
+    type: str | None = None
+    description: str | None = None
+    base_url: str | None = None
+    api_key: str | None = None
+    api_key_env: str | None = None
+    litellm_prefix: str | None = None
+    models: list[dict[str, Any]] | None = None
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
 
     @field_validator("type")
     @classmethod
-    def validate_type(cls, v: Optional[str]) -> Optional[str]:
+    def validate_type(cls, v: str | None) -> str | None:
         """Validate provider type."""
         if v is None:
             return v
@@ -67,16 +70,16 @@ class APIProviderResponse(BaseModel):
     name: str
     type: str
     description: str
-    base_url: Optional[str] = None
-    api_key_masked: Optional[str] = None
-    api_key_env: Optional[str] = None
-    litellm_prefix: Optional[str] = None
-    models: Optional[List[Dict[str, Any]]] = None
+    base_url: str | None = None
+    api_key_masked: str | None = None
+    api_key_env: str | None = None
+    litellm_prefix: str | None = None
+    models: list[dict[str, Any]] | None = None
     enabled: bool
-    config: Dict[str, Any]
-    version: Optional[int] = None
-    etag: Optional[str] = None
-    last_updated: Optional[str] = None
+    config: dict[str, Any]
+    version: int | None = None
+    etag: str | None = None
+    last_updated: str | None = None
 
 
 class ConnectionTestResponse(BaseModel):
@@ -84,23 +87,23 @@ class ConnectionTestResponse(BaseModel):
 
     success: bool
     message: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
-def mask_api_key(api_key: Optional[str]) -> Optional[str]:
+def mask_api_key(api_key: str | None) -> str | None:
     """
     Mask API key showing only last 4 characters.
-    
+
     Args:
         api_key: API key to mask
-        
+
     Returns:
         Masked API key or None if input is None
     """
     if api_key is None or len(api_key) == 0:
         return None
-    
+
     if len(api_key) <= 4:
         return "*" * len(api_key)
-    
+
     return "*" * (len(api_key) - 4) + api_key[-4:]

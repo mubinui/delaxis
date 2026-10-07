@@ -5,8 +5,6 @@ model_config, so a digest built by spreading node config would ship the user's
 key to whichever provider answers the "explain this" request.
 """
 
-import pytest
-
 from src.api.routers.builder import (
     DiagnosticExplainRequest,
     GraphDigest,
@@ -35,8 +33,11 @@ class TestDigestIsAllowlisted:
         digest = GraphDigest(
             nodes=[
                 GraphDigestNode(
-                    id="a1", label="Researcher", provider_id="gemini",
-                    model="gemini-3.5-flash", tools=["web_search"],
+                    id="a1",
+                    label="Researcher",
+                    provider_id="gemini",
+                    model="gemini-3.5-flash",
+                    tools=["web_search"],
                     **{"api_key": SECRET},
                 )
             ],
@@ -54,9 +55,7 @@ class TestDigestIsAllowlisted:
         body = DiagnosticExplainRequest(
             mode="fix",
             diagnostic={"code": "provider_key_missing", "title": "no key", "detail": "d"},
-            graph=GraphDigest(
-                nodes=[GraphDigestNode(id="a1", label="A", **{"api_key": SECRET})]
-            ),
+            graph=GraphDigest(nodes=[GraphDigestNode(id="a1", label="A", **{"api_key": SECRET})]),
         )
         assert SECRET not in str(body.model_dump())
 

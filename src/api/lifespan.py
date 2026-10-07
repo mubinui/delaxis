@@ -54,8 +54,9 @@ def _run_database_migrations() -> None:
         return
 
     try:
-        from alembic import command
         from alembic.config import Config
+
+        from alembic import command
 
         project_root = Path(__file__).resolve().parents[2]
         alembic_cfg = Config(str(project_root / "alembic.ini"))

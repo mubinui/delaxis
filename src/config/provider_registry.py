@@ -165,7 +165,7 @@ def _auth_required(provider: dict[str, Any]) -> bool:
 
 
 def _strip_prefix(model: str, prefix: str) -> str:
-    return model[len(prefix) + 1:] if model.startswith(f"{prefix}/") else model
+    return model[len(prefix) + 1 :] if model.startswith(f"{prefix}/") else model
 
 
 def resolve_llm(provider_id: str, model: str) -> ResolvedLLM:
@@ -198,7 +198,11 @@ def resolve_llm(provider_id: str, model: str) -> ResolvedLLM:
         crewai_provider = prefix
         model_name = _strip_prefix(model, prefix)
         env_name = provider.get("base_url_env")
-        base_url = (os.environ.get(str(env_name)) if env_name else None) or provider.get("litellm_base_url") or None
+        base_url = (
+            (os.environ.get(str(env_name)) if env_name else None)
+            or provider.get("litellm_base_url")
+            or None
+        )
         base_url = base_url.rstrip("/") if base_url else None
         native = True
     else:

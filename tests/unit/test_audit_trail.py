@@ -86,8 +86,14 @@ class TestQuery:
     @pytest.fixture(autouse=True)
     def seeded(self):
         append_audit_entry("approved_refund", "data_access", actor="ana", resource="order:1")
-        append_audit_entry("exported_list", "data_access", actor="ben", resource="order:2",
-                           outcome="denied", severity="warning")
+        append_audit_entry(
+            "exported_list",
+            "data_access",
+            actor="ben",
+            resource="order:2",
+            outcome="denied",
+            severity="warning",
+        )
         append_audit_entry("login", "auth", actor="ana", severity="notice")
         append_audit_entry("key_rotated", "security", actor="ana", severity="critical")
 
@@ -289,6 +295,5 @@ class TestToolEntrypoints:
         # Append-only is a property of the module's surface, not just a habit.
         surface = dir(audit_trail)
         assert not [
-            name for name in surface
-            if name.startswith(("delete_", "update_", "purge_", "clear_"))
+            name for name in surface if name.startswith(("delete_", "update_", "purge_", "clear_"))
         ]

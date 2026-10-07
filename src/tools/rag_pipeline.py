@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import structlog
 
@@ -53,7 +53,7 @@ def _disabled(**extra: Any) -> dict[str, Any]:
 
 
 async def ingest_file(
-    collection: Optional[str] = None,
+    collection: str | None = None,
     file_path: str = "",
 ) -> dict[str, Any]:
     """Index a file so agents can retrieve from it.
@@ -68,8 +68,12 @@ async def ingest_file(
     if not _enabled():
         return _disabled(documents_processed=0)
     if not file_path:
-        return {"success": False, "message": "file_path is required",
-                "documents_processed": 0, "error": "file_path is required"}
+        return {
+            "success": False,
+            "message": "file_path is required",
+            "documents_processed": 0,
+            "error": "file_path is required",
+        }
 
     service = get_rag_service()
     try:
@@ -79,17 +83,24 @@ async def ingest_file(
             service.ingest_file, Path(file_path), collection=collection
         )
     except FileNotFoundError as exc:
-        return {"success": False, "message": str(exc), "documents_processed": 0,
-                "error": str(exc)}
+        return {"success": False, "message": str(exc), "documents_processed": 0, "error": str(exc)}
     except Exception as exc:
         logger.exception("rag_ingest_failed", file_path=file_path)
-        return {"success": False, "message": f"Ingestion failed: {exc}",
-                "documents_processed": 0, "error": str(exc)}
+        return {
+            "success": False,
+            "message": f"Ingestion failed: {exc}",
+            "documents_processed": 0,
+            "error": str(exc),
+        }
 
     if not result.chunks:
-        return {"success": False, "message": result.note or "nothing to index",
-                "documents_processed": 0, "collection": result.collection,
-                "error": result.note or "no text could be extracted"}
+        return {
+            "success": False,
+            "message": result.note or "nothing to index",
+            "documents_processed": 0,
+            "collection": result.collection,
+            "error": result.note or "no text could be extracted",
+        }
 
     return {
         "success": True,
@@ -108,7 +119,7 @@ async def ingest_file(
 async def ingest_text(
     text: str,
     source: str = "note",
-    collection: Optional[str] = None,
+    collection: str | None = None,
 ) -> dict[str, Any]:
     """Index text directly, without it having to be a file first."""
     if not _enabled():
@@ -120,8 +131,12 @@ async def ingest_text(
         )
     except Exception as exc:
         logger.exception("rag_ingest_text_failed", source=source)
-        return {"success": False, "message": f"Ingestion failed: {exc}",
-                "documents_processed": 0, "error": str(exc)}
+        return {
+            "success": False,
+            "message": f"Ingestion failed: {exc}",
+            "documents_processed": 0,
+            "error": str(exc),
+        }
     return {
         "success": bool(result.chunks),
         "message": f"Indexed '{source}' as {result.chunks} chunk(s)",
@@ -132,8 +147,8 @@ async def ingest_text(
 
 
 async def ingest_batch(
-    collection: Optional[str] = None,
-    file_paths: Optional[list[str]] = None,
+    collection: str | None = None,
+    file_paths: list[str] | None = None,
 ) -> dict[str, Any]:
     """Index several files. One failure does not abandon the rest."""
     if not _enabled():
@@ -161,7 +176,7 @@ async def ingest_batch(
 
 async def query_rag(
     query: str = "",
-    collection: Optional[str] = None,
+    collection: str | None = None,
     top_k: int = 5,
     rerank: bool = True,
 ) -> dict[str, Any]:
@@ -179,8 +194,13 @@ async def query_rag(
     if not _enabled():
         return {"query": query, "results": [], "total_results": 0, **_disabled()}
     if not (query or "").strip():
-        return {"query": query, "results": [], "total_results": 0,
-                "success": False, "error": "query is required"}
+        return {
+            "query": query,
+            "results": [],
+            "total_results": 0,
+            "success": False,
+            "error": "query is required",
+        }
 
     service = get_rag_service()
     try:
@@ -189,8 +209,13 @@ async def query_rag(
         )
     except Exception as exc:
         logger.exception("rag_query_failed", collection=collection)
-        return {"query": query, "results": [], "total_results": 0,
-                "success": False, "error": str(exc)}
+        return {
+            "query": query,
+            "results": [],
+            "total_results": 0,
+            "success": False,
+            "error": str(exc),
+        }
 
     return {
         "query": query,
@@ -202,7 +227,7 @@ async def query_rag(
     }
 
 
-async def list_files(collection: Optional[str] = None) -> dict[str, Any]:
+async def list_files(collection: str | None = None) -> dict[str, Any]:
     """List the documents indexed in a collection."""
     if not _enabled():
         return _disabled(files=[], total_files=0)
@@ -211,8 +236,13 @@ async def list_files(collection: Optional[str] = None) -> dict[str, Any]:
         documents = await asyncio.to_thread(service.documents, collection)
     except Exception as exc:
         logger.exception("rag_list_failed", collection=collection)
-        return {"collection": collection, "files": [], "total_files": 0,
-                "success": False, "error": str(exc)}
+        return {
+            "collection": collection,
+            "files": [],
+            "total_files": 0,
+            "success": False,
+            "error": str(exc),
+        }
     return {
         "collection": service.collection_for(collection),
         "files": [item["source"] for item in documents],
@@ -223,13 +253,16 @@ async def list_files(collection: Optional[str] = None) -> dict[str, Any]:
     }
 
 
-async def delete_file(filename: str, collection: Optional[str] = None) -> dict[str, Any]:
+async def delete_file(filename: str, collection: str | None = None) -> dict[str, Any]:
     """Remove a document and all of its chunks from a collection."""
     if not _enabled():
         return _disabled()
     if not filename:
-        return {"success": False, "message": "filename is required",
-                "error": "filename is required"}
+        return {
+            "success": False,
+            "message": "filename is required",
+            "error": "filename is required",
+        }
     service = get_rag_service()
     try:
         removed = await asyncio.to_thread(service.delete_document, filename, collection)
@@ -239,7 +272,8 @@ async def delete_file(filename: str, collection: Optional[str] = None) -> dict[s
     return {
         "success": removed > 0,
         "message": (
-            f"Removed '{filename}' ({removed} chunk(s))" if removed
+            f"Removed '{filename}' ({removed} chunk(s))"
+            if removed
             else f"'{filename}' was not in this collection"
         ),
         "chunks_removed": removed,
@@ -248,7 +282,7 @@ async def delete_file(filename: str, collection: Optional[str] = None) -> dict[s
     }
 
 
-async def get_stats(collection: Optional[str] = None) -> dict[str, Any]:
+async def get_stats(collection: str | None = None) -> dict[str, Any]:
     """Counts and configuration for a collection."""
     if not _enabled():
         return _disabled()
@@ -271,5 +305,10 @@ async def list_collections() -> dict[str, Any]:
         collections = await asyncio.to_thread(service.collections)
     except Exception as exc:
         return {"success": False, "collections": [], "error": str(exc)}
-    return {"success": True, "collections": collections,
-            "backend": service.store.name, "embeddings": service.embedder.name, "error": None}
+    return {
+        "success": True,
+        "collections": collections,
+        "backend": service.store.name,
+        "embeddings": service.embedder.name,
+        "error": None,
+    }

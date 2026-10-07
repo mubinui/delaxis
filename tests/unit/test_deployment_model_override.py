@@ -66,8 +66,14 @@ class TestOverrideApplication:
     def test_override_replaces_the_agent_model(self):
         runtime = object.__new__(CrewAIWorkflowRuntime)
         config = AgentConfig(
-            id="a", type="conversable", name="A",
-            llm_config={"provider_id": "openrouter", "model": "openai/gpt-oss-20b", "temperature": 0.3},
+            id="a",
+            type="conversable",
+            name="A",
+            llm_config={
+                "provider_id": "openrouter",
+                "model": "openai/gpt-oss-20b",
+                "temperature": 0.3,
+            },
         )
         merged = runtime._effective_model_config(config)
         assert merged["provider_id"] == "openrouter"
@@ -83,7 +89,7 @@ class TestClientCannotForceRouting:
     def test_client_supplied_model_override_is_discarded(self, deployments_config, monkeypatch):
         """A forged metadata.model_override must not survive into the run."""
         import asyncio
-        from datetime import datetime
+        from datetime import UTC, datetime
         from types import SimpleNamespace
 
         captured: dict = {}
@@ -97,7 +103,9 @@ class TestClientCannotForceRouting:
 
         manager = object.__new__(sm.SessionManager)
         manager.runtime = _Runtime()
-        manager.workflow_registry = SimpleNamespace(get_workflow=lambda _id: SimpleNamespace(id="wf"))
+        manager.workflow_registry = SimpleNamespace(
+            get_workflow=lambda _id: SimpleNamespace(id="wf")
+        )
         manager._save_sessions = lambda: None
         manager._response = lambda session, text, meta: {"response": text}
 
@@ -108,7 +116,7 @@ class TestClientCannotForceRouting:
             turn_count=0,
             add_message=lambda *a, **k: None,
             increment_turn=lambda: None,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(UTC),
         )
 
         async def _get_session(_sid):

@@ -4,10 +4,10 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from src.api.auth import CurrentUser, get_current_user, require_admin
 from src.api.models import (
@@ -27,6 +27,7 @@ from src.config.provider_secrets import delete_secret, set_secret
 # Versioned config service is optional and requires PostgreSQL
 try:
     from src.config.versioned_service import VersionedConfigService
+
     VERSIONED_SERVICE_AVAILABLE = True
 except ImportError:
     VersionedConfigService = None
@@ -44,11 +45,11 @@ def _get_api_providers_config_path() -> Path:
 def _load_api_providers_config() -> dict:
     """Load API providers configuration from file."""
     config_path = _get_api_providers_config_path()
-    
+
     if not config_path.exists():
         return {"version": "1.0", "providers": []}
-    
-    with open(config_path, "r") as f:
+
+    with open(config_path) as f:
         return json.load(f)
 
 
@@ -56,7 +57,7 @@ def _save_api_providers_config(config: dict) -> None:
     """Save API providers configuration to file."""
     config_path = _get_api_providers_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
 
@@ -77,10 +78,7 @@ def _get_versioned_service() -> Optional["VersionedConfigService"]:
     return None
 
 
-def _provider_to_response(
-    provider: dict,
-    version_info: Optional[tuple] = None
-) -> APIProviderResponse:
+def _provider_to_response(provider: dict, version_info: tuple | None = None) -> APIProviderResponse:
     """Convert provider dict to response model with masked API key."""
     response_data = {
         "id": provider["id"],
@@ -96,49 +94,49 @@ def _provider_to_response(
         "enabled": provider.get("enabled", True),
         "config": provider.get("config", {}),
     }
-    
+
     if version_info:
         response_data["version"] = version_info.version
         response_data["etag"] = version_info.etag
         response_data["last_updated"] = version_info.last_updated.isoformat()
-    
+
     return APIProviderResponse(**response_data)
 
 
-@router.get("", response_model=List[APIProviderResponse])
+@router.get("", response_model=list[APIProviderResponse])
 async def list_api_providers(
     request: Request,
     current_user: CurrentUser = Depends(get_current_user),
-) -> List[APIProviderResponse]:
+) -> list[APIProviderResponse]:
     """
     List all API providers.
-    
+
     Args:
         request: FastAPI request object
         current_user: Current authenticated user
-        
+
     Returns:
         List of API provider configurations
-        
+
     Requirements: 3.1, 3.2, 3.3, 7.1
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Listing API providers",
         request_id=request_id,
     )
-    
+
     try:
         config = _load_api_providers_config()
-        
+
         responses = []
         for provider in config.get("providers", []):
             # Add models from config if present
             responses.append(_provider_to_response(provider))
-        
+
         return responses
-        
+
     except Exception as e:
         logger.error(
             "Failed to list API providers",
@@ -149,7 +147,7 @@ async def list_api_providers(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list API providers: {str(e)}",
-        )
+        ) from e
 
 
 @router.post("", response_model=APIProviderResponse, status_code=status.HTTP_201_CREATED)
@@ -160,36 +158,36 @@ async def create_api_provider(
 ) -> APIProviderResponse:
     """
     Create a new API provider.
-    
+
     Args:
         request: FastAPI request object
         body: API provider creation request
         current_user: Current authenticated user (admin required)
-        
+
     Returns:
         Created API provider
-        
+
     Requirements: 3.1, 3.2, 7.1
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Creating API provider",
         request_id=request_id,
         provider_id=body.id,
     )
-    
+
     try:
         # Load existing config
         config = _load_api_providers_config()
-        
+
         # Check if provider already exists
         if any(p["id"] == body.id for p in config.get("providers", [])):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"API provider already exists: {body.id}",
             )
-        
+
         # Create provider dict
         provider_dict = {
             "id": body.id,
@@ -220,15 +218,15 @@ async def create_api_provider(
                 "env_var": body.api_key_env,
                 "required": not body.api_key,
             }
-        
+
         # Add to config
         if "providers" not in config:
             config["providers"] = []
         config["providers"].append(provider_dict)
-        
+
         # Save config
         _save_api_providers_config(config)
-        
+
         # Create version snapshot if versioning is enabled
         versioned_service = _get_versioned_service()
         version_info = None
@@ -244,15 +242,15 @@ async def create_api_provider(
                 _, version_info = versioned_service.get_config(
                     "api_provider", body.id, current_user.user_id
                 )
-        
+
         logger.info(
             "Created API provider",
             request_id=request_id,
             provider_id=body.id,
         )
-        
+
         return _provider_to_response(provider_dict, version_info)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -266,7 +264,7 @@ async def create_api_provider(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create API provider: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/{provider_id}", response_model=APIProviderResponse)
@@ -277,40 +275,37 @@ async def get_api_provider(
 ) -> APIProviderResponse:
     """
     Get API provider by ID.
-    
+
     Args:
         request: FastAPI request object
         provider_id: Provider identifier
         current_user: Current authenticated user
-        
+
     Returns:
         API provider configuration
-        
+
     Requirements: 3.1, 3.2, 3.3, 7.1
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Getting API provider",
         request_id=request_id,
         provider_id=provider_id,
     )
-    
+
     try:
         config = _load_api_providers_config()
-        
+
         # Find provider
-        provider = next(
-            (p for p in config.get("providers", []) if p["id"] == provider_id),
-            None
-        )
-        
+        provider = next((p for p in config.get("providers", []) if p["id"] == provider_id), None)
+
         if provider is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"API provider not found: {provider_id}",
             )
-        
+
         # Get version info if available
         versioned_service = _get_versioned_service()
         version_info = None
@@ -318,9 +313,9 @@ async def get_api_provider(
             _, version_info = versioned_service.get_config(
                 "api_provider", provider_id, current_user.user_id
             )
-        
+
         return _provider_to_response(provider, version_info)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -334,7 +329,7 @@ async def get_api_provider(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get API provider: {str(e)}",
-        )
+        ) from e
 
 
 @router.put("/{provider_id}", response_model=APIProviderResponse)
@@ -343,46 +338,45 @@ async def update_api_provider(
     provider_id: str,
     body: APIProviderUpdateRequest,
     current_user: CurrentUser = Depends(require_admin),
-    if_match: Optional[str] = Header(None),
+    if_match: str | None = Header(None),
 ) -> APIProviderResponse:
     """
     Update API provider with optimistic locking.
-    
+
     Args:
         request: FastAPI request object
         provider_id: Provider identifier
         body: API provider update request
         current_user: Current authenticated user (admin required)
         if_match: Optional version token (ETag) for optimistic locking
-        
+
     Returns:
         Updated API provider
-        
+
     Requirements: 3.2, 3.3, 7.1, 7.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Updating API provider",
         request_id=request_id,
         provider_id=provider_id,
     )
-    
+
     try:
         config = _load_api_providers_config()
-        
+
         # Find provider
         provider_idx = next(
-            (i for i, p in enumerate(config.get("providers", [])) if p["id"] == provider_id),
-            None
+            (i for i, p in enumerate(config.get("providers", [])) if p["id"] == provider_id), None
         )
-        
+
         if provider_idx is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"API provider not found: {provider_id}",
             )
-        
+
         # Update provider
         provider = config["providers"][provider_idx]
         update_data = body.model_dump(exclude_unset=True)
@@ -404,11 +398,11 @@ async def update_api_provider(
         for key, value in update_data.items():
             if value is not None:
                 provider[key] = value
-        
+
         # Check for version conflict if versioning is enabled
         versioned_service = _get_versioned_service()
         version_info = None
-        
+
         if versioned_service and if_match:
             success, result, conflict = versioned_service.update_config(
                 config_type="api_provider",
@@ -418,13 +412,13 @@ async def update_api_provider(
                 user_id=current_user.user_id,
                 change_summary="API provider update",
             )
-            
+
             if not success and conflict:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=conflict,
                 )
-            
+
             if success:
                 _, version_info = versioned_service.get_config(
                     "api_provider", provider_id, current_user.user_id
@@ -441,18 +435,18 @@ async def update_api_provider(
             _, version_info = versioned_service.get_config(
                 "api_provider", provider_id, current_user.user_id
             )
-        
+
         # Save config
         _save_api_providers_config(config)
-        
+
         logger.info(
             "Updated API provider",
             request_id=request_id,
             provider_id=provider_id,
         )
-        
+
         return _provider_to_response(provider, version_info)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -466,7 +460,7 @@ async def update_api_provider(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update API provider: {str(e)}",
-        )
+        ) from e
 
 
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -477,44 +471,44 @@ async def delete_api_provider(
 ) -> None:
     """
     Delete API provider.
-    
+
     Args:
         request: FastAPI request object
         provider_id: Provider identifier
         current_user: Current authenticated user (admin required)
-        
+
     Requirements: 3.2, 3.5, 7.1
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Deleting API provider",
         request_id=request_id,
         provider_id=provider_id,
     )
-    
+
     try:
         config = _load_api_providers_config()
-        
+
         # Find and remove provider
         original_count = len(config.get("providers", []))
         config["providers"] = [p for p in config.get("providers", []) if p["id"] != provider_id]
-        
+
         if len(config["providers"]) == original_count:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"API provider not found: {provider_id}",
             )
-        
+
         # Save config
         _save_api_providers_config(config)
-        
+
         logger.info(
             "Deleted API provider",
             request_id=request_id,
             provider_id=provider_id,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -528,7 +522,7 @@ async def delete_api_provider(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete API provider: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/{provider_id}/models")
@@ -650,13 +644,11 @@ async def get_provider_capabilities(
     if resolved.native:
         # Mirror the runtime: if the native SDK is missing we will fall back.
         try:
-            from crewai import LLM  # noqa: F401
-
             import importlib
 
-            importlib.import_module(
-                f"crewai.llms.providers.{resolved.crewai_provider}.completion"
-            )
+            from crewai import LLM  # noqa: F401
+
+            importlib.import_module(f"crewai.llms.providers.{resolved.crewai_provider}.completion")
         except Exception:
             effective = compat_fallback(resolved) or resolved
 
@@ -698,42 +690,39 @@ async def test_api_provider_connection(
 ) -> ConnectionTestResponse:
     """
     Test API provider connection.
-    
+
     Args:
         request: FastAPI request object
         provider_id: Provider identifier
         current_user: Current authenticated user
-        
+
     Returns:
         Connection test result
-        
+
     Requirements: 3.4
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Testing API provider connection",
         request_id=request_id,
         provider_id=provider_id,
     )
-    
+
     try:
         config = _load_api_providers_config()
-        
+
         # Find provider
-        provider = next(
-            (p for p in config.get("providers", []) if p["id"] == provider_id),
-            None
-        )
-        
+        provider = next((p for p in config.get("providers", []) if p["id"] == provider_id), None)
+
         if provider is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"API provider not found: {provider_id}",
             )
-        
+
         provider_type = provider.get("type", "api")
-        
+
         if provider_type == "llm":
             base_url = provider.get("base_url") or provider.get("default_base_url")
             if provider.get("base_url_env"):
@@ -743,18 +732,18 @@ async def test_api_provider_connection(
                     success=False,
                     live=False,
                     message="LLM provider missing base_url",
-                    details={"provider_id": provider_id, "type": provider_type}
+                    details={"provider_id": provider_id, "type": provider_type},
                 )
-            
+
             api_key = resolve_api_key(provider_id)
-            
+
             if not api_key:
                 return ConnectionTestResponse(
                     success=False,
                     live=False,
                     message="LLM provider missing API key",
                     checked_endpoint=f"{base_url.rstrip('/')}/models",
-                    details={"provider_id": provider_id, "type": provider_type}
+                    details={"provider_id": provider_id, "type": provider_type},
                 )
 
             models = provider.get("models", [])
@@ -781,7 +770,7 @@ async def test_api_provider_connection(
                     models_response.raise_for_status()
             latency_ms = round((time.perf_counter() - started) * 1000)
             capabilities = {cap for model in models for cap in model.get("capabilities", [])}
-            
+
             return ConnectionTestResponse(
                 success=True,
                 live=True,
@@ -795,19 +784,19 @@ async def test_api_provider_connection(
                     "provider_id": provider_id,
                     "type": provider_type,
                     "base_url": base_url,
-                    "has_api_key": True
-                }
+                    "has_api_key": True,
+                },
             )
-        
+
         elif provider_type == "tool":
             if not provider.get("entrypoint") and not provider.get("library"):
                 return ConnectionTestResponse(
                     success=False,
                     live=False,
                     message="Tool provider missing entrypoint or library",
-                    details={"provider_id": provider_id, "type": provider_type}
+                    details={"provider_id": provider_id, "type": provider_type},
                 )
-            
+
             return ConnectionTestResponse(
                 success=True,
                 live=False,
@@ -816,19 +805,19 @@ async def test_api_provider_connection(
                     "provider_id": provider_id,
                     "type": provider_type,
                     "entrypoint": provider.get("entrypoint"),
-                    "library": provider.get("library")
-                }
+                    "library": provider.get("library"),
+                },
             )
-        
+
         else:  # api type
             if not provider.get("base_url"):
                 return ConnectionTestResponse(
                     success=False,
                     live=False,
                     message="API provider missing base_url",
-                    details={"provider_id": provider_id, "type": provider_type}
+                    details={"provider_id": provider_id, "type": provider_type},
                 )
-            
+
             return ConnectionTestResponse(
                 success=True,
                 live=False,
@@ -836,10 +825,10 @@ async def test_api_provider_connection(
                 details={
                     "provider_id": provider_id,
                     "type": provider_type,
-                    "base_url": provider.get("base_url")
-                }
+                    "base_url": provider.get("base_url"),
+                },
             )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -854,7 +843,7 @@ async def test_api_provider_connection(
             success=False,
             live=False,
             message=f"Connection test failed: {str(e)}",
-            details={"provider_id": provider_id, "error": str(e)[:500]}
+            details={"provider_id": provider_id, "error": str(e)[:500]},
         )
 
 
@@ -867,58 +856,56 @@ async def get_api_provider_history(
 ) -> ConfigHistoryResponse:
     """
     Get API provider version history.
-    
+
     Args:
         request: FastAPI request object
         provider_id: Provider identifier
         limit: Maximum number of history entries to return
         current_user: Current authenticated user
-        
+
     Returns:
         Configuration history with versions
-        
+
     Requirements: 9.2
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Getting API provider history",
         request_id=request_id,
         provider_id=provider_id,
     )
-    
+
     try:
         versioned_service = _get_versioned_service()
-        
+
         if not versioned_service:
             raise HTTPException(
                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
                 detail="Version history not available (database not configured)",
             )
-        
+
         history = versioned_service.get_config_history(
             config_type="api_provider",
             config_id=provider_id,
             limit=limit,
             user_id=current_user.user_id,
         )
-        
+
         if not history:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No history found for API provider: {provider_id}",
             )
-        
-        history_entries = [
-            ConfigHistoryEntry(**entry) for entry in history
-        ]
-        
+
+        history_entries = [ConfigHistoryEntry(**entry) for entry in history]
+
         return ConfigHistoryResponse(
             config_type="api_provider",
             config_id=provider_id,
             history=history_entries,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -932,4 +919,4 @@ async def get_api_provider_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get API provider history: {str(e)}",
-        )
+        ) from e

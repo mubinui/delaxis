@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,9 @@ class CrewAITracingSettings(BaseModel):
 
     enabled: bool = True
     amp_enabled: bool = False
-    event_listeners: list[str] = Field(default_factory=lambda: ["crew", "agent", "task", "tool", "llm", "memory"])
+    event_listeners: list[str] = Field(
+        default_factory=lambda: ["crew", "agent", "task", "tool", "llm", "memory"]
+    )
 
 
 class CrewAIGuardrailSettings(BaseModel):
@@ -75,7 +77,7 @@ class CrewAIConfig(BaseModel):
     guardrails: CrewAIGuardrailSettings = Field(default_factory=CrewAIGuardrailSettings)
     deployment: CrewAIDeploymentSettings = Field(default_factory=CrewAIDeploymentSettings)
     output_schema: dict[str, Any] | str | None = "text"
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 def _config_path() -> Path:
@@ -110,7 +112,7 @@ def _load_config() -> CrewAIConfig:
 def _save_config(config: CrewAIConfig) -> CrewAIConfig:
     path = _config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    config.updated_at = datetime.utcnow()
+    config.updated_at = datetime.now(UTC)
     path.write_text(json.dumps(config.model_dump(mode="json"), indent=2))
     return config
 
@@ -126,7 +128,7 @@ async def update_crewai_config(body: CrewAIConfig) -> CrewAIConfig:
     """Persist CrewAI runtime configuration."""
     if body.runtime != "crewai":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Delaxis is CrewAI-only; runtime must be 'crewai'.",
         )
     return _save_config(body)

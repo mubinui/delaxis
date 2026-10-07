@@ -38,14 +38,14 @@ def collect(args: argparse.Namespace) -> list[Path]:
         raise SystemExit(f"not a directory: {root}")
     found = root.rglob("*") if args.recursive else root.glob("*")
     return sorted(
-        path for path in found
-        if path.is_file() and path.suffix.lower() in ALLOWED_SUFFIXES
+        path for path in found if path.is_file() and path.suffix.lower() in ALLOWED_SUFFIXES
     )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--file", help="one file to index")
     source.add_argument("--dir", help="a directory of files to index")
@@ -62,16 +62,23 @@ def main() -> int:
     if args.list:
         documents = service.documents(args.collection)
         stats = service.stats(args.collection)
-        print(f"{collection}: {stats['chunks']} chunk(s) from {len(documents)} document(s) "
-              f"in {stats['backend']}, embedded with {stats['embeddings']}")
+        print(
+            f"{collection}: {stats['chunks']} chunk(s) from {len(documents)} document(s) "
+            f"in {stats['backend']}, embedded with {stats['embeddings']}"
+        )
         for item in documents:
-            print(f"  {item['source']:<48} {item['chunks']:>4} chunk(s)  {item['characters']:>8} chars")
+            print(
+                f"  {item['source']:<48} {item['chunks']:>4} chunk(s)  {item['characters']:>8} chars"
+            )
         return 0
 
     if args.delete:
         removed = service.delete_document(args.delete, args.collection)
-        print(f"removed {removed} chunk(s) for {args.delete!r}"
-              if removed else f"{args.delete!r} was not indexed in {collection}")
+        print(
+            f"removed {removed} chunk(s) for {args.delete!r}"
+            if removed
+            else f"{args.delete!r} was not indexed in {collection}"
+        )
         return 0 if removed else 1
 
     if not (args.file or args.dir):
@@ -88,14 +95,16 @@ def main() -> int:
             print(f"  {path}")
         return 0
 
-    print(f"indexing {len(targets)} file(s) into {collection} "
-          f"({service.store.name}, {service.embedder.name} embeddings)")
+    print(
+        f"indexing {len(targets)} file(s) into {collection} "
+        f"({service.store.name}, {service.embedder.name} embeddings)"
+    )
 
     indexed = failed = 0
     for path in targets:
         try:
             result = service.ingest_file(path, collection=args.collection)
-        except Exception as exc:                      # one bad file must not stop the run
+        except Exception as exc:  # one bad file must not stop the run
             print(f"  {path.name:<44} failed: {exc}")
             failed += 1
             continue
@@ -108,8 +117,10 @@ def main() -> int:
             failed += 1
 
     stats = service.stats(args.collection)
-    print(f"\n{indexed} indexed, {failed} skipped — {collection} now holds "
-          f"{stats['chunks']} chunk(s) from {stats['documents']} document(s)")
+    print(
+        f"\n{indexed} indexed, {failed} skipped — {collection} now holds "
+        f"{stats['chunks']} chunk(s) from {stats['documents']} document(s)"
+    )
     return 0 if indexed else 1
 
 

@@ -1,6 +1,6 @@
 """Configuration versioning API endpoints with optimistic locking."""
 
-from typing import Optional, Dict, Any
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -8,12 +8,13 @@ from pydantic import BaseModel, Field
 
 from src.api.auth import CurrentUser, require_admin, require_user
 from src.audit_logging import AuditLogger
-from src.config.settings import get_settings
 from src.config.config_loader import get_config_loader
+from src.config.settings import get_settings
 
 # Versioned config service is optional and requires PostgreSQL
 try:
     from src.config.versioned_service import VersionedConfigService
+
     VERSIONED_SERVICE_AVAILABLE = True
 except ImportError:
     VersionedConfigService = None
@@ -34,16 +35,14 @@ class ConfigResponse(BaseModel):
     version: int
     etag: str
     last_updated: str
-    updated_by: Optional[str] = None
+    updated_by: str | None = None
 
 
 class ConfigUpdateRequest(BaseModel):
     """Configuration update request."""
 
     config_data: dict = Field(..., description="Updated configuration data")
-    change_summary: Optional[str] = Field(
-        None, description="Summary of changes made"
-    )
+    change_summary: str | None = Field(None, description="Summary of changes made")
 
 
 class ConfigHistoryEntry(BaseModel):
@@ -52,8 +51,8 @@ class ConfigHistoryEntry(BaseModel):
     version: int
     etag: str
     created_at: str
-    updated_by: Optional[str]
-    change_summary: Optional[str]
+    updated_by: str | None
+    change_summary: str | None
     config_data: dict
 
 
@@ -78,8 +77,8 @@ class ConflictResponse(BaseModel):
     current_version: int
     current_etag: str
     current_config: dict
-    provided_version: Optional[int] = None
-    provided_etag: Optional[str] = None
+    provided_version: int | None = None
+    provided_etag: str | None = None
     diff: dict
 
 
@@ -89,7 +88,7 @@ def get_versioned_config_service() -> "VersionedConfigService":
     if not VERSIONED_SERVICE_AVAILABLE:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Configuration versioning requires PostgreSQL which is not available"
+            detail="Configuration versioning requires PostgreSQL which is not available",
         )
     settings = get_settings()
     audit_logger = AuditLogger()
@@ -175,7 +174,7 @@ async def get_config(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get configuration: {str(e)}",
-        )
+        ) from e
 
 
 @router.put("/{config_type}/{config_id}", response_model=ConfigResponse)
@@ -184,7 +183,7 @@ async def update_config(
     config_type: str,
     config_id: str,
     body: ConfigUpdateRequest,
-    if_match: Optional[str] = Header(None, description="Version token (etag or version number)"),
+    if_match: str | None = Header(None, description="Version token (etag or version number)"),
     current_user: CurrentUser = Depends(require_admin),
     service: VersionedConfigService = Depends(get_versioned_config_service),
 ) -> ConfigResponse:
@@ -290,7 +289,7 @@ async def update_config(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update configuration: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/{config_type}/{config_id}/history", response_model=ConfigHistoryResponse)
@@ -355,7 +354,7 @@ async def get_config_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get configuration history: {str(e)}",
-        )
+        ) from e
 
 
 @router.post("/{config_type}/{config_id}/rollback", response_model=ConfigResponse)
@@ -450,7 +449,7 @@ async def rollback_config(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to rollback configuration: {str(e)}",
-        )
+        ) from e
 
 
 @router.post("/reload", status_code=status.HTTP_204_NO_CONTENT)
@@ -460,33 +459,33 @@ async def reload_configurations(
 ) -> None:
     """
     Manually reload all configuration files.
-    
+
     Forces a reload of all JSON configuration files from disk.
     Useful after manual file edits or deployment updates.
-    
+
     Args:
         request: FastAPI request object
         current_user: Current authenticated admin user
-        
+
     Requirements: Admin access required
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Reloading all configurations",
         request_id=request_id,
         user=current_user.username,
     )
-    
+
     try:
         loader = get_config_loader()
         loader.reload_all()
-        
+
         logger.info(
             "Successfully reloaded all configurations",
             request_id=request_id,
         )
-        
+
     except Exception as e:
         logger.error(
             "Failed to reload configurations",
@@ -497,60 +496,60 @@ async def reload_configurations(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to reload configurations: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/status")
 async def get_configuration_status(
     request: Request,
     current_user: CurrentUser = Depends(require_admin),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get status of all loaded configurations.
-    
+
     Returns information about loaded configuration files,
     including versions and last load timestamps.
-    
+
     Args:
         request: FastAPI request object
         current_user: Current authenticated admin user
-        
+
     Returns:
         Configuration status information
-        
+
     Requirements: Admin access required
     """
     request_id = getattr(request.state, "request_id", None)
-    
+
     logger.info(
         "Getting configuration status",
         request_id=request_id,
     )
-    
+
     try:
         loader = get_config_loader()
-        
+
         status_info = {
             "hot_reload_enabled": loader.enable_hot_reload,
             "config_directory": str(loader.config_dir),
-            "configurations": {}
+            "configurations": {},
         }
-        
+
         # Get status for each configuration type
         for config_name in ["agents", "tools", "workflows", "api_providers", "prompt_templates"]:
             if loader.is_loaded(config_name):
                 status_info["configurations"][config_name] = {
                     "loaded": True,
                     "version": loader.get_config_version(config_name),
-                    "last_loaded": loader.get_last_loaded(config_name).isoformat() if loader.get_last_loaded(config_name) else None,
+                    "last_loaded": loader.get_last_loaded(config_name).isoformat()
+                    if loader.get_last_loaded(config_name)
+                    else None,
                 }
             else:
-                status_info["configurations"][config_name] = {
-                    "loaded": False
-                }
-        
+                status_info["configurations"][config_name] = {"loaded": False}
+
         return status_info
-        
+
     except Exception as e:
         logger.error(
             "Failed to get configuration status",
@@ -561,4 +560,4 @@ async def get_configuration_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get configuration status: {str(e)}",
-        )
+        ) from e

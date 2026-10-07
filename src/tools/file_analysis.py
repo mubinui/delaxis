@@ -19,7 +19,7 @@ import json
 import mimetypes
 import os
 import struct
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,16 +37,50 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Formats accepted by the upload endpoint. Anything else is rejected there, so
 # the analysers never meet a file type they have no path for.
-ALLOWED_SUFFIXES: frozenset[str] = frozenset({
-    ".txt", ".md", ".markdown", ".rst", ".log",
-    ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml", ".xml", ".html",
-    ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx",
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".tiff",
-})
+ALLOWED_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".txt",
+        ".md",
+        ".markdown",
+        ".rst",
+        ".log",
+        ".csv",
+        ".tsv",
+        ".json",
+        ".jsonl",
+        ".yaml",
+        ".yml",
+        ".xml",
+        ".html",
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".xlsx",
+        ".xls",
+        ".pptx",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".svg",
+        ".tiff",
+    }
+)
 
-IMAGE_SUFFIXES: frozenset[str] = frozenset({
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".tiff",
-})
+IMAGE_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".svg",
+        ".tiff",
+    }
+)
 
 MAX_UPLOAD_BYTES = int(env("DELAXIS_MAX_UPLOAD_BYTES", "26214400") or 26214400)  # 25 MB
 MAX_EXTRACT_CHARS = 40_000
@@ -169,9 +203,7 @@ def _extract_pdf(path: Path) -> dict[str, Any]:
             "extractor": "pypdf",
             "page_count": len(reader.pages),
             "metadata": {
-                key.lstrip("/"): str(value)
-                for key, value in meta.items()
-                if isinstance(key, str)
+                key.lstrip("/"): str(value) for key, value in meta.items() if isinstance(key, str)
             },
         }
     except Exception as exc:
@@ -297,9 +329,11 @@ def _json_shape(value: Any, depth: int = 0) -> Any:
     if isinstance(value, list):
         if not value:
             return []
-        return [_json_shape(value[0], depth + 1), f"... {len(value)} items"] if len(value) > 1 else [
-            _json_shape(value[0], depth + 1)
-        ]
+        return (
+            [_json_shape(value[0], depth + 1), f"... {len(value)} items"]
+            if len(value) > 1
+            else [_json_shape(value[0], depth + 1)]
+        )
     return type(value).__name__
 
 
@@ -381,7 +415,10 @@ def describe_image_with_model(path: Path, question: str) -> dict[str, Any]:
         return {"available": False, "note": f"Vision provider could not be resolved: {exc}"}
 
     if not base_url:
-        return {"available": False, "note": f"Provider '{provider}' has no OpenAI-compatible base_url."}
+        return {
+            "available": False,
+            "note": f"Provider '{provider}' has no OpenAI-compatible base_url.",
+        }
     if auth_required and not api_key:
         return {"available": False, "note": f"No API key configured for provider '{provider}'."}
 
@@ -479,7 +516,7 @@ def list_uploaded_files(pattern: str = "", limit: int = 50) -> str:
                 "size": _human_size(stat.st_size),
                 "size_bytes": stat.st_size,
                 "kind": "image" if item.suffix.lower() in IMAGE_SUFFIXES else "document",
-                "uploaded": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+                "uploaded": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
             }
         )
 
@@ -508,14 +545,14 @@ def analyze_file(path: str, max_chars: int = 8000) -> str:
         return json.dumps({"error": str(exc)})
 
     if not target.exists():
-        return json.dumps({"error": f"'{path}' does not exist. Use list_uploaded_files to see what is available."})
+        return json.dumps(
+            {"error": f"'{path}' does not exist. Use list_uploaded_files to see what is available."}
+        )
     if target.is_dir():
         return json.dumps({"error": f"'{path}' is a directory. Use context_tree instead."})
 
     if target.suffix.lower() in IMAGE_SUFFIXES:
-        return json.dumps(
-            {"error": f"'{path}' is an image. Use analyze_image instead."}
-        )
+        return json.dumps({"error": f"'{path}' is an image. Use analyze_image instead."})
 
     cap = max(500, min(int(max_chars), MAX_EXTRACT_CHARS))
     result = extract_file_text(target)
@@ -558,7 +595,9 @@ def analyze_image(path: str, question: str = "Describe this image in detail.") -
         return json.dumps({"error": str(exc)})
 
     if not target.exists():
-        return json.dumps({"error": f"'{path}' does not exist. Use list_uploaded_files to see what is available."})
+        return json.dumps(
+            {"error": f"'{path}' does not exist. Use list_uploaded_files to see what is available."}
+        )
     if target.suffix.lower() not in IMAGE_SUFFIXES:
         return json.dumps({"error": f"'{path}' is not an image. Use analyze_file instead."})
 
@@ -640,9 +679,12 @@ def save_uploaded_bytes(filename: str, payload: bytes) -> dict[str, Any]:
 
     # Strip every directory component: an upload named "../../etc/cron.d/x"
     # must not be able to steer where it lands.
-    safe_stem = "".join(
-        char if char.isalnum() or char in "-_. " else "_" for char in Path(filename).stem
-    ).strip() or "upload"
+    safe_stem = (
+        "".join(
+            char if char.isalnum() or char in "-_. " else "_" for char in Path(filename).stem
+        ).strip()
+        or "upload"
+    )
     directory = uploads_dir()
     target = directory / f"{safe_stem}{suffix}"
     counter = 1
@@ -658,7 +700,7 @@ def save_uploaded_bytes(filename: str, payload: bytes) -> dict[str, Any]:
         "size_bytes": stat.st_size,
         "kind": "image" if suffix in IMAGE_SUFFIXES else "document",
         "mime_type": mimetypes.guess_type(str(target))[0],
-        "uploaded": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        "uploaded": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
     }
 
 

@@ -61,7 +61,9 @@ def session_manager(monkeypatch, tmp_path):
             return object() if workflow_id == "wf1" else None
 
     monkeypatch.setattr("src.api.session_manager.get_settings", lambda: FakeSettings())
-    monkeypatch.setattr("src.api.session_manager.get_workflow_registry", lambda: FakeWorkflowRegistry())
+    monkeypatch.setattr(
+        "src.api.session_manager.get_workflow_registry", lambda: FakeWorkflowRegistry()
+    )
 
     from src.api.session_manager import SessionManager
 
@@ -70,10 +72,7 @@ def session_manager(monkeypatch, tmp_path):
 
 async def test_stream_message_yields_live_node_events(session_manager) -> None:
     session = await session_manager.create_session("wf1")
-    deltas = [
-        delta
-        async for delta in session_manager.stream_message(session.session_id, "hello")
-    ]
+    deltas = [delta async for delta in session_manager.stream_message(session.session_id, "hello")]
 
     types = [delta.type for delta in deltas]
     assert types[0] == ResponseDeltaType.START
@@ -107,10 +106,7 @@ async def test_stream_message_passes_event_sink_to_runtime(session_manager) -> N
 async def test_stream_message_emits_error_when_run_fails(monkeypatch, session_manager) -> None:
     session_manager.runtime = FakeRuntime(fail=True)
     session = await session_manager.create_session("wf1")
-    deltas = [
-        delta
-        async for delta in session_manager.stream_message(session.session_id, "hello")
-    ]
+    deltas = [delta async for delta in session_manager.stream_message(session.session_id, "hello")]
     types = [delta.type for delta in deltas]
     assert types[0] == ResponseDeltaType.START
     assert types[-1] == ResponseDeltaType.ERROR

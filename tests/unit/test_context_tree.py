@@ -287,7 +287,9 @@ class TestDescribe:
         assert result["kind"] == "text"
 
     def test_reports_python_definitions(self, sandbox):
-        (sandbox["root"] / "mod.py").write_text("import os\n\n\nclass Thing:\n    pass\n\n\ndef run():\n    pass\n")
+        (sandbox["root"] / "mod.py").write_text(
+            "import os\n\n\nclass Thing:\n    pass\n\n\ndef run():\n    pass\n"
+        )
         result = json.loads(describe_context_file("mod.py"))
         assert "class Thing:" in result["outline"]
         assert "def run():" in result["outline"]

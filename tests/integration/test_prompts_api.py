@@ -1,7 +1,13 @@
-"""Integration tests for Prompts API endpoints."""
+"""Integration tests for the Prompts API.
+
+The API runs with authentication disabled in development mode, so the CRUD
+tests exercise the real code path. One test flips the environment to
+production and checks that the same endpoints then refuse anonymous calls.
+"""
 
 import json
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,94 +15,111 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.main import app
+from src.config.settings import get_settings
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
+def client() -> TestClient:
     return TestClient(app)
 
 
 @pytest.fixture
-def temp_config_dir():
-    """Create a temporary config directory."""
+def temp_config_dir() -> Iterator[Path]:
+    """Point the prompts router at an empty, throwaway prompt_templates.json."""
     with tempfile.TemporaryDirectory() as tmpdir:
         config_path = Path(tmpdir) / "prompt_templates.json"
-        initial_config = {
-            "version": "1.0",
-            "contexts": [],
-            "fallbacks": {}
-        }
-        with open(config_path, "w") as f:
-            json.dump(initial_config, f)
-        
-        with patch("src.api.routers.prompts._get_prompts_config_path", return_value=config_path):
-            yield tmpdir
+        config_path.write_text(json.dumps({"version": "1.0", "contexts": [], "fallbacks": {}}))
+        with (
+            patch("src.api.routers.prompts._get_prompts_config_path", return_value=config_path),
+            # Keep the test on the file store even when the developer's .env
+            # names a database; the versioned store is covered by its own tests.
+            patch("src.api.routers.prompts._get_versioned_service", return_value=None),
+        ):
+            yield config_path
 
 
-def test_create_prompt(client, temp_config_dir):
-    """Test creating a new prompt template."""
-    prompt_data = {
-        "id": "test_prompt",
-        "name": "Test Prompt",
-        "description": "A test prompt template",
-        "template": "Hello {name}, your age is {age}",
-        "variables": ["name", "age"],
-        "category": "test"
-    }
-    
-    # Note: This will fail without authentication, but tests the endpoint structure
-    response = client.post("/api/v1/prompts", json=prompt_data)
-    
-    # Without auth, we expect 401 or 403
-    assert response.status_code in [401, 403]
+PROMPT = {
+    "id": "test_prompt",
+    "name": "Test Prompt",
+    "description": "A test prompt template",
+    "template": "Hello {name}, your age is {age}",
+    "category": "test",
+}
+
+
+def _create(client: TestClient) -> dict:
+    response = client.post("/api/v1/prompts", json=PROMPT)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def test_create_prompt_extracts_variables(client, temp_config_dir):
+    body = _create(client)
+    assert body["id"] == "test_prompt"
+    assert body["template"] == PROMPT["template"]
+    assert body["variables"] == ["name", "age"]
+    stored = json.loads(temp_config_dir.read_text())
+    assert [p["id"] for p in stored["contexts"]] == ["test_prompt"]
+
+
+def test_create_duplicate_is_a_conflict(client, temp_config_dir):
+    _create(client)
+    response = client.post("/api/v1/prompts", json=PROMPT)
+    assert response.status_code == 409
 
 
 def test_list_prompts(client, temp_config_dir):
-    """Test listing all prompts."""
-    # Note: This will fail without authentication
-    response = client.get("/api/v1/prompts")
-    
-    # Without auth, we expect 401 or 403
-    assert response.status_code in [401, 403]
+    assert client.get("/api/v1/prompts").json() == []
+    _create(client)
+    listed = client.get("/api/v1/prompts").json()
+    assert [p["id"] for p in listed] == ["test_prompt"]
 
 
 def test_get_prompt(client, temp_config_dir):
-    """Test getting a specific prompt."""
-    # Note: This will fail without authentication
+    assert client.get("/api/v1/prompts/test_prompt").status_code == 404
+    _create(client)
     response = client.get("/api/v1/prompts/test_prompt")
-    
-    # Without auth, we expect 401 or 403
-    assert response.status_code in [401, 403]
+    assert response.status_code == 200
+    assert response.json()["name"] == "Test Prompt"
 
 
 def test_update_prompt(client, temp_config_dir):
-    """Test updating a prompt template."""
-    update_data = {
-        "name": "Updated Test Prompt",
-        "description": "An updated test prompt"
-    }
-    
-    # Note: This will fail without authentication
-    response = client.put("/api/v1/prompts/test_prompt", json=update_data)
-    
-    # Without auth, we expect 401 or 403
-    assert response.status_code in [401, 403]
+    _create(client)
+    response = client.put(
+        "/api/v1/prompts/test_prompt",
+        json={"name": "Updated Test Prompt", "description": "An updated test prompt"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["name"] == "Updated Test Prompt"
+    assert body["template"] == PROMPT["template"], "fields left out of the update must survive"
+    assert client.put("/api/v1/prompts/missing", json={"name": "x"}).status_code == 404
 
 
 def test_delete_prompt(client, temp_config_dir):
-    """Test deleting a prompt template."""
-    # Note: This will fail without authentication
-    response = client.delete("/api/v1/prompts/test_prompt")
-    
-    # Without auth, we expect 401 or 403
-    assert response.status_code in [401, 403]
+    _create(client)
+    assert client.delete("/api/v1/prompts/test_prompt").status_code == 204
+    assert client.get("/api/v1/prompts/test_prompt").status_code == 404
+    assert client.delete("/api/v1/prompts/test_prompt").status_code == 404
 
 
-def test_get_prompt_history(client, temp_config_dir):
-    """Test getting prompt version history."""
-    # Note: This will fail without authentication
+def test_get_prompt_history_needs_the_versioned_store(client, temp_config_dir):
+    """Without a database there is no history, and the API must say so rather than 500."""
+    _create(client)
     response = client.get("/api/v1/prompts/test_prompt/history")
-    
-    # Without auth, we expect 401 or 403
-    assert response.status_code in [401, 403]
+    assert response.status_code == 501, response.text
+
+
+def test_production_mode_requires_authentication(client, temp_config_dir):
+    settings = get_settings()
+    original = settings.app.environment
+    settings.app.environment = "production"
+    try:
+        assert client.get("/api/v1/prompts").status_code == 401
+        assert client.post("/api/v1/prompts", json=PROMPT).status_code == 401
+        assert client.get("/api/v1/prompts/test_prompt").status_code == 401
+        assert client.put("/api/v1/prompts/test_prompt", json={"name": "x"}).status_code == 401
+        assert client.delete("/api/v1/prompts/test_prompt").status_code == 401
+        assert client.get("/api/v1/prompts/test_prompt/history").status_code == 401
+    finally:
+        settings.app.environment = original

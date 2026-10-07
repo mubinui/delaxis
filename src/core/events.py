@@ -1,14 +1,14 @@
 """Typed event models for streaming agent execution."""
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
-class ResponseDeltaType(str, Enum):
+class ResponseDeltaType(StrEnum):
     """Event types emitted by streaming agent execution."""
 
     START = "start"

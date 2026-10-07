@@ -238,7 +238,9 @@ async def voice_websocket(websocket: WebSocket, ticket: str = "") -> None:
         return
 
     try:
-        config, api_key, system_prompt, voice_name, max_seconds = _resolve_voice_settings(deployment)
+        config, api_key, system_prompt, voice_name, max_seconds = _resolve_voice_settings(
+            deployment
+        )
     except VoiceConfigError as exc:
         await websocket.close(code=p.CLOSE_UNAUTHORIZED, reason=str(exc)[:120])
         return
@@ -299,7 +301,7 @@ async def voice_websocket(websocket: WebSocket, ticket: str = "") -> None:
             timeout=max_seconds,
         )
         await _send_quietly(websocket, {"t": p.SERVER_ENDED, "reason": stats.reason})
-    except asyncio.TimeoutError:
+    except TimeoutError:
         await _send_quietly(websocket, {"t": p.SERVER_ENDED, "reason": p.REASON_TIME_LIMIT})
         logger.info("voice_session_time_limit", session_id=session_id, limit=max_seconds)
     except WebSocketDisconnect:
