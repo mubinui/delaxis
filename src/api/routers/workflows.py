@@ -1,5 +1,6 @@
 """Workflow management endpoints."""
 
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -48,7 +49,10 @@ def _load_workflows_config() -> dict:
     """Load workflows configuration from file using config loader."""
     try:
         loader = get_config_loader()
-        return loader.get_config("workflows")
+        # A copy: handlers edit the result and then save it. Editing the loader's
+        # own cache in place meant a rejected or failed save still changed what
+        # every later request saw, and any caller that forgot to save leaked.
+        return copy.deepcopy(loader.get_config("workflows"))
     except FileNotFoundError:
         return {"version": "1.0", "workflows": []}
 
@@ -60,6 +64,7 @@ def _save_workflows_config(config: dict) -> None:
 
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
+    get_config_loader().set_config("workflows", copy.deepcopy(config))
 
     # Trigger reload in config loader
     try:

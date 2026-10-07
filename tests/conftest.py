@@ -11,9 +11,11 @@ against, and removes them again afterwards.
 from __future__ import annotations
 
 import asyncio
+import copy
 import os
 import time
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -101,7 +103,7 @@ def fixture_workflows(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
     real_load = workflows_router._load_workflows_config
 
     def load_with_fixtures() -> dict:
-        config = real_load()
+        config = copy.deepcopy(real_load())
         known = {w["id"] for w in config.get("workflows", [])}
         config["workflows"] = config.get("workflows", []) + [
             w for w in FIXTURE_WORKFLOWS if w["id"] not in known
@@ -173,3 +175,47 @@ def fake_runtime(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
 
     monkeypatch.setattr(CrewAIWorkflowRuntime, "run_message", run_message)
     return calls
+
+
+# --- The shipped configs are read-only for the whole suite -------------------------------
+
+CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
+
+
+def _config_snapshot() -> dict[str, bytes]:
+    return {path.name: path.read_bytes() for path in sorted(CONFIG_DIR.glob("*.json"))}
+
+
+@pytest.fixture(autouse=True)
+def shipped_configs_are_not_modified() -> Iterator[None]:
+    """Fail the test that writes to configs/*.json, and put the files back.
+
+    Tests that need a config file to write to must point the code at a copy
+    (see the prompts tests). Otherwise a fixture or a saved test case can end up
+    committed as if it were a shipped workflow.
+    """
+    before = _config_snapshot()
+    yield
+    after = _config_snapshot()
+    changed = sorted(name for name in before if before[name] != after.get(name))
+    added = sorted(set(after) - set(before))
+    if changed or added:
+        import difflib
+
+        excerpt = ""
+        for name in changed[:1]:
+            diff = difflib.unified_diff(
+                before[name].decode(errors="replace").splitlines(),
+                after[name].decode(errors="replace").splitlines(),
+                lineterm="",
+                n=1,
+            )
+            excerpt = "\n".join(list(diff)[:40])
+        for name, content in before.items():
+            (CONFIG_DIR / name).write_bytes(content)
+        for name in added:
+            (CONFIG_DIR / name).unlink()
+        pytest.fail(
+            f"this test wrote to the shipped configs (changed: {changed}, added: {added}); "
+            f"point the code at a temporary copy instead\n{excerpt}"
+        )

@@ -152,6 +152,15 @@ class ConfigLoader:
 
         return self._cache[config_name]
 
+    def set_config(self, config_name: str, config: dict[str, Any]) -> None:
+        """Replace one cached config with what was just written to disk.
+
+        Writers hand the loader the exact structure they saved, so readers see
+        the new state immediately, with or without the file watcher.
+        """
+        self._cache[config_name] = config
+        self._last_loaded[config_name] = datetime.now(UTC)
+
     def get_agents(self) -> list[dict[str, Any]]:
         """Get all agent configurations."""
         config = self.get_config("agents")

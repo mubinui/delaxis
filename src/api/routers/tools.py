@@ -1,6 +1,7 @@
 """Tool management endpoints."""
 
 import asyncio
+import copy
 import inspect
 import json
 import time
@@ -40,7 +41,10 @@ def _load_tools_config() -> dict:
     """Load tools configuration from file using config loader."""
     try:
         loader = get_config_loader()
-        return loader.get_config("tools")
+        # A copy: handlers edit the result and then save it. Editing the loader's
+        # own cache in place meant a rejected or failed save still changed what
+        # every later request saw, and any caller that forgot to save leaked.
+        return copy.deepcopy(loader.get_config("tools"))
     except FileNotFoundError:
         return {"version": "1.0", "tools": []}
 
@@ -52,6 +56,7 @@ def _save_tools_config(config: dict) -> None:
 
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
+    get_config_loader().set_config("tools", copy.deepcopy(config))
 
     # Trigger reload in config loader
     try:
