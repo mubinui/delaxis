@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from src.config.behavior_models import AgentBehaviorConfig
 
@@ -213,6 +213,9 @@ class AgentConfig(BaseModel):
     id: str = Field(pattern=r"^[a-z0-9_]+$", description="Unique agent identifier")
     type: AgentType = Field(description="Type of agent to create")
     name: str = Field(description="Display name for the agent")
+    output_key: str | None = Field(
+        default=None, description="Name the agent's result is stored under for later steps"
+    )
     system_message: str | None = Field(
         default=None,
         validation_alias=AliasChoices("system_message", "instruction"),
@@ -397,6 +400,8 @@ class AgentConfig(BaseModel):
 
 class AgentsConfig(BaseModel):
     """Root configuration for agents."""
+
+    model_config = ConfigDict(extra="allow")
 
     version: str = Field(description="Configuration version")
     agents: list[AgentConfig] = Field(description="List of agent configurations")

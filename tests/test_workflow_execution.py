@@ -15,6 +15,8 @@ from httpx import AsyncClient
 
 from src.api.test_models import TestStatus
 
+pytestmark = pytest.mark.usefixtures("fixture_workflows", "fake_runtime")
+
 
 class TestStandaloneWorkflowExecution:
     """Test standalone workflow execution endpoint."""
@@ -77,7 +79,7 @@ class TestStandaloneWorkflowExecution:
             headers={"Authorization": f"Bearer {mock_auth_token}"},
         )
 
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
     async def test_execute_disabled_workflow(self, async_client: AsyncClient, mock_auth_token: str):
@@ -91,8 +93,8 @@ class TestStandaloneWorkflowExecution:
             headers={"Authorization": f"Bearer {mock_auth_token}"},
         )
 
-        # Should fail because pipeline_example is disabled
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        # Should be refused because pipeline_example is disabled
+        assert response.status_code == status.HTTP_409_CONFLICT
 
     @pytest.mark.asyncio
     async def test_execute_workflow_timeout(self, async_client: AsyncClient, mock_auth_token: str):
@@ -511,22 +513,3 @@ class TestSessionWorkflowSelection:
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert data["workflow_id"] == "support_triage"
-
-
-@pytest.fixture
-async def async_client():
-    """Fixture providing async HTTP client."""
-    # This would be configured in conftest.py with your FastAPI app
-    from httpx import AsyncClient
-
-    from src.main import app
-
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
-
-
-@pytest.fixture
-def mock_auth_token():
-    """Fixture providing mock authentication token."""
-    # This would be configured in conftest.py
-    return "mock_token_for_testing"

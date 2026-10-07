@@ -20,6 +20,7 @@ from src.infrastructure.database.auth_store import (
     hash_api_key,
 )
 from src.infrastructure.secrets import get_global_credential_manager
+from src.utils.time import as_utc
 
 logger = structlog.get_logger(__name__)
 
@@ -222,7 +223,7 @@ async def authenticate_api_key(
         )
 
     # Check if key is expired
-    if api_key.expires_at and api_key.expires_at < datetime.now(UTC):
+    if api_key.expires_at and as_utc(api_key.expires_at) < datetime.now(UTC):
         logger.warning("api_key_expired", api_key_id=str(api_key.id))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

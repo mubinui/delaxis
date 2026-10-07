@@ -5,7 +5,6 @@ metadata. Column types are dialect-neutral: they work on SQLite (the
 zero-config default) and PostgreSQL (the production option) alike.
 """
 
-from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -24,6 +23,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, relationship
 
 from src.memory.models import AgentType, MessageRole
+from src.utils.time import utc_now_naive
 
 Base = declarative_base()
 
@@ -36,8 +36,8 @@ class Session(Base):
     session_id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     turn_count = Column(Integer, nullable=False, default=0)
     active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
     session_metadata = Column(JSON, nullable=False, default=dict)
 
     # Relationships
@@ -65,7 +65,7 @@ class Message(Base):
     )
     role = Column(Enum(MessageRole), nullable=False)
     content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, default=utc_now_naive)
     message_metadata = Column(JSON, nullable=False, default=dict)
 
     # Relationships
@@ -93,7 +93,7 @@ class AgentNote(Base):
     agent_type = Column(Enum(AgentType), nullable=False)
     note_type = Column(String(100), nullable=False)
     content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, default=utc_now_naive)
     note_metadata = Column(JSON, nullable=False, default=dict)
 
     # Relationships
@@ -119,7 +119,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="user")  # admin | user | readonly
     active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
     last_login_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
@@ -139,7 +139,7 @@ class ApiKey(Base):
     user_id = Column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     role = Column(String(50), nullable=False, default="user")
     active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
     last_used_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)
 
@@ -161,7 +161,7 @@ class ConfigSnapshot(Base):
     version = Column(Integer, nullable=False)
     etag = Column(String(64), nullable=False)  # SHA256 hash
     config_data = Column(JSON, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
     updated_by = Column(String(255), nullable=True)  # User identity
     change_summary = Column(Text, nullable=True)
 
@@ -184,8 +184,8 @@ class WorkflowDefinition(Base):
     # Stores the visual layout and node configuration
     config = Column(JSON, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     __table_args__ = (
         Index("idx_workflow_defs_name", "name"),
@@ -204,8 +204,8 @@ class AgentDefinition(Base):
     type = Column(String(50), nullable=False)  # e.g., 'assistant', 'user_proxy'
     # Stores the agent configuration (system message, llm config, etc)
     config = Column(JSON, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     __table_args__ = (
         Index("idx_agent_defs_name", "name"),
@@ -224,8 +224,8 @@ class ToolDefinition(Base):
     type = Column(String(50), nullable=False)  # 'function' or 'api'
     # Stores execution details (api_url, headers, OR python entrypoint)
     config = Column(JSON, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     __table_args__ = (
         Index("idx_tool_defs_name", "name"),
@@ -250,8 +250,8 @@ class IntegrationCredential(Base):
     encrypted_token = Column(Text, nullable=False)
     scopes = Column(JSON, nullable=False, default=list)
     token_expiry = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     __table_args__ = (
         Index("idx_integration_provider_email", "provider", "account_email", unique=True),
@@ -274,8 +274,8 @@ class WorkflowTestCase(Base):
     expected_output_pattern = Column(String(500), nullable=True)
     timeout_seconds = Column(Integer, nullable=False, default=60)
     enabled = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
     created_by = Column(String(255), nullable=True)
     meta_data = Column(JSON, nullable=False, default=dict)
 
@@ -304,7 +304,7 @@ class WorkflowTestResult(Base):
     execution_time_ms = Column(Integer, nullable=True)
     error_message = Column(Text, nullable=True)
     execution_trace = Column(JSON, nullable=True)
-    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=False, default=utc_now_naive)
     completed_at = Column(DateTime, nullable=True)
     run_by = Column(String(255), nullable=True)
     run_id = Column(
@@ -333,7 +333,7 @@ class WorkflowTestRun(Base):
     error_tests = Column(Integer, nullable=False, default=0)
     skipped_tests = Column(Integer, nullable=False, default=0)
     status = Column(String(50), nullable=False, default="pending")
-    started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=False, default=utc_now_naive)
     completed_at = Column(DateTime, nullable=True)
     run_by = Column(String(255), nullable=True)
     meta_data = Column(JSON, nullable=False, default=dict)

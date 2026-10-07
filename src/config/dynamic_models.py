@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProviderType(StrEnum):
@@ -29,6 +29,8 @@ class AuthScheme(StrEnum):
 
 class AuthConfig(BaseModel):
     """Authentication configuration for a provider."""
+
+    model_config = ConfigDict(extra="allow")
 
     scheme: AuthScheme
     env_var: str | None = Field(None, description="Environment variable containing credentials")
@@ -60,6 +62,10 @@ class ModelPricing(BaseModel):
 class ModelConfig(BaseModel):
     """LLM model configuration."""
 
+    # Catalogue entries carry provider-specific notes (deployment flags, GPU
+    # requirements, ...) that the Studio shows and nothing else interprets.
+    model_config = ConfigDict(extra="allow")
+
     name: str
     default: bool = False
     capabilities: list[ModelCapability] = []
@@ -84,11 +90,20 @@ class RequestDefaults(BaseModel):
 class ProviderConfig(BaseModel):
     """Configuration for an API provider."""
 
+    model_config = ConfigDict(extra="allow")
+
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
     name: str = Field(min_length=1)
     type: ProviderType
     description: str = Field(default="")
     enabled: bool = Field(default=True)
+    priority: int | None = Field(None, description="Lower runs first when several providers match")
+    optional_headers: dict[str, dict[str, Any] | str] = Field(
+        default_factory=dict, description="Headers sent when their value is configured"
+    )
+    live: dict[str, Any] | None = Field(
+        None, description="Realtime (voice) endpoint description; see src/api/voice/config.py"
+    )
 
     # LLM-specific fields
     base_url: str | None = None
@@ -115,9 +130,15 @@ class ProviderConfig(BaseModel):
 class APIProvidersConfig(BaseModel):
     """Root configuration for API providers."""
 
+    model_config = ConfigDict(extra="allow")
+
     version: str
     last_updated: datetime
     providers: list[ProviderConfig]
+    provider_selection: dict[str, Any] | None = Field(
+        None, description="Primary/fallback provider policy"
+    )
+    caching: dict[str, Any] | None = Field(None, description="LiteLLM response cache policy")
 
     def get_provider(self, provider_id: str) -> ProviderConfig | None:
         """Get provider by ID."""

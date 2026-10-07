@@ -33,6 +33,9 @@ from src.config.tool_models import ToolsConfig
 from src.config.vector_db_models import VectorDBRegistry
 from src.config.workflow_models import WorkflowsConfig
 
+# Keys the models accept under another name and write back under the canonical one.
+ALIASES = {"instruction": "system_message", "model_config": "model_config_override"}
+
 problems: list[str] = []
 warnings: list[str] = []
 
@@ -70,10 +73,11 @@ def round_trip(original: Any, dumped: Any, where: str) -> None:
         for key, value in original.items():
             if key.startswith("_"):
                 continue  # `_comment`, `_schema` and friends are documentation
-            if key not in dumped:
+            target = key if key in dumped else ALIASES.get(key)
+            if target is None or target not in dumped:
                 fail(f"{where}.{key}: dropped by the model")
                 continue
-            round_trip(value, dumped[key], f"{where}.{key}")
+            round_trip(value, dumped[target], f"{where}.{key}")
     elif isinstance(original, list):
         if not isinstance(dumped, list) or len(dumped) != len(original):
             fail(

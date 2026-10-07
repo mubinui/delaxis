@@ -7,13 +7,14 @@ stored — the plaintext API key is returned exactly once at creation.
 
 import hashlib
 import secrets
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 import structlog
 
 from src.infrastructure.database.connection import get_db_manager
 from src.infrastructure.database.schema import ApiKey, User
+from src.utils.time import utc_now_naive
 
 logger = structlog.get_logger(__name__)
 
@@ -84,7 +85,7 @@ class AuthStore:
     def record_login(self, user_id: UUID) -> None:
         with self._db.get_session() as session:
             session.query(User).filter(User.id == user_id).update(
-                {"last_login_at": datetime.now(UTC)}
+                {"last_login_at": utc_now_naive()}
             )
 
     # --------------------------------------------------------------- api keys
@@ -142,7 +143,7 @@ class AuthStore:
     def update_api_key_last_used(self, api_key_id: UUID) -> None:
         with self._db.get_session() as session:
             session.query(ApiKey).filter(ApiKey.id == api_key_id).update(
-                {"last_used_at": datetime.now(UTC)}
+                {"last_used_at": utc_now_naive()}
             )
 
     def revoke_api_key(self, api_key_id: UUID) -> bool:

@@ -110,6 +110,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+markers = ["integration: exercises several endpoints together"]
 addopts = "--cov=src --cov-report=term-missing"
 # Deprecations raised from our own code fail the run; third-party ones only warn.
 filterwarnings = [

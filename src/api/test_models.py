@@ -38,7 +38,10 @@ class TestStatus(StrEnum):
 class WorkflowTestCaseCreate(BaseModel):
     """Request to create a workflow test case."""
 
-    workflow_id: str = Field(description="ID of the workflow to test")
+    workflow_id: str | None = Field(
+        default=None,
+        description="Ignored when present: the workflow is the one named in the URL",
+    )
     name: str = Field(description="Name of the test case")
     description: str | None = Field(default=None, description="Test case description")
     input_message: str = Field(description="Message to send to the workflow")
@@ -106,7 +109,7 @@ class WorkflowTestResultResponse(BaseModel):
     actual_tools: list[str] | None
     execution_time_ms: int | None
     error_message: str | None
-    execution_trace: dict[str, Any] | None
+    execution_trace: list[dict[str, Any]] | dict[str, Any] | None
     started_at: datetime
     completed_at: datetime | None
     run_by: str | None

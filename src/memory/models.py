@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
+from src.utils.time import UTCDateTime
+
 
 class MessageRole(StrEnum):
     """Role of the message sender."""
@@ -32,7 +34,7 @@ class Message(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     role: MessageRole
     content: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    timestamp: UTCDateTime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -43,7 +45,7 @@ class AgentNote(BaseModel):
     agent_type: AgentType
     note_type: str  # e.g., "intent", "plan", "knowledge", "safety_check"
     content: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    timestamp: UTCDateTime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -55,8 +57,8 @@ class ConversationState(BaseModel):
     agent_notes: list[AgentNote] = Field(default_factory=list)
     turn_count: int = 0
     active: bool = True
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    created_at: UTCDateTime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: UTCDateTime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def add_message(self, role: MessageRole, content: str, **metadata: Any) -> Message:

@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class ConversationPattern(StrEnum):
@@ -695,7 +695,14 @@ class HealthResponse(BaseModel):
 
 
 class ToolExecutionRequest(BaseModel):
-    """Request to execute a tool."""
+    """Request to execute a tool.
+
+    Unknown top-level keys are rejected: a client that sends ``{"arguments": ...}``
+    or ``{"parameters": ...}`` gets a 422 naming the mistake instead of a tool
+    call with no arguments and a confusing error from inside the tool.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     args: dict[str, Any] = Field(
         default_factory=dict, description="Arguments for the tool execution"

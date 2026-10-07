@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.infrastructure.cache import RedisCache
+from src.utils.time import parse_utc
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ class LLMCacheMonitor:
                 # Parse last_reset timestamp
                 last_reset_str = data.get("last_reset")
                 if last_reset_str:
-                    self.metrics.last_reset = datetime.fromisoformat(last_reset_str)
+                    self.metrics.last_reset = parse_utc(last_reset_str)
         except Exception as e:
             logger.error(f"Failed to load LLM cache metrics: {e}")
 

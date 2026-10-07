@@ -14,6 +14,8 @@ from aio_pika import Channel, Connection, ExchangeType, Message
 from aio_pika.abc import AbstractIncomingMessage
 from aio_pika.pool import Pool
 
+from src.utils.time import parse_utc
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +49,7 @@ class AgentTask:
         # Convert strings back to UUID and datetime
         data["task_id"] = UUID(data["task_id"])
         data["session_id"] = UUID(data["session_id"])
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        data["created_at"] = parse_utc(data["created_at"])
         return cls(**data)
 
 

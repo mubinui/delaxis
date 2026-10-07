@@ -445,6 +445,20 @@ async def execute_workflow(
         dry_run=body.dry_run,
     )
 
+    # A request for something that does not exist, or is switched off, is the
+    # caller's problem and gets a 4xx; it is not a server failure.
+    workflow = get_test_runner().workflow_registry.get_workflow(workflow_id)
+    if workflow is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workflow not found: {workflow_id}",
+        )
+    if not workflow.enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Workflow is disabled: {workflow_id}",
+        )
+
     try:
         test_runner = get_test_runner()
         result = await test_runner.execute_workflow(workflow_id, body)
@@ -870,6 +884,46 @@ async def delete_test_case(
 # ============================================================================
 
 
+async def _run_and_record(
+    test_case: WorkflowTestCaseResponse, run_id: UUID | None = None
+) -> dict[str, Any]:
+    """Run one test case, store its result, and return the stored record."""
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from src.core.workflow_test_runner import responding_agent
+
+    started_at = datetime.now(UTC)
+    try:
+        exec_result, verdict, message = await get_test_runner().run_test_case(test_case)
+    except Exception as exc:  # noqa: BLE001 - a crash is a recorded ERROR, not a 500
+        logger.error("Test case execution failed", test_case_id=str(test_case.id), error=str(exc))
+        exec_result, verdict, message = None, TestStatus.ERROR, str(exc)
+    completed_at = datetime.now(UTC)
+
+    record: dict[str, Any] = {
+        "id": uuid4(),
+        "test_case_id": test_case.id,
+        "workflow_id": test_case.workflow_id,
+        "status": verdict,
+        "actual_response": exec_result.response if exec_result else None,
+        "actual_agent": responding_agent(exec_result) if exec_result else None,
+        "actual_tools": exec_result.tools_called if exec_result else None,
+        "execution_time_ms": exec_result.execution_time_ms
+        if exec_result
+        else int((completed_at - started_at).total_seconds() * 1000),
+        "error_message": message,
+        "execution_trace": exec_result.execution_trace if exec_result else None,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "run_by": None,
+        "run_id": run_id,
+        "metadata": {},
+    }
+    _test_results[str(record["id"])] = record
+    return record
+
+
 @router.post(
     "/{workflow_id}/test-cases/{test_case_id}/run", response_model=WorkflowTestResultResponse
 )
@@ -889,8 +943,6 @@ async def run_test_case(
     Returns:
         Test result
     """
-    from datetime import UTC, datetime
-    from uuid import uuid4
 
     request_id = getattr(request.state, "request_id", None)
 
@@ -917,78 +969,15 @@ async def run_test_case(
         test_name=test_case.name,
     )
 
-    # Run the test
-    test_runner = get_test_runner()
-    result_id = uuid4()
-    started_at = datetime.now(UTC)
-
-    try:
-        exec_result, status_result, error_msg = await test_runner.run_test_case(test_case)
-
-        completed_at = datetime.now(UTC)
-        execution_time_ms = exec_result.execution_time_ms if exec_result else 0
-
-        result = {
-            "id": result_id,
-            "test_case_id": UUID(test_case_id),
-            "workflow_id": workflow_id,
-            "status": status_result,
-            "actual_response": exec_result.response if exec_result else None,
-            "actual_agent": exec_result.agents_called[0]
-            if exec_result and exec_result.agents_called
-            else None,
-            "actual_tools": exec_result.tools_called if exec_result else None,
-            "execution_time_ms": execution_time_ms,
-            "error_message": error_msg,
-            "execution_trace": exec_result.execution_trace if exec_result else None,
-            "started_at": started_at,
-            "completed_at": completed_at,
-            "run_by": None,
-            "run_id": None,
-            "metadata": {},
-        }
-
-        _test_results[str(result_id)] = result
-
-        logger.info(
-            "Test case completed",
-            request_id=request_id,
-            test_case_id=test_case_id,
-            status=status_result.value,
-            execution_time_ms=execution_time_ms,
-        )
-
-        return WorkflowTestResultResponse(**result)
-
-    except Exception as e:
-        logger.error(
-            "Test case execution failed",
-            request_id=request_id,
-            test_case_id=test_case_id,
-            error=str(e),
-            exc_info=True,
-        )
-
-        result = {
-            "id": result_id,
-            "test_case_id": UUID(test_case_id),
-            "workflow_id": workflow_id,
-            "status": TestStatus.ERROR,
-            "actual_response": None,
-            "actual_agent": None,
-            "actual_tools": None,
-            "execution_time_ms": int((datetime.now(UTC) - started_at).total_seconds() * 1000),
-            "error_message": str(e),
-            "execution_trace": None,
-            "started_at": started_at,
-            "completed_at": datetime.now(UTC),
-            "run_by": None,
-            "run_id": None,
-            "metadata": {},
-        }
-
-        _test_results[str(result_id)] = result
-        return WorkflowTestResultResponse(**result)
+    record = await _run_and_record(test_case)
+    logger.info(
+        "Test case completed",
+        request_id=request_id,
+        test_case_id=test_case_id,
+        status=record["status"].value,
+        execution_time_ms=record["execution_time_ms"],
+    )
+    return WorkflowTestResultResponse(**record)
 
 
 @router.post("/{workflow_id}/test", response_model=WorkflowTestRunResponse)
@@ -1037,33 +1026,15 @@ async def run_workflow_tests(
         test_count=len(test_cases),
     )
 
-    # Run all tests
-    test_runner = get_test_runner()
-    passed = 0
-    failed = 0
-    errors = 0
-    skipped = 0
-
+    # Run all tests; each result is stored under this run so the run can be inspected.
+    counts = dict.fromkeys(TestStatus, 0)
     for tc in test_cases:
-        try:
-            exec_result, status_result, error_msg = await test_runner.run_test_case(tc)
-
-            if status_result == TestStatus.PASSED:
-                passed += 1
-            elif status_result == TestStatus.FAILED:
-                failed += 1
-            elif status_result == TestStatus.ERROR:
-                errors += 1
-            elif status_result == TestStatus.SKIPPED:
-                skipped += 1
-
-        except Exception as e:
-            logger.error(
-                "Test case error",
-                test_case_id=str(tc.id),
-                error=str(e),
-            )
-            errors += 1
+        record = await _run_and_record(tc, run_id=run_id)
+        counts[record["status"]] += 1
+    passed = counts[TestStatus.PASSED]
+    failed = counts[TestStatus.FAILED]
+    errors = counts[TestStatus.ERROR]
+    skipped = counts[TestStatus.SKIPPED]
 
     completed_at = datetime.now(UTC)
     total = len(test_cases)

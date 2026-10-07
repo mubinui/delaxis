@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Import for v0.4 topology support
 try:
@@ -453,9 +453,20 @@ class InteractiveConfig(BaseModel):
 class WorkflowConfig(BaseModel):
     """Configuration for a complete workflow."""
 
+    # Workflows are written by the API, the Studio and the Builder; a key one of
+    # them adds must not be dropped when another re-serialises the file.
+    model_config = ConfigDict(extra="allow")
+
     id: str = Field(pattern=r"^[a-z0-9_-]+$", description="Unique workflow identifier")
     name: str = Field(description="Human-readable workflow name")
     description: str = Field(description="Description of what this workflow does")
+    entry_agent_id: str | None = Field(
+        default=None, description="Agent that receives the first message"
+    )
+    max_turns: int | None = Field(default=None, ge=1, description="Conversation turn limit")
+    execution_config: dict[str, Any] | None = Field(
+        default=None, description="Runtime limits such as max_turns and timeout_seconds"
+    )
 
     pattern: ConversationPattern = Field(
         default=ConversationPattern.SEQUENTIAL,
@@ -626,6 +637,8 @@ class WorkflowConfig(BaseModel):
 
 class WorkflowsConfig(BaseModel):
     """Root configuration for workflows."""
+
+    model_config = ConfigDict(extra="allow")
 
     version: str = Field(description="Configuration version")
     workflows: list[WorkflowConfig] = Field(description="List of workflow configurations")

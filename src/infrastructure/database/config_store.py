@@ -1,6 +1,5 @@
 """PostgreSQL implementation of ConfigStore for Library (Workflows, Agents, Tools)."""
 
-from datetime import UTC, datetime
 from typing import TypeVar
 from uuid import UUID
 
@@ -8,6 +7,7 @@ from sqlalchemy import delete, select, update
 
 from src.infrastructure.database import schema
 from src.infrastructure.database.connection import DatabaseConnectionManager
+from src.utils.time import utc_now_naive
 
 T = TypeVar("T", bound=schema.Base)
 
@@ -62,8 +62,8 @@ class ConfigStore:
                 name=name,
                 description=description,
                 config=config,
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
+                created_at=utc_now_naive(),
+                updated_at=utc_now_naive(),
                 **kwargs,
             )
             session.add(item)
@@ -92,7 +92,7 @@ class ConfigStore:
         model_class = self._get_model_class(item_type)
 
         with self.db_manager.get_session() as session:
-            updates["updated_at"] = datetime.now(UTC)
+            updates["updated_at"] = utc_now_naive()
             stmt = (
                 update(model_class)
                 .where(model_class.id == item_id)

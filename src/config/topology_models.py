@@ -8,7 +8,7 @@ execution plans while keeping the REST API stable.
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TopologyType(StrEnum):
@@ -41,7 +41,15 @@ class TerminationConditionType(StrEnum):
 class AgentNode(BaseModel):
     """Represents a single agent in the workflow graph."""
 
+    # The Studio writes canvas-only keys (and may add more); they must survive a
+    # load/save cycle rather than vanish the first time a config is re-serialised.
+    model_config = ConfigDict(extra="allow")
+
     id: str = Field(pattern=r"^[a-z0-9_-]+$", description="Unique node identifier")
+    description: str = Field(default="", description="What this node does, for the canvas")
+    position: dict[str, float] | None = Field(
+        default=None, description="Canvas position {x, y}; absent for configs written by hand"
+    )
     agent_id: str = Field(
         pattern=r"^[a-z0-9_]+$", description="ID of the agent to execute at this node"
     )
@@ -85,6 +93,9 @@ class AgentNode(BaseModel):
 
 class AgentEdge(BaseModel):
     """Represents connection between two agents."""
+
+    # Canvas edges carry `source`/`target` next to `from_node`/`to_node`.
+    model_config = ConfigDict(extra="allow")
 
     from_node: str = Field(description="Source node ID")
     to_node: str = Field(description="Destination node ID")

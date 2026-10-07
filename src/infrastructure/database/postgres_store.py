@@ -1,6 +1,5 @@
 """PostgreSQL implementation of ConversationStore."""
 
-from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -13,6 +12,7 @@ from src.memory.models import (
     Message,
 )
 from src.memory.store import ConversationStore
+from src.utils.time import utc_now_naive
 
 
 class PostgreSQLConversationStore(ConversationStore):
@@ -54,8 +54,8 @@ class PostgreSQLConversationStore(ConversationStore):
             db_session_obj = schema.Session(
                 turn_count=0,
                 active=True,
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
+                created_at=utc_now_naive(),
+                updated_at=utc_now_naive(),
                 session_metadata={},
             )
             db_session.add(db_session_obj)
@@ -101,7 +101,7 @@ class PostgreSQLConversationStore(ConversationStore):
             # Update session fields
             db_session_obj.turn_count = state.turn_count
             db_session_obj.active = state.active
-            db_session_obj.updated_at = datetime.now(UTC)
+            db_session_obj.updated_at = utc_now_naive()
             db_session_obj.session_metadata = state.metadata
 
             # Get existing message and note IDs

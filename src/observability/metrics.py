@@ -1,5 +1,7 @@
 """Prometheus metrics for Delaxis."""
 
+from typing import Any
+
 from prometheus_client import (
     REGISTRY,
     Counter,
@@ -142,6 +144,36 @@ execution_time_seconds = Histogram(
 def get_metrics_registry():
     """Get the Prometheus metrics registry."""
     return REGISTRY
+
+
+def _sample_total(metric: Any, suffix: str = "_total", where: Any = None) -> float:
+    total = 0.0
+    for family in metric.collect():
+        for sample in family.samples:
+            if sample.name.endswith(suffix) and (where is None or where(sample.labels)):
+                total += sample.value
+    return total
+
+
+def dashboard_summary() -> dict[str, float]:
+    """Headline rates computed from the live Prometheus collectors.
+
+    Each figure is 0.0 until there is something to divide by, never a guess.
+    """
+    requests = _sample_total(http_requests_total)
+    errors = _sample_total(
+        http_requests_total, where=lambda labels: str(labels.get("status", "")).startswith("5")
+    )
+    duration_sum = _sample_total(http_request_duration_seconds, "_sum")
+    duration_count = _sample_total(http_request_duration_seconds, "_count")
+    hits = _sample_total(cache_hits_total)
+    misses = _sample_total(cache_misses_total)
+    return {
+        "error_rate": errors / requests if requests else 0.0,
+        "avg_response_time": duration_sum / duration_count if duration_count else 0.0,
+        "cache_hit_rate": hits / (hits + misses) if hits + misses else 0.0,
+        "total_requests": requests,
+    }
 
 
 def track_http_request(

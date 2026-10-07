@@ -10,6 +10,8 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.usefixtures("fixture_workflows", "fake_runtime")
+
 
 class TestWorkflowStudioIntegration:
     """End-to-end tests for the complete workflow studio."""
@@ -108,9 +110,11 @@ class TestWorkflowStudioIntegration:
 
         # Trace should contain step information
         if len(data["execution_trace"]) > 0:
+            # The runtime's trace steps carry type, agent, description and timestamp.
             step = data["execution_trace"][0]
             assert "type" in step
-            assert "name" in step
+            assert "agent" in step
+            assert "description" in step
             assert "timestamp" in step
 
     @pytest.mark.asyncio
@@ -143,8 +147,8 @@ class TestWorkflowStudioIntegration:
         session_id = session_response.json()["session_id"]
 
         message_response = await async_client.post(
-            f"/api/v1/sessions/{session_id}/message",
-            json={"content": test_message},
+            f"/api/v1/sessions/{session_id}/messages",
+            json={"message": test_message},
             headers={"Authorization": f"Bearer {mock_auth_token}"},
         )
 
@@ -306,20 +310,3 @@ class TestWorkflowStudioIntegration:
             == run_data["total_tests"]
         )
         assert "pass_rate" in run_data or run_data["total_tests"] > 0
-
-
-@pytest.fixture
-async def async_client():
-    """Fixture providing async HTTP client."""
-    from httpx import AsyncClient
-
-    from src.main import app
-
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
-
-
-@pytest.fixture
-def mock_auth_token():
-    """Fixture providing mock authentication token."""
-    return "mock_token_for_testing"

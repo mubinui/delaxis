@@ -60,14 +60,9 @@ async def readiness_check(request: Request) -> dict[str, Any]:
 
     # Check Redis cache
     if settings.memory.redis_url:
-        try:
-            from src.infrastructure.cache import get_cache_manager
+        from src.infrastructure.redis_guard import redis_reachable
 
-            cache_manager = get_cache_manager()
-            checks["redis"] = "ok" if cache_manager.health_check() else "failed"
-        except Exception as e:
-            logger.error(f"Redis health check failed: {e}")
-            checks["redis"] = "failed"
+        checks["redis"] = "ok" if redis_reachable(settings.memory.redis_url) else "failed"
 
     # Determine overall status
     # Fail-fast: if MongoDB is configured and fails, service is not ready
@@ -163,14 +158,19 @@ async def dashboard_metrics(request: Request) -> dict[str, Any]:
     except Exception as e:
         llm_info = {"error": str(e)}
 
+    from src.api.session_manager import get_session_manager
+    from src.config.config_loader import get_config_loader
+    from src.observability.metrics import dashboard_summary
+
+    loader = get_config_loader()
+    sessions = await get_session_manager().list_sessions(active_only=False)
     return {
-        "total_agents": 0,
-        "total_tools": 0,
-        "total_workflows": 0,
-        "active_sessions": 0,
-        "total_messages": 0,
-        "cache_hit_rate": 0.0,
-        "avg_response_time": 0.0,
-        "error_rate": 0.0,
+        "total_agents": len(loader.get_agents()),
+        "total_tools": len(loader.get_tools()),
+        "total_workflows": len(loader.get_workflows()),
+        "active_sessions": sum(1 for session in sessions if session.active),
+        "total_sessions": len(sessions),
+        "total_messages": sum(len(session.messages) for session in sessions),
+        **dashboard_summary(),
         "llm_provider": llm_info,
     }

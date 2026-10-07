@@ -69,6 +69,16 @@
           "context_window": 1048576
         },
         {
+          "name": "google/gemini-3.5-flash-lite",
+          "litellm_string": "openrouter/google/gemini-3.5-flash-lite",
+          "capabilities": [
+            "chat",
+            "function_calling",
+            "structured_outputs"
+          ],
+          "context_window": 1048576
+        },
+        {
           "name": "anthropic/claude-opus-5",
           "litellm_string": "openrouter/anthropic/claude-opus-5",
           "capabilities": [
@@ -77,7 +87,7 @@
             "reasoning",
             "structured_outputs"
           ],
-          "context_window": 200000
+          "context_window": 1000000
         },
         {
           "name": "anthropic/claude-sonnet-5",
@@ -88,7 +98,7 @@
             "reasoning",
             "structured_outputs"
           ],
-          "context_window": 200000
+          "context_window": 1000000
         },
         {
           "name": "deepseek/deepseek-v4-pro",

@@ -12,11 +12,13 @@ from src.api.router_registry import register_routers
 from src.api.static_files import mount_spa
 from src.audit_logging import configure_logging
 from src.config.settings import get_settings
+from src.infrastructure.redis_guard import ensure_redis_or_disable
 
 
 def create_app() -> FastAPI:
     """Create and configure the Delaxis API."""
     configure_logging()
+    ensure_redis_or_disable()
 
     app = FastAPI(
         title="Delaxis",

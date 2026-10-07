@@ -194,12 +194,41 @@ class CrewAIWorkflowRuntime:
             getattr(getattr(workflow, "knowledge", None), "enabled", False)
         )
 
+        process = self._resolve_process(Process, workflow)
+        process_name = process.value if hasattr(process, "value") else str(process)
+        hierarchical = process_name.lower().endswith("hierarchical")
+        # In a manager-led crew the selector node's agent is the manager: it
+        # decides which specialists to involve. Treated as a peer instead, it got
+        # a task of its own beside one task per specialist, and the manager then
+        # ran every task, so every specialist answered every message.
+        manager_node = self._manager_node(ordered_nodes, agent_configs) if hierarchical else None
+        manager_agent_id = manager_node.agent_id if manager_node is not None else None
+        node_for_agent: dict[str, str] = {}
+        for node in ordered_nodes:
+            node_for_agent.setdefault(node.agent_id, node.id)
+
+        def step_callback_for(agent_id: str) -> Callable[[Any], None]:
+            delegated_from = (
+                manager_node.id
+                if manager_node is not None and agent_id != manager_agent_id
+                else None
+            )
+
+            def on_step(step: Any) -> None:
+                emitter.agent_step(
+                    agent_id, node_for_agent.get(agent_id), step, delegated_from=delegated_from
+                )
+
+            return on_step
+
         crew_agents: list[Any] = []
         crew_agent_by_id: dict[str, Any] = {}
         # One factory build per tool id per run: agents sharing an MCP tool share
         # one live server connection instead of spawning one each.
         run_tool_cache: dict[str, list[Any]] = {}
         for agent_id in workflow_agent_ids:
+            if agent_id == manager_agent_id:
+                continue
             config = agent_configs.get(agent_id)
             if config is None:
                 logger.warning(
@@ -222,12 +251,42 @@ class CrewAIWorkflowRuntime:
                 else None,
                 delegates=agent_id in router_agent_ids,
                 model_override=model_override,
+                step_callback=step_callback_for(agent_id),
             )
             crew_agents.append(crew_agent)
             crew_agent_by_id[agent_id] = crew_agent
 
         if not crew_agents:
+            if manager_node is not None:
+                raise ValueError(
+                    f"Workflow {workflow.id}: the selector '{manager_node.agent_id}' has no "
+                    "specialists to delegate to. Connect at least one other agent."
+                )
             raise ValueError(f"Workflow {workflow.id} has no valid CrewAI agents")
+
+        manager_agent = None
+        if manager_node is not None:
+            manager_config = agent_configs[manager_node.agent_id]
+            manager_tools = list(manager_config.tools) + list(
+                extra_tools.get(manager_node.agent_id, [])
+            )
+            if manager_tools:
+                raise ValueError(
+                    f"Workflow {workflow.id}: the selector '{manager_node.agent_id}' has tools "
+                    f"({', '.join(manager_tools)}). A selector only delegates; give the tools "
+                    "to the specialist that should use them."
+                )
+            manager_agent = self._create_agent(
+                Agent,
+                manager_config,
+                stack,
+                run_tool_cache,
+                emitter=emitter,
+                memory_attached=manager_node.agent_id in wants_memory,
+                delegates=True,
+                model_override=model_override,
+                step_callback=step_callback_for(manager_node.agent_id),
+            )
 
         tasks, task_metas = self._create_tasks(
             task_cls=Task,
@@ -239,13 +298,10 @@ class CrewAIWorkflowRuntime:
             user_id=user_id,
             metadata=metadata,
             agent_configs=agent_configs,
+            manager_node=manager_node,
         )
 
-        process = self._resolve_process(Process, workflow)
-        process_name = process.value if hasattr(process, "value") else str(process)
-        emitter.register_tasks(
-            task_metas, sequential=not process_name.lower().endswith("hierarchical")
-        )
+        emitter.register_tasks(task_metas, sequential=not hierarchical)
 
         # Resolve Knowledge sources natively if available
         knowledge_sources = self._resolve_knowledge_sources(workflow)
@@ -291,11 +347,9 @@ class CrewAIWorkflowRuntime:
         if getattr(workflow, "max_rpm", None):
             crew_kwargs["max_rpm"] = int(workflow.max_rpm)
 
-        if (
-            (process.value if hasattr(process, "value") else str(process))
-            .lower()
-            .endswith("hierarchical")
-        ):
+        if manager_agent is not None:
+            crew_kwargs["manager_agent"] = manager_agent
+        elif hierarchical:
             crew_kwargs["manager_llm"] = self._resolve_llm_model(
                 self._crew_llm_config(workflow, "manager_llm", agent_configs, workflow_agent_ids)
             )
@@ -309,6 +363,8 @@ class CrewAIWorkflowRuntime:
             "user_id": user_id,
             "workflow_id": workflow.id,
             **metadata,
+            # Last, so no metadata key can replace what the steps are asked to answer.
+            "request": self._request_text(message, metadata),
         }
 
         started_execution = time.time()
@@ -362,10 +418,23 @@ class CrewAIWorkflowRuntime:
             metadata={
                 "runtime": "crewai",
                 "workflow_id": workflow.id,
-                "agent_count": len(crew_agents),
+                "agent_count": len(crew_agents) + (1 if manager_agent is not None else 0),
                 "task_count": len(tasks),
-                "agents_called": [getattr(agent, "role", "agent") for agent in crew_agents],
-                "tools_called": self._workflow_tool_ids(workflow, agent_configs),
+                # What actually ran, in order. The configured lists are reported
+                # separately so nothing reads "available" as "called".
+                "agents_called": [
+                    agent_configs[agent_id].name if agent_id in agent_configs else agent_id
+                    for agent_id in emitter.agents_ran
+                ],
+                "agent_ids_called": emitter.agents_ran,
+                "tools_called": emitter.tools_called,
+                "configured_agents": [
+                    getattr(agent, "role", "agent")
+                    for agent in ([manager_agent] if manager_agent is not None else [])
+                    + crew_agents
+                ],
+                "configured_tools": self._workflow_tool_ids(workflow, agent_configs),
+                "manager_agent_id": manager_agent_id,
                 "memory_enabled": memory_active,
                 "knowledge_enabled": bool(knowledge_sources),
                 "knowledge_sources_count": len(knowledge_sources) if knowledge_sources else 0,
@@ -562,6 +631,7 @@ class CrewAIWorkflowRuntime:
         knowledge_tools: list[Any] | None = None,
         delegates: bool = False,
         model_override: dict[str, Any] | None = None,
+        step_callback: Callable[[Any], None] | None = None,
     ) -> Any:
         model_config = self._effective_model_config(config)
         if model_override:
@@ -593,6 +663,8 @@ class CrewAIWorkflowRuntime:
         if knowledge_sources:
             agent_kwargs["knowledge_sources"] = knowledge_sources
             agent_kwargs["embedder"] = knowledge_embedder()
+        if step_callback is not None:
+            agent_kwargs["step_callback"] = step_callback
 
         return agent_cls(**agent_kwargs)
 
@@ -920,6 +992,25 @@ class CrewAIWorkflowRuntime:
             return process_cls.hierarchical
         return process_cls.sequential
 
+    @staticmethod
+    def _manager_node(ordered_nodes: list[Any], agent_configs: dict[str, Any]) -> Any | None:
+        """The node whose agent manages a hierarchical crew, if the graph names one.
+
+        The entry node wins when it is a router or its agent is a selector;
+        otherwise the first such node. None means CrewAI's generic manager.
+        """
+
+        def is_selector(node: Any) -> bool:
+            config = agent_configs.get(node.agent_id)
+            return bool(getattr(node, "is_router", False)) or bool(
+                getattr(config, "is_selector", False)
+            )
+
+        candidates = [
+            node for node in ordered_nodes if node.agent_id in agent_configs and is_selector(node)
+        ]
+        return candidates[0] if candidates else None
+
     def _ordered_nodes(self, workflow: WorkflowConfig) -> list[Any]:
         topology = workflow.topology
         nodes_by_id = {node.id: node for node in topology.nodes}
@@ -1010,6 +1101,7 @@ class CrewAIWorkflowRuntime:
         user_id: str,
         metadata: dict[str, Any],
         agent_configs: dict[str, Any] | None = None,
+        manager_node: Any | None = None,
     ) -> tuple[list[Any], list[TaskMeta]]:
         """Build CrewAI tasks plus aligned per-node metadata.
 
@@ -1019,6 +1111,7 @@ class CrewAIWorkflowRuntime:
         are skipped from both).
         """
         agent_configs = agent_configs or {}
+        request_text = self._request_text(message, metadata)
         guardrails_enabled = bool(getattr(getattr(workflow, "guardrails", None), "enabled", False))
         guardrail_schema = str(
             getattr(getattr(workflow, "guardrails", None), "output_schema", "text")
@@ -1044,14 +1137,7 @@ class CrewAIWorkflowRuntime:
                     continue
                 node_id = task_config.node_id or task_config.id or f"task-{index + 1}"
                 description = self._task_description(
-                    workflow,
-                    message,
-                    session_id,
-                    user_id,
-                    metadata,
-                    step=index + 1,
-                    node_id=task_config.node_id,
-                    task_description=task_config.description,
+                    task_config.description, final=index == len(explicit_tasks) - 1
                 )
                 task_kwargs = {
                     "name": node_id,
@@ -1070,7 +1156,7 @@ class CrewAIWorkflowRuntime:
                         node_id=node_id,
                         agent_id=task_config.agent_id,
                         index=len(tasks) - 1,
-                        description=description,
+                        description=description.replace(self.REQUEST_PLACEHOLDER, request_text),
                         expected_output=task_config.expected_output,
                         # Explicit tasks receive every prior task as context.
                         upstream_node_ids=[meta.node_id for meta in metas],
@@ -1079,6 +1165,37 @@ class CrewAIWorkflowRuntime:
             if tasks:
                 return tasks, metas
 
+        if manager_node is not None:
+            # One request, no assigned agent: CrewAI then gives the manager a
+            # delegation tool over every specialist and lets it choose.
+            override = manager_node.config_override or {}
+            description = self._task_description(
+                override.get("task")
+                or (
+                    "Answer the user's request. Delegate to the coworker best suited to it "
+                    "when one is, and give the final answer to the user in your own words."
+                ),
+                final=True,
+            )
+            expected_output = override.get(
+                "expected_output", "A direct, complete answer to the user's request."
+            )
+            task_kwargs = {
+                "name": manager_node.id,
+                "description": description,
+                "expected_output": expected_output,
+            }
+            apply_task_extras(task_kwargs, None, is_final=True)
+            return [task_cls(**task_kwargs)], [
+                TaskMeta(
+                    node_id=manager_node.id,
+                    agent_id=manager_node.agent_id,
+                    index=0,
+                    description=description.replace(self.REQUEST_PLACEHOLDER, request_text),
+                    expected_output=expected_output,
+                )
+            ]
+
         tasks = []
         metas = []
         for index, node in enumerate(ordered_nodes):
@@ -1086,20 +1203,18 @@ class CrewAIWorkflowRuntime:
             if not agent:
                 continue
             node_goal = node.config_override.get("task") if node.config_override else None
+            is_final = index == len(ordered_nodes) - 1
+            agent_config = agent_configs.get(node.agent_id)
+            role_goal = getattr(agent_config, "description", None)
             description = self._task_description(
-                workflow,
-                message,
-                session_id,
-                user_id,
-                metadata,
-                step=index + 1,
-                node_id=node.id,
-                task_description=node_goal
-                or f"Execute and analyze workflow node {node.id} natively.",
+                node_goal or (f"Do your part of this workflow: {role_goal}" if role_goal else None),
+                final=is_final,
             )
             expected_output = (node.config_override or {}).get(
                 "expected_output",
-                "A highly detailed, production-grade output supporting complete context validation.",
+                "The reply to the user."
+                if is_final
+                else "Your contribution, in the form the next step needs.",
             )
             task_kwargs = {
                 "name": node.id,
@@ -1110,43 +1225,60 @@ class CrewAIWorkflowRuntime:
             upstream = self._upstream_task_pairs(workflow, node.id, metas, tasks)
             if upstream:
                 task_kwargs["context"] = [task for _, task in upstream]
-            apply_task_extras(task_kwargs, node.agent_id, is_final=index == len(ordered_nodes) - 1)
+            apply_task_extras(task_kwargs, node.agent_id, is_final=is_final)
             tasks.append(task_cls(**task_kwargs))
             metas.append(
                 TaskMeta(
                     node_id=node.id,
                     agent_id=node.agent_id,
                     index=len(tasks) - 1,
-                    description=description,
+                    description=description.replace(self.REQUEST_PLACEHOLDER, request_text),
                     expected_output=expected_output,
                     upstream_node_ids=[meta.node_id for meta, _ in upstream],
                 )
             )
         return tasks, metas
 
-    def _task_description(
-        self,
-        workflow: WorkflowConfig,
-        message: str,
-        session_id: str,
-        user_id: str,
-        metadata: dict[str, Any],
-        step: int = 1,
-        node_id: str | None = None,
-        task_description: str | None = None,
-    ) -> str:
-        return (
-            f"Workflow Blueprint: {workflow.name}\n"
-            f"Domain Focus: {workflow.description}\n"
-            f"Execution Phase Step: {step}\n"
-            f"Active Node: {node_id or 'derived'}\n"
-            f"Mandatory Task Objective: {task_description or 'Evaluate user query and provide definitive guidance.'}\n"
-            f"Session Trace ID: {session_id}\n"
-            f"Identity Context: {user_id}\n"
-            f"Runtime Parameters: {metadata}\n\n"
-            f"Incoming User Prompt:\n{message}\n\n"
-            "Deliver an optimal, exhaustive answer utilizing any applicable configured tools automatically."
-        )
+    # The only placeholder in any step's text. CrewAI substitutes it from the
+    # kickoff inputs; the user's words travel as a value, never as template text,
+    # so a message containing "{name}" cannot abort the run or pull in inputs.
+    REQUEST_PLACEHOLDER = "{request}"
+
+    @staticmethod
+    def _task_description(task_description: str | None, final: bool) -> str:
+        """The instructions for one step, followed by the user's request.
+
+        A final step is told its output is the reply, so it answers at the length
+        and in the form the user asked for instead of producing a report.
+        """
+        parts = [(task_description or "Respond to the user's request.").strip()]
+        if final:
+            parts.append(
+                "Your output is the reply the user reads. Answer what they asked, in the "
+                "form and at the length they asked for. Do not describe this workflow."
+            )
+        parts.append(CrewAIWorkflowRuntime.REQUEST_PLACEHOLDER)
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _request_text(message: str, metadata: dict[str, Any]) -> str:
+        """The user's message, preceded by the earlier turns of the conversation."""
+        history = [
+            turn
+            for turn in (metadata.get("history") or [])
+            if isinstance(turn, dict) and str(turn.get("content") or "").strip()
+        ]
+        # The session adds the current message to its history before the run.
+        if history and history[-1].get("role") == "user" and history[-1].get("content") == message:
+            history = history[:-1]
+        lines = []
+        if history:
+            lines.append("Conversation so far (oldest first):")
+            lines.extend(f"{turn.get('role', 'user')}: {turn['content']}" for turn in history)
+            lines.append("")
+        lines.append("The user's message:")
+        lines.append(message)
+        return "\n".join(lines)
 
     def _upstream_task_pairs(
         self,

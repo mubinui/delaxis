@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from src.utils.time import parse_utc
+
 # Current state format version
 STATE_VERSION = "v0.4"
 
@@ -53,9 +55,9 @@ class AgentStateModel(BaseModel):
         updated_at = data.get("updated_at")
 
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at)
+            created_at = parse_utc(created_at)
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at)
+            updated_at = parse_utc(updated_at)
 
         return cls(
             agent_id=data.get("agent_id", ""),
@@ -108,9 +110,9 @@ class TeamStateModel(BaseModel):
         updated_at = data.get("updated_at")
 
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at)
+            created_at = parse_utc(created_at)
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at)
+            updated_at = parse_utc(updated_at)
 
         agent_states = [AgentStateModel.from_dict(a) for a in data.get("agent_states", [])]
 
@@ -176,9 +178,9 @@ class SessionStateModel(BaseModel):
         updated_at = data.get("updated_at")
 
         if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at)
+            created_at = parse_utc(created_at)
         if isinstance(updated_at, str):
-            updated_at = datetime.fromisoformat(updated_at)
+            updated_at = parse_utc(updated_at)
 
         agent_states = [AgentStateModel.from_dict(a) for a in data.get("agent_states", [])]
         team_states = [TeamStateModel.from_dict(t) for t in data.get("team_states", [])]

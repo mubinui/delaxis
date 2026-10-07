@@ -68,6 +68,10 @@ class ExecutionEventEmitter:
         self._started_at: dict[str, float] = {}
         self._completed = 0
         self._tool_io: dict[str, dict[str, Any]] = {}
+        # What actually ran, in order of first activity. The run result reports
+        # these, not the configured lists, so "called" never means "available".
+        self._agents_ran: list[str] = []
+        self._tools_called: list[str] = []
         self._lock = threading.Lock()
 
     def register_tasks(self, metas: list[TaskMeta], sequential: bool = True) -> None:
@@ -96,6 +100,8 @@ class ExecutionEventEmitter:
         self._completed += 1
         if meta is None:
             return
+        if meta.agent_id and meta.agent_id not in self._agents_ran:
+            self._agents_ran.append(meta.agent_id)
 
         # Hierarchical runs (or a missed predictive start) learn the input
         # only now that the manager actually dispatched the task.
@@ -172,10 +178,86 @@ class ExecutionEventEmitter:
             meta.agent_id,
         )
 
+    def agent_step(
+        self,
+        agent_id: str,
+        node_id: str | None,
+        step: Any,
+        *,
+        delegated_from: str | None = None,
+    ) -> None:
+        """Called from each agent's ``step_callback`` in the agent's own thread.
+
+        Records that the agent really executed. In a manager-led (hierarchical)
+        crew the specialists have no task of their own, so their first step is
+        announced as an ``agent_transfer`` onto their canvas node and their final
+        answer as that node's ``node_output``.
+        """
+        try:
+            first = False
+            with self._lock:
+                if agent_id not in self._agents_ran:
+                    self._agents_ran.append(agent_id)
+                    first = True
+            if delegated_from is None or node_id is None:
+                return
+            if first:
+                started = time.perf_counter()
+                with self._lock:
+                    self._started_at.setdefault(node_id, started)
+                self._emit(
+                    "agent_transfer",
+                    {
+                        "node_id": node_id,
+                        "from_node_id": delegated_from,
+                        "target_agent": agent_id,
+                    },
+                    agent_id,
+                )
+            output = getattr(step, "output", None)
+            is_final = output is not None and not hasattr(step, "tool")
+            if is_final:
+                raw, truncated = _truncate(str(output))
+                payload: dict[str, Any] = {"raw": raw, "agent": agent_id}
+                if truncated:
+                    payload["truncated"] = True
+                with self._lock:
+                    self._outputs[node_id] = payload
+                    started_at = self._started_at.get(node_id)
+                duration_ms = (
+                    round((time.perf_counter() - started_at) * 1000) if started_at else None
+                )
+                self._emit(
+                    "node_output",
+                    {
+                        "node_id": node_id,
+                        "agent_id": agent_id,
+                        "output": payload,
+                        "duration_ms": duration_ms,
+                    },
+                    agent_id,
+                )
+        except Exception as exc:  # noqa: BLE001 - UI events must never kill a run
+            logger.warning("execution_event_agent_step_failed", error=str(exc))
+
+    @property
+    def agents_ran(self) -> list[str]:
+        """Agent ids that executed at least one step, in order of first step."""
+        with self._lock:
+            return list(self._agents_ran)
+
+    @property
+    def tools_called(self) -> list[str]:
+        """Tool ids that were actually invoked, in order of first call."""
+        with self._lock:
+            return list(self._tools_called)
+
     def tool_started(self, tool_id: str, name: str, kwargs: dict[str, Any]) -> None:
         args = {key: _truncate(value)[0] for key, value in (kwargs or {}).items()}
         with self._lock:
             self._tool_io[name] = {"name": name, "tool_id": tool_id, "args": args}
+            if tool_id not in self._tools_called:
+                self._tools_called.append(tool_id)
         self._emit("tool_call_start", {"name": name, "tool_id": tool_id, "args": args}, None)
 
     def tool_finished(

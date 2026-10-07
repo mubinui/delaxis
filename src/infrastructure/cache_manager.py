@@ -12,6 +12,7 @@ from src.infrastructure.cache import RedisCache
 from src.infrastructure.embedding_cache import EmbeddingCache
 from src.infrastructure.llm_cache import LLMCacheMonitor
 from src.infrastructure.session_cache import SessionCache
+from src.utils.time import parse_utc
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class TimeBasedInvalidation(CacheInvalidationStrategy):
             return False
 
         try:
-            created_time = datetime.fromisoformat(created_at)
+            created_time = parse_utc(created_at)
             age = (datetime.now(UTC) - created_time).total_seconds()
             return age > self.max_age_seconds
         except (ValueError, TypeError):

@@ -171,7 +171,7 @@ class VectorDBConfig(BaseModel):
 class VectorDBRegistry(BaseModel):
     """Registry for managing multiple vector database configurations."""
 
-    version: str = Field(description="Configuration version")
+    version: str = Field(default="1.0", description="Configuration version")
     databases: list[VectorDBConfig] = Field(
         default_factory=list, description="List of vector database configurations"
     )
