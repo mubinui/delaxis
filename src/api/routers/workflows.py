@@ -34,6 +34,7 @@ from src.api.workflow_diagnostics import Diagnostic, diagnose_graph
 from src.audit_logging import get_logger
 from src.config.config_loader import get_config_loader
 from src.config.dependency_validation import DependencyError, get_validator
+from src.config.paths import config_path
 from src.config.workflow_models import WorkflowConfig
 from src.core.workflow_test_runner import get_test_runner
 
@@ -43,7 +44,7 @@ router = APIRouter(prefix="/api/v1/workflows", tags=["workflows"])
 
 def _get_workflows_config_path() -> Path:
     """Get the path to the workflows configuration file."""
-    return Path("configs") / "workflows.json"
+    return config_path("workflows.json")
 
 
 def _load_workflows_config() -> dict[str, Any]:

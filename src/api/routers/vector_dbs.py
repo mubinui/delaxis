@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from src.api.auth import CurrentUser, get_current_user
 from src.audit_logging import get_logger
 from src.config.config_loader import get_config_loader
+from src.config.paths import config_path
 from src.utils.jsonio import as_object
 
 logger = get_logger(__name__)
@@ -29,7 +30,7 @@ router = APIRouter(prefix="/api/v1/rag-service", tags=["rag-service"])
 
 def _get_vector_dbs_config_path() -> Path:
     """Get the path to the vector databases configuration file."""
-    return Path("configs") / "vector_databases.json"
+    return config_path("vector_databases.json")
 
 
 def _load_vector_dbs_config() -> dict[str, Any]:

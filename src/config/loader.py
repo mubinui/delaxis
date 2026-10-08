@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from src.audit_logging import get_logger
 from src.config.agent_models import AgentsConfig
 from src.config.dynamic_models import APIProvidersConfig, PromptTemplatesConfig
+from src.config.paths import config_dir as default_config_dir
 from src.config.tool_models import ToolsConfig
 
 logger = get_logger(__name__)
@@ -27,14 +28,14 @@ class ConfigurationError(Exception):
 class ConfigurationLoader:
     """Service for loading and validating dynamic JSON configurations."""
 
-    def __init__(self, config_dir: Path | str = "configs") -> None:
+    def __init__(self, config_dir: Path | str | None = None) -> None:
         """
         Initialize the configuration loader.
 
         Args:
             config_dir: Directory containing configuration JSON files
         """
-        self.config_dir = Path(config_dir)
+        self.config_dir = Path(config_dir) if config_dir is not None else default_config_dir()
         self._providers_cache: APIProvidersConfig | None = None
         self._prompts_cache: PromptTemplatesConfig | None = None
         self._tools_cache: ToolsConfig | None = None
@@ -309,7 +310,7 @@ class ConfigurationLoader:
 _loader: ConfigurationLoader | None = None
 
 
-def get_loader(config_dir: Path | str = "configs") -> ConfigurationLoader:
+def get_loader(config_dir: Path | str | None = None) -> ConfigurationLoader:
     """
     Get the singleton configuration loader instance.
 
@@ -325,7 +326,7 @@ def get_loader(config_dir: Path | str = "configs") -> ConfigurationLoader:
     return _loader
 
 
-def load_agents_config(config_dir: Path | str = "configs") -> AgentsConfig:
+def load_agents_config(config_dir: Path | str | None = None) -> AgentsConfig:
     """
     Convenience function to load agents configuration.
 

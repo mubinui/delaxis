@@ -12,13 +12,19 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from src.api.test_models import WorkflowExecuteRequest
+from src.config.paths import config_path
 from src.core.workflow_test_runner import get_test_runner
 from src.utils.jsonio import as_object
 
 router = APIRouter(prefix="/api/v1/triggers", tags=["triggers"])
+
+
+def _config_path() -> Path:
+    return config_path("triggers.json")
+
+
 webhook_router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
-CONFIG_PATH = Path("configs") / "triggers.json"
 TriggerType = Literal["chat", "webhook", "manual"]
 AuthMode = Literal["public", "api_key", "jwt"]
 
@@ -85,14 +91,14 @@ def _slug(value: str) -> str:
 
 
 def _load_config() -> dict[str, Any]:
-    if not CONFIG_PATH.exists():
+    if not _config_path().exists():
         return {"version": "1.0", "triggers": []}
-    return as_object(json.loads(CONFIG_PATH.read_text(encoding="utf-8")), str(CONFIG_PATH))
+    return as_object(json.loads(_config_path().read_text(encoding="utf-8")), str(_config_path()))
 
 
 def _save_config(config: dict[str, Any]) -> None:
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    _config_path().parent.mkdir(parents=True, exist_ok=True)
+    _config_path().write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 
 def _find_trigger(config: dict[str, Any], trigger_id: str) -> dict[str, Any] | None:

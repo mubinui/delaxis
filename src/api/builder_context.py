@@ -51,11 +51,10 @@ _CATEGORY_ORDER = [
 
 
 def _config_dir() -> Path:
-    from src.config.env_compat import env
 
-    return Path(
-        env("DELAXIS_CONFIG_DIR", str(_PROJECT_ROOT / "configs")) or str(_PROJECT_ROOT / "configs")
-    )
+    from src.config.paths import config_dir
+
+    return config_dir()
 
 
 def _load(name: str) -> dict[str, Any]:

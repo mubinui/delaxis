@@ -21,6 +21,7 @@ from src.api.models import (
 )
 from src.audit_logging import get_logger
 from src.config.api_provider_models import mask_api_key
+from src.config.paths import config_path
 from src.config.provider_registry import key_source, resolve_api_key
 from src.config.provider_secrets import delete_secret, set_secret
 from src.config.versioned_service import ConfigVersion, VersionedConfigService
@@ -33,7 +34,7 @@ router = APIRouter(prefix="/api/v1/api-providers", tags=["api-providers"])
 
 def _get_api_providers_config_path() -> Path:
     """Get the path to the API providers configuration file."""
-    return Path("configs") / "api_providers.json"
+    return config_path("api_providers.json")
 
 
 def _load_api_providers_config() -> dict[str, Any]:

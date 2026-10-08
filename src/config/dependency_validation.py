@@ -4,6 +4,7 @@ from pathlib import Path
 
 from src.audit_logging import get_logger
 from src.config.loader import ConfigurationLoader
+from src.config.paths import config_path
 
 logger = get_logger(__name__)
 
@@ -112,7 +113,7 @@ class DependencyValidator:
         if hasattr(self.config_loader, "config_dir"):
             agents_path = Path(self.config_loader.config_dir) / "agents.json"
         else:
-            agents_path = Path("configs") / "agents.json"
+            agents_path = config_path("agents.json")
 
         if not agents_path.exists():
             raise DependencyError(
@@ -169,7 +170,7 @@ class DependencyValidator:
         if hasattr(self.config_loader, "config_dir"):
             agents_path = Path(self.config_loader.config_dir) / "agents.json"
         else:
-            agents_path = Path("configs") / "agents.json"
+            agents_path = config_path("agents.json")
 
         if not agents_path.exists():
             return []
@@ -210,7 +211,7 @@ class DependencyValidator:
         if hasattr(self.config_loader, "config_dir"):
             workflows_path = Path(self.config_loader.config_dir) / "workflows.json"
         else:
-            workflows_path = Path("configs") / "workflows.json"
+            workflows_path = config_path("workflows.json")
 
         if not workflows_path.exists():
             return []

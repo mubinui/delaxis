@@ -16,6 +16,7 @@ from src.api.models import (
     PromptTemplateUpdateRequest,
 )
 from src.audit_logging import get_logger
+from src.config.paths import config_path
 from src.config.prompt_models import extract_variables
 from src.config.versioned_service import ConfigVersion, VersionedConfigService
 
@@ -27,7 +28,7 @@ router = APIRouter(prefix="/api/v1/prompts", tags=["prompts"])
 
 def _get_prompts_config_path() -> Path:
     """Get the path to the prompts configuration file."""
-    return Path("configs") / "prompt_templates.json"
+    return config_path("prompt_templates.json")
 
 
 def _load_prompts_config() -> dict[str, Any]:

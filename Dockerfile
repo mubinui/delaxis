@@ -67,6 +67,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 # development = open access out of the box; set ENVIRONMENT=production
 # (plus auth) before exposing the instance publicly — see SECURITY.md
 ENV ENVIRONMENT=development
+# Configs are edited in the Studio, so the working copy lives on the data
+# volume and outlives the container; /app/configs is the bundled seed that
+# fills it on first boot without ever overwriting an edit.
+ENV DELAXIS_CONFIG_DIR=/app/data/configs
 
 VOLUME /app/data
 

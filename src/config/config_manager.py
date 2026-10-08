@@ -15,6 +15,7 @@ from src.audit_logging import get_logger
 from src.config.agent_models import AgentConfig, AgentsConfig
 from src.config.cache_models import CacheConfig
 from src.config.execution_models import ExecutionConfig
+from src.config.paths import config_dir as default_config_dir
 from src.config.topology_models import TopologyConfig
 from src.config.workflow_models import WorkflowConfig, WorkflowsConfig
 
@@ -92,14 +93,14 @@ class ConfigurationManager:
     4. Global configuration
     """
 
-    def __init__(self, config_dir: Path | str = "configs"):
+    def __init__(self, config_dir: Path | str | None = None):
         """
         Initialize configuration manager.
 
         Args:
             config_dir: Directory containing configuration files
         """
-        self.config_dir = Path(config_dir)
+        self.config_dir = Path(config_dir) if config_dir is not None else default_config_dir()
         self._observer: BaseObserver | None = None
         self._watching = False
 
@@ -522,7 +523,7 @@ class ConfigurationManager:
 _manager: ConfigurationManager | None = None
 
 
-def get_config_manager(config_dir: Path | str = "configs") -> ConfigurationManager:
+def get_config_manager(config_dir: Path | str | None = None) -> ConfigurationManager:
     """
     Get the singleton configuration manager instance.
 

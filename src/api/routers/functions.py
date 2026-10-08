@@ -14,12 +14,12 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from src.config.config_loader import get_config_loader
+from src.config.paths import config_path
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/functions", tags=["functions"])
 
 _GENERATED_DIR = Path("src/tools/generated")
-_TOOLS_CONFIG_PATH = Path("configs/tools.json")
 
 # Only allow safe identifiers to prevent path traversal
 _SAFE_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -73,12 +73,12 @@ def _load_tools_config() -> dict[str, Any]:
 
 
 def _save_tools_config(config: dict[str, Any]) -> None:
-    _TOOLS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(_TOOLS_CONFIG_PATH, "w") as f:
+    config_path("tools.json").parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path("tools.json"), "w") as f:
         json.dump(config, f, indent=2)
     try:
         loader = get_config_loader()
-        loader._reload_single_file(_TOOLS_CONFIG_PATH)
+        loader._reload_single_file(config_path("tools.json"))
     except Exception as e:
         logger.warning("tools_config_reload_failed", error=str(e))
 

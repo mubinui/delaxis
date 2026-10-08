@@ -9,22 +9,28 @@ set -euo pipefail
 IMAGE="${1:-delaxis:latest}"
 PORT="${SMOKE_PORT:-18000}"
 NAME="delaxis-smoke-$$"
+VOLUME="delaxis-smoke-data-$$"
 
 cleanup() {
   echo "--- container log (tail) ---"
   docker logs --tail 60 "$NAME" 2>&1 || true
   docker rm -f "$NAME" >/dev/null 2>&1 || true
+  docker volume rm "$VOLUME" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-docker run -d --name "$NAME" -p "$PORT:8000" -e ENVIRONMENT=development "$IMAGE" >/dev/null
+start() {
+  docker run -d --name "$NAME" -p "$PORT:8000" -e ENVIRONMENT=development \
+    -v "$VOLUME:/app/data" "$IMAGE" >/dev/null
+  for _ in $(seq 1 60); do
+    if curl -sf "$base/health" >/dev/null 2>&1; then break; fi
+    sleep 2
+  done
+  curl -sf "$base/health" | grep -q '"healthy"' || { echo "health check failed"; exit 1; }
+}
 
 base="http://localhost:$PORT"
-for _ in $(seq 1 60); do
-  if curl -sf "$base/health" >/dev/null 2>&1; then break; fi
-  sleep 2
-done
-curl -sf "$base/health" | grep -q '"healthy"' || { echo "health check failed"; exit 1; }
+start
 
 expect() { # expect <status> <description> <curl args...>
   local want="$1" what="$2"; shift 2
@@ -56,5 +62,15 @@ result="$(curl -s -X POST "$base/api/v1/tools/calculate/execute" \
 echo "$result" | grep -q '"status":"success"' || { echo "FAIL tool execute: $result"; exit 1; }
 echo "$result" | grep -q '12' || { echo "FAIL tool result: $result"; exit 1; }
 echo "ok   tool execute"
+
+# An edit made through the API must survive the container being recreated:
+# the working configs live on the data volume, not in the image.
+expect 200 "edit a workflow" -X PUT "$base/api/v1/workflows/assistant_chat" \
+  -H 'Content-Type: application/json' -d '{"description":"Edited by the smoke test"}'
+docker rm -f "$NAME" >/dev/null
+start
+curl -s "$base/api/v1/workflows/assistant_chat" | grep -q "Edited by the smoke test" \
+  || { echo "FAIL the edit did not survive recreating the container"; exit 1; }
+echo "ok   edits survive recreating the container"
 
 echo "smoke test passed"

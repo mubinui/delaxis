@@ -11,6 +11,8 @@ from watchdog.events import DirModifiedEvent, FileModifiedEvent, FileSystemEvent
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
 
+from src.config.paths import config_dir as default_config_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,10 @@ class ConfigFileHandler(FileSystemEventHandler):
             return
 
         file_path = Path(os.fsdecode(event.src_path))
-        if file_path.suffix == ".json" and file_path.parent.name == "configs":
+        if (
+            file_path.suffix == ".json"
+            and file_path.parent.resolve() == self.loader.config_dir.resolve()
+        ):
             logger.info(f"Configuration file modified: {file_path.name}")
             self.loader._reload_single_file(file_path)
 
@@ -40,7 +45,7 @@ class ConfigLoader:
     Provides validation and error handling for configuration access.
     """
 
-    def __init__(self, config_dir: Path = Path("configs"), enable_hot_reload: bool = False):
+    def __init__(self, config_dir: Path | None = None, enable_hot_reload: bool = False):
         """
         Initialize configuration loader.
 
@@ -48,7 +53,7 @@ class ConfigLoader:
             config_dir: Directory containing configuration files
             enable_hot_reload: Enable automatic reload on file changes
         """
-        self.config_dir = config_dir
+        self.config_dir = config_dir if config_dir is not None else default_config_dir()
         self.enable_hot_reload = enable_hot_reload
         self._cache: dict[str, dict[str, Any]] = {}
         self._last_loaded: dict[str, datetime] = {}
@@ -246,7 +251,7 @@ _config_loader: ConfigLoader | None = None
 
 
 def get_config_loader(
-    config_dir: Path = Path("configs"), enable_hot_reload: bool = False, reload: bool = False
+    config_dir: Path | None = None, enable_hot_reload: bool = False, reload: bool = False
 ) -> ConfigLoader:
     """
     Get or initialize the global configuration loader.

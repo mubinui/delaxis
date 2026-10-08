@@ -50,6 +50,8 @@ services:
       # Application
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      # Compose bind-mounts ./configs, so edits go straight to the host files.
+      - DELAXIS_CONFIG_DIR=/app/configs
       - APP_PORT=8000
       - FRONTEND_URL=${FRONTEND_URL:-*}
 

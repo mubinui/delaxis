@@ -16,6 +16,7 @@ from src.api.models import (
 from src.audit_logging import get_logger
 from src.config.config_loader import get_config_loader
 from src.config.dependency_validation import DependencyError, get_validator
+from src.config.paths import config_path
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
 def _get_agents_config_path() -> Path:
     """Get the path to the agents configuration file."""
-    return Path("configs") / "agents.json"
+    return config_path("agents.json")
 
 
 PLACEHOLDER_INSTRUCTIONS = {"you are a helpful ai assistant.", "you are a helpful assistant."}

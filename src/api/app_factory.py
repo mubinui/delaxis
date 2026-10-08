@@ -1,5 +1,7 @@
 """FastAPI application factory."""
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -10,15 +12,33 @@ from src.api.middleware import jwt_validation_middleware, request_logging_middle
 from src.api.rate_limiting import limiter, rate_limit_exceeded_handler, rate_limiting_middleware
 from src.api.router_registry import register_routers
 from src.api.static_files import mount_spa
-from src.audit_logging import configure_logging
+from src.audit_logging import configure_logging, get_logger
+from src.config.paths import config_dir, seed_config_dir
 from src.config.settings import get_settings
 from src.infrastructure.redis_guard import ensure_redis_or_disable
+
+logger = get_logger(__name__)
+
+# The configs the code ships with. The Docker image keeps its working copy on
+# the data volume (DELAXIS_CONFIG_DIR) so Studio edits outlive the container,
+# and fills it from here on first boot.
+_BUNDLED_CONFIGS = Path(__file__).resolve().parents[2] / "configs"
+
+
+def _seed_config_dir() -> None:
+    from src.config.env_compat import env
+
+    bundled = Path(env("DELAXIS_BUNDLED_CONFIG_DIR", str(_BUNDLED_CONFIGS)) or _BUNDLED_CONFIGS)
+    copied = seed_config_dir(bundled)
+    if copied:
+        logger.info("config_dir_seeded", config_dir=str(config_dir()), files=copied)
 
 
 def create_app() -> FastAPI:
     """Create and configure the Delaxis API."""
     configure_logging()
     ensure_redis_or_disable()
+    _seed_config_dir()
 
     app = FastAPI(
         title="Delaxis",

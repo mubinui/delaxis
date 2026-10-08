@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.config.paths import config_path
+
 
 class ProviderResolutionError(ValueError):
     """Raised when a provider id cannot be resolved to a usable LLM route."""
@@ -57,9 +59,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 def _providers_path() -> Path:
     """Same file the api-providers CRUD endpoints write, read fresh per call."""
-    cwd_path = Path("configs") / "api_providers.json"
-    if cwd_path.exists():
-        return cwd_path
+    configured = config_path("api_providers.json")
+    if configured.exists():
+        return configured
     return _PROJECT_ROOT / "configs" / "api_providers.json"
 
 

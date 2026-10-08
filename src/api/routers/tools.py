@@ -25,6 +25,7 @@ from src.api.models import (
 from src.audit_logging import get_logger
 from src.config.config_loader import get_config_loader
 from src.config.dependency_validation import DependencyError, get_validator
+from src.config.paths import config_path
 from src.config.tool_registry import get_tool_registry
 from src.tools.swagger_parser import SwaggerParser, sanitize_tool_id
 
@@ -34,7 +35,7 @@ router = APIRouter(prefix="/api/v1/tools", tags=["tools"])
 
 def _get_tools_config_path() -> Path:
     """Get the path to the tools configuration file."""
-    return Path("configs") / "tools.json"
+    return config_path("tools.json")
 
 
 def _load_tools_config() -> dict[str, Any]:

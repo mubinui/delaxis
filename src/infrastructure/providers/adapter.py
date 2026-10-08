@@ -12,6 +12,7 @@ import httpx
 import structlog
 
 from src.config.dynamic_models import AuthScheme, ProviderConfig, ProviderType
+from src.config.paths import config_path as default_path
 from src.infrastructure.secrets import get_global_credential_manager
 from src.observability.metrics import (
     config_reload_total,
@@ -40,8 +41,8 @@ class ProviderAdapter:
 
     def __init__(
         self,
-        config_path: str = "configs/api_providers.json",
-        vector_db_config_path: str = "configs/vector_databases.json",
+        config_path: str | None = None,
+        vector_db_config_path: str | None = None,
         cache_ttl_seconds: int = 300,
         enable_file_watching: bool = False,
         watch_interval_seconds: int = 5,
@@ -56,8 +57,14 @@ class ProviderAdapter:
             enable_file_watching: Enable automatic file watching for hot reload
             watch_interval_seconds: Interval for checking file changes (default: 5 seconds)
         """
-        self.config_path = Path(config_path)
-        self.vector_db_config_path = Path(vector_db_config_path)
+        self.config_path = (
+            Path(config_path) if config_path is not None else default_path("api_providers.json")
+        )
+        self.vector_db_config_path = (
+            Path(vector_db_config_path)
+            if vector_db_config_path is not None
+            else default_path("vector_databases.json")
+        )
         self.cache_ttl_seconds = cache_ttl_seconds
         self.enable_file_watching = enable_file_watching
         self.watch_interval_seconds = watch_interval_seconds

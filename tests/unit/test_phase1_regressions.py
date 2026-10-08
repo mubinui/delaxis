@@ -345,3 +345,44 @@ def test_topology_status_endpoint_reports_real_counts(client: TestClient) -> Non
     assert body["queued_requests"] == 0
     assert body["max_concurrent"] >= 1
     assert body["resource_limit_reached"] is False
+
+
+# --- One config location, seeded without overwriting edits -------------------------------
+
+
+def test_config_dir_follows_the_environment(monkeypatch, tmp_path) -> None:
+    from src.config.paths import config_dir, config_path
+
+    monkeypatch.setenv("DELAXIS_CONFIG_DIR", str(tmp_path / "cfg"))
+    assert config_dir() == tmp_path / "cfg"
+    assert config_path("workflows.json") == tmp_path / "cfg" / "workflows.json"
+
+
+def test_seeding_fills_gaps_and_never_overwrites_edits(monkeypatch, tmp_path) -> None:
+    from src.config.paths import seed_config_dir
+
+    bundled = tmp_path / "bundled"
+    bundled.mkdir()
+    (bundled / "agents.json").write_text('{"shipped": true}')
+    (bundled / "tools.json").write_text('{"shipped": true}')
+    target = tmp_path / "volume"
+    target.mkdir()
+    (target / "agents.json").write_text('{"edited": true}')
+    monkeypatch.setenv("DELAXIS_CONFIG_DIR", str(target))
+
+    assert seed_config_dir(bundled) == ["tools.json"]
+    assert (target / "agents.json").read_text() == '{"edited": true}'
+    assert (target / "tools.json").read_text() == '{"shipped": true}'
+    assert seed_config_dir(bundled) == [], "a second boot copies nothing"
+
+
+def test_the_api_reads_and_writes_the_configured_directory(monkeypatch, tmp_path) -> None:
+    """A Studio save must land in DELAXIS_CONFIG_DIR, not in the image's copy."""
+    import shutil
+
+    from src.api.routers import workflows as workflows_router
+
+    target = tmp_path / "cfg"
+    shutil.copytree(ROOT / "configs", target)
+    monkeypatch.setenv("DELAXIS_CONFIG_DIR", str(target))
+    assert workflows_router._get_workflows_config_path() == target / "workflows.json"

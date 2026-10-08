@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.audit_logging import get_logger
 from src.config.agent_models import AgentsConfig
+from src.config.paths import config_path as default_path
 from src.config.workflow_models import (
     ConversationPattern,
     WorkflowConfig,
@@ -34,7 +35,7 @@ class WorkflowRegistry:
 
     def __init__(
         self,
-        config_path: str | Path = "configs/workflows.json",
+        config_path: str | Path | None = None,
         agents_config: AgentsConfig | None = None,
     ) -> None:
         """
@@ -44,7 +45,9 @@ class WorkflowRegistry:
             config_path: Path to workflows configuration file
             agents_config: Optional agents configuration for validation
         """
-        self.config_path = Path(config_path)
+        self.config_path = (
+            Path(config_path) if config_path is not None else default_path("workflows.json")
+        )
         self.agents_config = agents_config
         self._workflows_config: WorkflowsConfig | None = None
         self._load_config()
