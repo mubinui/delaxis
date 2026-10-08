@@ -94,7 +94,7 @@ def cosine(left: list[float], right: list[float]) -> float:
     right_norm = sum(b * b for b in right) ** 0.5
     if not left_norm or not right_norm:
         return 0.0
-    return dot / (left_norm * right_norm)
+    return float(dot / (left_norm * right_norm))
 
 
 def matches(metadata: dict[str, Any], where: dict[str, Any] | None) -> bool:

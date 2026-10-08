@@ -12,6 +12,7 @@ original is carried in the payload.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
 from typing import Any
 
 from src.rag.stores.base import Record, SearchHit, VectorStoreError, matches
@@ -21,7 +22,7 @@ from src.rag.stores.base import Record, SearchHit, VectorStoreError, matches
 _NAMESPACE = uuid.UUID("6f1a1d1e-2b7c-4c1a-9f39-6d2a0c5f3b21")
 
 
-def _modules():
+def _modules() -> Any:
     try:
         from qdrant_client import QdrantClient, models
     except ImportError as exc:  # pragma: no cover - depends on the environment
@@ -182,9 +183,9 @@ class QdrantVectorStore:
             return self.delete(collection, ids=doomed)
         else:
             self._client.delete_collection(collection)
-            return before
+            return int(before)
 
-        return max(0, before - self.stats(collection)["chunks"])
+        return int(max(0, before - self.stats(collection)["chunks"]))
 
     def drop(self, collection: str) -> bool:
         if not self._client.collection_exists(collection):
@@ -192,7 +193,7 @@ class QdrantVectorStore:
         self._client.delete_collection(collection)
         return True
 
-    def _scroll(self, collection: str):
+    def _scroll(self, collection: str) -> Iterator[Any]:
         points, cursor = self._client.scroll(
             collection_name=collection, limit=512, with_payload=True
         )

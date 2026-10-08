@@ -19,7 +19,7 @@ from typing import Any
 from src.rag.stores.base import Record, SearchHit, VectorStoreError
 
 
-def _psycopg():
+def _psycopg() -> Any:
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor, execute_values
@@ -57,7 +57,7 @@ class PgVectorStore:
         self._lock = threading.Lock()
         self._ready = False
 
-    def _connect(self):
+    def _connect(self) -> Any:
         try:
             return self._psycopg.connect(self._dsn)
         except Exception as exc:
@@ -191,7 +191,7 @@ class PgVectorStore:
             cursor.execute(f"DELETE FROM {self._table} WHERE {' AND '.join(clauses)}", params)
             removed = cursor.rowcount
             connection.commit()
-        return max(0, removed)
+        return int(max(0, removed))
 
     def drop(self, collection: str) -> bool:
         return self.delete(collection) > 0

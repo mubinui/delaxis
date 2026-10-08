@@ -203,7 +203,7 @@ class GeminiEmbeddings:
             raise EmbeddingError(
                 f"Gemini embedding failed ({response.status_code}): {response.text[:300]}"
             )
-        return response.json()["embedding"]["values"]
+        return [float(v) for v in response.json()["embedding"]["values"]]
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         # Documents and queries are embedded for different task types; using one

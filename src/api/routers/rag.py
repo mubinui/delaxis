@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from src.audit_logging import get_logger
 from src.rag.embeddings import PROVIDERS
-from src.rag.service import get_rag_service
+from src.rag.service import RagService, get_rag_service
 from src.rag.stores import VectorStoreError, available_backends
 from src.tools.file_analysis import (
     ALLOWED_SUFFIXES,
@@ -45,7 +45,7 @@ class TextRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-def _service():
+def _service() -> RagService:
     return get_rag_service()
 
 

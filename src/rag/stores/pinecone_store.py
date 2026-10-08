@@ -26,7 +26,7 @@ _TEXT = "_text"
 _EXTRA = "_metadata"
 
 
-def _pinecone():
+def _pinecone() -> Any:
     try:
         from pinecone import Pinecone, ServerlessSpec
     except ImportError as exc:  # pragma: no cover - depends on the environment
@@ -78,7 +78,7 @@ class PineconeVectorStore:
         self._dimensions = dimensions
         self._index = None
 
-    def _handle(self):
+    def _handle(self) -> Any:
         if self._index is not None:
             return self._index
         existing = {item["name"] for item in self._client.list_indexes()}
@@ -100,7 +100,7 @@ class PineconeVectorStore:
     def upsert(self, collection: str, records: list[Record]) -> int:
         if not records:
             return 0
-        vectors = [
+        vectors: list[dict[str, Any]] = [
             {
                 "id": record.id,
                 "values": list(record.embedding),
@@ -159,8 +159,8 @@ class PineconeVectorStore:
             )
         else:
             handle.delete(delete_all=True, namespace=collection)
-            return before
-        return max(0, before - self.stats(collection)["chunks"])
+            return int(before)
+        return int(max(0, before - self.stats(collection)["chunks"]))
 
     def drop(self, collection: str) -> bool:
         try:

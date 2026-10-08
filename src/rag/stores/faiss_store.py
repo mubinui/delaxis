@@ -20,7 +20,7 @@ import numpy as np
 from src.rag.stores.base import Record, SearchHit, VectorStoreError, matches
 
 
-def _faiss():
+def _faiss() -> Any:
     try:
         import faiss
     except ImportError as exc:  # pragma: no cover - depends on the environment
@@ -33,7 +33,7 @@ def _faiss():
 def _unit(matrix: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
-    return matrix / norms
+    return np.asarray(matrix / norms)
 
 
 class FaissVectorStore:
@@ -54,7 +54,7 @@ class FaissVectorStore:
     def _paths(self, collection: str) -> tuple[Path, Path]:
         return self._root / f"{collection}.faiss", self._root / f"{collection}.json"
 
-    def _load(self, collection: str, dimensions: int | None = None):
+    def _load(self, collection: str, dimensions: int | None = None) -> Any:
         if collection in self._loaded:
             return self._loaded[collection]
 

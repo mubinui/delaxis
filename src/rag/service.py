@@ -57,7 +57,7 @@ class RagConfig:
         default_factory=lambda: _env("RAG_DEFAULT_COLLECTION", DEFAULT_COLLECTION)
     )
 
-    def fingerprint(self) -> tuple:
+    def fingerprint(self) -> tuple[Any, ...]:
         """Identity for caching — a change here means rebuilding the service."""
         return (
             self.backend,

@@ -12,7 +12,7 @@ from typing import Any
 from src.rag.stores.base import Record, SearchHit, VectorStoreError
 
 
-def _client(path: str, host: str | None, port: int | None):
+def _client(path: str, host: str | None, port: int | None) -> Any:
     try:
         import chromadb
     except ImportError as exc:  # pragma: no cover - depends on the environment
@@ -37,7 +37,7 @@ class ChromaVectorStore:
     ) -> None:
         self._client = _client(persist_directory, host, port)
 
-    def _collection(self, collection: str, create: bool = True):
+    def _collection(self, collection: str, create: bool = True) -> Any:
         if create:
             # Cosine, to match every other backend here. Chroma defaults to L2,
             # which would make scores from this store incomparable with the rest.
@@ -111,8 +111,8 @@ class ChromaVectorStore:
             handle.delete(where=where)
         else:
             self._client.delete_collection(collection)
-            return before
-        return max(0, before - handle.count())
+            return int(before)
+        return int(max(0, before - handle.count()))
 
     def drop(self, collection: str) -> bool:
         try:
