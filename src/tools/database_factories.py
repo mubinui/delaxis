@@ -360,7 +360,7 @@ class MongoToolFactory(RuntimeToolFactory):
         return int(self.settings.get("max_documents", 50) or 50)
 
     @contextlib.contextmanager
-    def _client(self):
+    def _client(self) -> Any:
         # Settings are resolved first: a missing 'database' is the caller's
         # problem to fix, and reporting "install pymongo" for it sends them
         # after the wrong thing.

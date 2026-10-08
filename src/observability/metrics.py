@@ -4,6 +4,7 @@ from typing import Any
 
 from prometheus_client import (
     REGISTRY,
+    CollectorRegistry,
     Counter,
     Gauge,
     Histogram,
@@ -141,7 +142,7 @@ execution_time_seconds = Histogram(
 )
 
 
-def get_metrics_registry():
+def get_metrics_registry() -> CollectorRegistry:
     """Get the Prometheus metrics registry."""
     return REGISTRY
 
@@ -219,12 +220,12 @@ def track_llm_tokens(
     count: int,
 ) -> None:
     """Track LLM token usage."""
-    llm_tokens_total.labels(provider=provider, model=model, type=token_type).add(count)
+    llm_tokens_total.labels(provider=provider, model=model, type=token_type).inc(count)
 
 
 def track_llm_cost(provider: str, model: str, cost: float) -> None:
     """Track LLM cost in USD."""
-    llm_cost_total.labels(provider=provider, model=model).add(cost)
+    llm_cost_total.labels(provider=provider, model=model).inc(cost)
 
 
 def track_cache_hit(cache_type: str) -> None:

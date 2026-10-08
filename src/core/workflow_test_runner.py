@@ -175,9 +175,9 @@ def responding_agent(result: WorkflowExecuteResponse) -> str | None:
     manager = result.metadata.get("manager_agent_id")
     specialists = [agent_id for agent_id in ids if agent_id != manager]
     if specialists:
-        return specialists[-1]
+        return str(specialists[-1])
     if ids:
-        return ids[0]
+        return str(ids[0])
     return result.agents_called[0] if result.agents_called else None
 
 

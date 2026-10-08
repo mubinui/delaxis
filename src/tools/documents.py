@@ -472,7 +472,7 @@ def list_generated_documents(limit: int = 100) -> list[dict[str, Any]]:
                 "download_url": f"/api/v1/documents/{path.name}",
             }
         )
-    return sorted(items, key=lambda item: item["created"], reverse=True)[:limit]
+    return sorted(items, key=lambda item: str(item["created"]), reverse=True)[:limit]
 
 
 def delete_generated_document(name: str) -> bool:

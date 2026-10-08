@@ -143,6 +143,11 @@ module = [
 ]
 ignore_missing_imports = true
 
+# google-auth ships without annotations; the Gmail tool is the only caller.
+[[tool.mypy.overrides]]
+module = ["src.tools.gmail_tool"]
+disallow_untyped_calls = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

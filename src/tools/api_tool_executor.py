@@ -65,7 +65,7 @@ async def _get_admin_token() -> str | None:
             logger.info(
                 "admin_token_acquired_for_api_tool", client_id=settings.keycloak.admin_client_id
             )
-            return token_response["access_token"]
+            return str(token_response["access_token"])
     except Exception as e:
         logger.error("failed_to_acquire_admin_token", error=str(e))
         return None
@@ -157,7 +157,7 @@ def create_api_tool_function(
         # Create the function dynamically using exec
         # This allows us to create proper type annotations that CrewAI can inspect
         param_strs = []
-        annotations = {"return": dict[str, Any]}
+        annotations: dict[str, Any] = {"return": dict[str, Any]}
 
         for name, ptype, desc in required_params:
             # Use Annotated for description
@@ -186,7 +186,7 @@ def create_api_tool_function(
         params_str = ", ".join(param_strs)
 
         # Create a wrapper that calls execute_api_tool with captured tool_id and settings
-        async def _execute_wrapper(**kw):
+        async def _execute_wrapper(**kw: Any) -> dict[str, Any]:
             return await execute_api_tool(tool_id, settings, **kw)
 
         # Build the function code
@@ -197,16 +197,16 @@ async def {tool_id}({params_str}) -> dict:
 '''
 
         # Execute to create the function
-        local_vars = {"_execute_wrapper": _execute_wrapper}
+        local_vars: dict[str, Any] = {"_execute_wrapper": _execute_wrapper}
         try:
             exec(
                 func_code.replace("{docstring}", full_description.replace('"', "'")),
                 local_vars,
                 local_vars,
             )
-            api_tool_func = local_vars[tool_id]
-            api_tool_func.__annotations__.update(annotations)
-            return api_tool_func
+            typed_func: Callable[..., Any] = local_vars[tool_id]
+            typed_func.__annotations__.update(annotations)
+            return typed_func
         except Exception as e:
             logger.warning(
                 "failed_to_create_typed_function",
@@ -316,7 +316,8 @@ async def execute_api_tool(
 
     if is_self_endpoint or settings.get("use_user_token", False):
         # Use the calling user's own token to identify them to the upstream API
-        raw_token = user_info.get("raw_token") if user_info else None
+        raw = user_info.get("raw_token") if user_info else None
+        raw_token = raw if isinstance(raw, str) else None
         if raw_token:
             if not raw_token.startswith("Bearer "):
                 request_headers["Authorization"] = f"Bearer {raw_token}"
@@ -348,8 +349,10 @@ async def execute_api_tool(
             logger.warning("proceeding_without_admin_token", tool_id=tool_id)
     # auth_type "none": no Authorization header
 
-    username = user_info.get("username") if user_info else None
-    roles = user_info.get("roles") if user_info else None
+    username_value = user_info.get("username") if user_info else None
+    username = username_value if isinstance(username_value, str) else None
+    roles_value = user_info.get("roles") if user_info else None
+    roles = list(roles_value) if isinstance(roles_value, list) else None
 
     logger.info(
         "api_tool_user_context",

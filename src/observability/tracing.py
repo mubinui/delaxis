@@ -78,14 +78,16 @@ def instrument_fastapi(app: Any) -> None:
     logger.info("fastapi_instrumented_with_opentelemetry")
 
 
-def get_tracer() -> trace.Tracer | None:
+def get_tracer() -> trace.Tracer:
     """
     Get the OpenTelemetry tracer instance.
 
     Returns:
-        Tracer instance or None if tracing not configured
+        The configured tracer, or OpenTelemetry's no-op tracer when tracing is
+        not set up. Five helpers called ``start_span`` on the result without a
+        None check and crashed with AttributeError whenever tracing was off.
     """
-    return _tracer
+    return _tracer if _tracer is not None else trace.get_tracer(__name__)
 
 
 def is_tracing_enabled() -> bool:
@@ -246,7 +248,7 @@ def trace_llm_call(
     Requirements: 14.3, 14.4
     """
     tracer = get_tracer()
-    attributes = {
+    attributes: dict[str, str | int] = {
         "llm.provider": provider,
         "llm.model": model,
     }
@@ -346,7 +348,9 @@ def trace_cache_operation(
     return span
 
 
-def add_span_event(span: trace.Span | None, name: str, attributes: dict | None = None) -> None:
+def add_span_event(
+    span: trace.Span | None, name: str, attributes: dict[str, Any] | None = None
+) -> None:
     """
     Add an event to a span.
 

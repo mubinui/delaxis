@@ -30,8 +30,12 @@ def get_current_user_info() -> dict[str, Any]:
     user_info = get_user_context_info()
 
     # The username in the JWT is the preferred_username which contains the student ID
-    student_id = user_info.get("username")
-    raw_token = user_info.get("raw_token")
+    username = user_info.get("username")
+    student_id = username if isinstance(username, str) else None
+    token = user_info.get("raw_token")
+    raw_token = token if isinstance(token, str) else None
+    role_values = user_info.get("roles", [])
+    roles = list(role_values) if isinstance(role_values, list) else []
 
     # Initialize with defaults
     name: str | None = None
@@ -74,7 +78,7 @@ def get_current_user_info() -> dict[str, Any]:
         "username": student_id,  # Same as student_id
         "name": name,
         "email": email,
-        "roles": user_info.get("roles", []),
+        "roles": roles,
         "has_auth": bool(student_id),
     }
 
@@ -84,7 +88,7 @@ def get_current_user_info() -> dict[str, Any]:
         name=result["name"],
         email=result["email"],
         has_auth=result["has_auth"],
-        roles_count=len(result["roles"]),
+        roles_count=len(roles),
     )
 
     return result

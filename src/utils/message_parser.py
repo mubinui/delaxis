@@ -1,6 +1,7 @@
 """Message parsing utilities for agent mentions and routing."""
 
 import re
+from typing import Any
 
 
 class MessageParser:
@@ -79,7 +80,7 @@ class MessageParser:
         """
         return self.mention_pattern.sub("", message).strip()
 
-    def parse_message(self, message: str) -> dict[str, any]:
+    def parse_message(self, message: str) -> dict[str, Any]:
         """
         Parse a message and extract all relevant information.
 

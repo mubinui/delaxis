@@ -6,6 +6,7 @@ workflow using the same SessionManager the API uses.
 
 import argparse
 import asyncio
+from uuid import UUID
 
 from src.api.session_manager import SessionManager, get_session_manager
 from src.audit_logging import configure_logging
@@ -31,7 +32,7 @@ def _resolve_workflow_id(requested: str | None) -> str:
     return enabled[0].id
 
 
-async def _print_history(manager: SessionManager, session_id) -> None:
+async def _print_history(manager: SessionManager, session_id: UUID) -> None:
     history = await manager.get_chat_history(session_id)
     print("\n--- Conversation History ---")
     for msg in history.get("messages", []):
@@ -40,7 +41,7 @@ async def _print_history(manager: SessionManager, session_id) -> None:
     print("--- End History ---\n")
 
 
-def _print_status(session_id, turn_count: int) -> None:
+def _print_status(session_id: UUID, turn_count: int) -> None:
     provider_registry = get_provider_registry()
     prompt_registry = get_prompt_registry()
     print("\n--- System Status ---")

@@ -99,7 +99,7 @@ def paginate(lines: list[Line]) -> list[list[tuple[Line, float]]]:
     """Assign lines to pages, returning each with its baseline position."""
     pages: list[list[tuple[Line, float]]] = []
     page: list[tuple[Line, float]] = []
-    cursor = PAGE_HEIGHT - MARGIN
+    cursor: float = PAGE_HEIGHT - MARGIN
 
     for line in lines:
         leading = line.size * 1.45

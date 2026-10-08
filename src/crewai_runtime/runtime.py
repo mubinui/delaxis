@@ -52,7 +52,9 @@ def knowledge_embedder() -> dict[str, Any]:
 
     # Both bases: crewai's Agent validates the spec against chromadb's
     # EmbeddingFunction, while its provider class expects its own.
-    class DelaxisEmbeddings(CustomEmbeddingFunction, ChromaEmbeddingFunction):
+    # chromadb's EmbeddingFunction is generic only in its stubs; it cannot be
+    # subscripted as a runtime base class.
+    class DelaxisEmbeddings(CustomEmbeddingFunction, ChromaEmbeddingFunction):  # type: ignore[type-arg]
         @staticmethod
         def name() -> str:
             # Chroma records this on the collection; a stable name is what lets
@@ -344,8 +346,8 @@ class CrewAIWorkflowRuntime:
                 self._crew_llm_config(workflow, "planning_llm", agent_configs, workflow_agent_ids)
             )
 
-        if getattr(workflow, "max_rpm", None):
-            crew_kwargs["max_rpm"] = int(workflow.max_rpm)
+        if workflow.max_rpm:
+            crew_kwargs["max_rpm"] = workflow.max_rpm
 
         if manager_agent is not None:
             crew_kwargs["manager_agent"] = manager_agent
@@ -708,13 +710,13 @@ class CrewAIWorkflowRuntime:
         """Pre-registry behavior for agents without a provider_id: glue the
         LLM_PROVIDER prefix onto bare model ids (defaults to openrouter)."""
         if not model:
-            return os.getenv("LLM_MODEL", DEFAULT_FALLBACK_MODEL)
-        model = str(model)
-        if "/" in model and not model.startswith(("openrouter/", "ollama/", "azure/", "gemini/")):
+            return str(os.getenv("LLM_MODEL", DEFAULT_FALLBACK_MODEL))
+        name = str(model)
+        if "/" in name and not name.startswith(("openrouter/", "ollama/", "azure/", "gemini/")):
             provider = os.getenv("LLM_PROVIDER", "openrouter")
             if provider == "openrouter":
-                model = f"openrouter/{model}"
-        return model
+                name = f"openrouter/{name}"
+        return name
 
     @staticmethod
     def _sampling_params(
@@ -966,13 +968,15 @@ class CrewAIWorkflowRuntime:
         # verbatim they would be resolved here instead — where `Optional` and the
         # tool's own types are not defined — failing every workflow that uses the
         # tool ("`Rag_Query` is not fully defined; you should define `Optional`").
+        # Functions accept arbitrary attributes; mypy only knows the declared ones.
+        dynamic_tool: Any = run_tool
         try:
             try:
-                run_tool.__signature__ = inspect.signature(func, eval_str=True)
+                dynamic_tool.__signature__ = inspect.signature(func, eval_str=True)
                 run_tool.__annotations__ = typing.get_type_hints(func)
             except (NameError, AttributeError, SyntaxError):
                 # A hint that cannot be resolved even at home: keep it as written.
-                run_tool.__signature__ = inspect.signature(func)
+                dynamic_tool.__signature__ = inspect.signature(func)
                 run_tool.__annotations__ = dict(getattr(func, "__annotations__", {}))
         except (ValueError, TypeError):
             pass

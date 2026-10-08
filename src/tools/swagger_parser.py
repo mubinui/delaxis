@@ -212,9 +212,9 @@ class SwaggerParser:
     def detect_openapi_version(self, spec: dict[str, Any]) -> str:
         """Detect OpenAPI version from spec."""
         if "openapi" in spec:
-            return spec["openapi"]
+            return str(spec["openapi"])
         elif "swagger" in spec:
-            return spec["swagger"]
+            return str(spec["swagger"])
         else:
             raise ValueError("Unable to detect OpenAPI/Swagger version")
 
@@ -242,7 +242,7 @@ class SwaggerParser:
 
                     parsed = urlparse(spec_url)
                     return f"{parsed.scheme}://{parsed.netloc}{server_url}"
-                return server_url
+                return str(server_url)
         else:
             # Swagger 2.0
             host = spec.get("host", "")
@@ -266,13 +266,13 @@ class SwaggerParser:
         if version.startswith("3"):
             # OpenAPI 3.x
             components = spec.get("components", {})
-            return components.get("securitySchemes", {})
+            return dict(components.get("securitySchemes", {}))
         else:
             # Swagger 2.0
-            return spec.get("securityDefinitions", {})
+            return dict(spec.get("securityDefinitions", {}))
 
     def parse_parameters(
-        self, spec: dict[str, Any], operation: dict[str, Any], path_params: list[dict]
+        self, spec: dict[str, Any], operation: dict[str, Any], path_params: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """Parse operation parameters including path-level parameters."""
         params = []

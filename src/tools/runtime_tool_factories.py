@@ -129,7 +129,7 @@ class McpToolFactory(RuntimeToolFactory):
     def sandbox_function(self) -> Callable[..., Any]:
         factory = self
 
-        def call_mcp_tool(tool_name: str = "", arguments: dict | None = None) -> Any:
+        def call_mcp_tool(tool_name: str = "", arguments: dict[str, Any] | None = None) -> Any:
             """Call a tool on the configured MCP server. Empty tool_name lists available tools."""
             adapter = factory._open_adapter()
             try:
@@ -180,21 +180,25 @@ def _make_delaxis_nl2sql_class() -> type:
                     if not self.allowed_tables or n in self.allowed_tables
                 ]
                 self.tables = [{"table_name": n} for n in names]
-                self.columns = {
+                columns: dict[str, list[dict[str, Any]] | str] = {
                     f"{n}_columns": [
                         {"column_name": c["name"], "data_type": str(c["type"])}
                         for c in inspector.get_columns(n)
                     ]
                     for n in names
                 }
+                self.columns = columns
             finally:
                 engine.dispose()
+
             # Surface the schema in the description so the LLM writes correct SQL
             # up front instead of only learning the schema from error retries.
-            schema_summary = ", ".join(
-                f"{n}({', '.join(col['column_name'] for col in self.columns.get(f'{n}_columns', []))})"
-                for n in (t["table_name"] for t in self.tables)
-            )
+            def column_list(table: str) -> str:
+                value = columns.get(f"{table}_columns")
+                entries = value if isinstance(value, list) else []
+                return ", ".join(str(col["column_name"]) for col in entries)
+
+            schema_summary = ", ".join(f"{n}({column_list(n)})" for n in names)
             if schema_summary:
                 self.description = f"{self.description} Available tables: {schema_summary}."
 
