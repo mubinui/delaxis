@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -35,6 +36,12 @@ class SessionManager:
         )
         self.storage_path = Path(settings.app.crewai_storage_dir) / "sessions.json"
         self._sessions: dict[str, ConversationState] = {}
+        # Per-workflow admission: at most this many runs of one workflow at a
+        # time; the rest wait. The counts back GET /topologies/{id}/status.
+        self.max_concurrent_runs = settings.app.max_concurrent_runs_per_workflow
+        self._run_slots: dict[str, asyncio.Semaphore] = {}
+        self._active_runs: dict[str, int] = {}
+        self._waiting_runs: dict[str, int] = {}
         self._load_sessions()
         logger.info(
             "crewai_session_manager_initialized",
@@ -150,14 +157,15 @@ class SessionManager:
             override = deployment_model_override(str(deployment_ref))
             if override:
                 run_metadata["model_override"] = override
-        result = await self.runtime.run_message(
-            workflow=workflow,
-            message=message,
-            session_id=str(session_id),
-            user_id=session.metadata.get("user_id", "default_user"),
-            metadata=run_metadata,
-            event_sink=event_sink,
-        )
+        async with self._run_slot(str(workflow_id)):
+            result = await self.runtime.run_message(
+                workflow=workflow,
+                message=message,
+                session_id=str(session_id),
+                user_id=session.metadata.get("user_id", "default_user"),
+                metadata=run_metadata,
+                event_sink=event_sink,
+            )
 
         response_text = result.response or "I could not generate a response."
         session.add_message(
@@ -174,6 +182,30 @@ class SessionManager:
         return self._response(
             session, response_text, {**result.metadata, "trace_steps": result.trace_steps}
         )
+
+    @contextlib.asynccontextmanager
+    async def _run_slot(self, workflow_id: str) -> AsyncIterator[None]:
+        """Hold one of the workflow's run slots for the duration of a run."""
+        slot = self._run_slots.setdefault(workflow_id, asyncio.Semaphore(self.max_concurrent_runs))
+        self._waiting_runs[workflow_id] = self._waiting_runs.get(workflow_id, 0) + 1
+        try:
+            await slot.acquire()
+        finally:
+            self._waiting_runs[workflow_id] -= 1
+        self._active_runs[workflow_id] = self._active_runs.get(workflow_id, 0) + 1
+        try:
+            yield
+        finally:
+            self._active_runs[workflow_id] -= 1
+            slot.release()
+
+    def run_status(self, workflow_id: str) -> dict[str, int]:
+        """Runs of a workflow executing now, and runs waiting for a slot."""
+        return {
+            "active": self._active_runs.get(workflow_id, 0),
+            "waiting": self._waiting_runs.get(workflow_id, 0),
+            "max_concurrent": self.max_concurrent_runs,
+        }
 
     async def stream_message(
         self,

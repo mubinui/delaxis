@@ -303,18 +303,10 @@ async def get_workflow_execution_status(
     )
 
     try:
-        session_manager = get_session_manager()
-        execution_engine = session_manager.execution_engine
-
-        # Get current execution count
-        active_executions = execution_engine.get_workflow_execution_count(workflow_id)
-
-        # Get max concurrent from config
-        max_concurrent = execution_engine.config.resource_limits.max_concurrent_executions
-
-        # Get pending queue size
-        pending_queue = execution_engine._get_pending_queue(workflow_id)
-        queued_requests = pending_queue.qsize()
+        counts = get_session_manager().run_status(workflow_id)
+        active_executions = counts["active"]
+        max_concurrent = counts["max_concurrent"]
+        queued_requests = counts["waiting"]
 
         # Check if resource limit is reached
         resource_limit_reached = active_executions >= max_concurrent

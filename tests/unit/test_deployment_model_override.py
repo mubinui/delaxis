@@ -107,6 +107,8 @@ class TestClientCannotForceRouting:
             get_workflow=lambda _id: SimpleNamespace(id="wf")
         )
         manager._save_sessions = lambda: None
+        manager.max_concurrent_runs = 10
+        manager._run_slots, manager._active_runs, manager._waiting_runs = {}, {}, {}
         manager._response = lambda session, text, meta: {"response": text}
 
         session = SimpleNamespace(

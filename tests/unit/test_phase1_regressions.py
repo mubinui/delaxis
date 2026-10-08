@@ -281,3 +281,67 @@ def test_agents_without_real_instructions_are_refused(client: TestClient, system
     assert response.status_code == 422, response.text
     assert "instructions" in response.text
     assert client.get("/api/v1/agents/probe_no_instructions").status_code == 404
+
+
+# --- Run admission per workflow, and the status that reports it --------------------------
+
+
+async def test_runs_beyond_the_limit_wait_and_are_counted() -> None:
+    import asyncio
+
+    from src.api.session_manager import SessionManager
+
+    manager = SessionManager.__new__(SessionManager)
+    manager.max_concurrent_runs = 2
+    manager._run_slots, manager._active_runs, manager._waiting_runs = {}, {}, {}
+
+    release = asyncio.Event()
+
+    async def run() -> None:
+        async with manager._run_slot("wf"):
+            await release.wait()
+
+    tasks = [asyncio.create_task(run()) for _ in range(3)]
+    await asyncio.sleep(0.01)
+    assert manager.run_status("wf") == {"active": 2, "waiting": 1, "max_concurrent": 2}
+    assert manager.run_status("other") == {"active": 0, "waiting": 0, "max_concurrent": 2}
+
+    release.set()
+    await asyncio.gather(*tasks)
+    assert manager.run_status("wf") == {"active": 0, "waiting": 0, "max_concurrent": 2}
+
+
+async def test_a_cancelled_waiter_does_not_leak_a_count() -> None:
+    import asyncio
+
+    from src.api.session_manager import SessionManager
+
+    manager = SessionManager.__new__(SessionManager)
+    manager.max_concurrent_runs = 1
+    manager._run_slots, manager._active_runs, manager._waiting_runs = {}, {}, {}
+    hold = asyncio.Event()
+
+    async def run() -> None:
+        async with manager._run_slot("wf"):
+            await hold.wait()
+
+    first = asyncio.create_task(run())
+    await asyncio.sleep(0.01)
+    second = asyncio.create_task(run())
+    await asyncio.sleep(0.01)
+    second.cancel()
+    await asyncio.gather(second, return_exceptions=True)
+    assert manager.run_status("wf")["waiting"] == 0
+    hold.set()
+    await first
+    assert manager.run_status("wf")["active"] == 0
+
+
+def test_topology_status_endpoint_reports_real_counts(client: TestClient) -> None:
+    response = client.get("/api/v1/topologies/assistant_chat/status")
+    assert response.status_code == 200, "it read an execution engine that no longer exists"
+    body = response.json()
+    assert body["active_executions"] == 0
+    assert body["queued_requests"] == 0
+    assert body["max_concurrent"] >= 1
+    assert body["resource_limit_reached"] is False

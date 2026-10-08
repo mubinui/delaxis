@@ -35,6 +35,12 @@ class ApplicationConfig(BaseSettings):
     crewai_storage_dir: str = Field(default="./data/.crewai", alias="CREWAI_STORAGE_DIR")
     crewai_memory_enabled: bool = Field(default=True, alias="CREWAI_MEMORY_ENABLED")
     crewai_process_default: str = Field(default="sequential", alias="CREWAI_PROCESS_DEFAULT")
+    max_concurrent_runs_per_workflow: int = Field(
+        default=10,
+        ge=1,
+        alias="DELAXIS_MAX_CONCURRENT_RUNS",
+        description="Runs of one workflow that execute at once; later runs wait their turn",
+    )
 
 
 class MemoryConfig(BaseSettings):

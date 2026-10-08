@@ -52,6 +52,7 @@ def session_manager(monkeypatch, tmp_path):
         crewai_memory_enabled = False
         crewai_storage_dir = str(tmp_path)
         crewai_process_default = "sequential"
+        max_concurrent_runs_per_workflow = 10
 
     class FakeSettings:
         app = FakeAppSettings()
