@@ -108,7 +108,7 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
             const fix = fixFor(diagnostic);
             if (!fix) continue;
             const context = { ...fixContext, nodes: workingNodes, edges: workingEdges };
-            let result = null;
+            let result: ReturnType<typeof fix.apply>;
             try {
                 result = fix.apply(diagnostic, context);
             } catch {

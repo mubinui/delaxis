@@ -343,7 +343,7 @@ export const LibraryModal = ({ tab }: { tab: ResourceTab }) => {
         }
 
         const itemType: ItemType = activeTab === 'tools' ? 'tool' : 'agent';
-        let config: JsonObject = {};
+        let config: JsonObject;
         let type = formData.type;
 
         if (activeTab === 'tools') {
