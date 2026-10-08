@@ -1,6 +1,7 @@
 """Authentication and authorization API endpoints."""
 
 from datetime import timedelta
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -42,7 +43,7 @@ class AuthConfig(BaseModel):
 
 
 @router.get("/config", response_model=AuthConfig)
-async def get_auth_config():
+async def get_auth_config() -> AuthConfig:
     """Get public authentication configuration."""
     settings = get_settings()
     return AuthConfig(
@@ -56,7 +57,7 @@ async def get_auth_config():
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
-):
+) -> dict[str, Any]:
     """Authenticate user and return JWT token."""
     try:
         user_manager = UserManager()
@@ -93,7 +94,9 @@ async def login_for_access_token(
 
 
 @router.post("/users", response_model=UserResponse)
-async def create_user(user_data: UserCreate, current_user: CurrentUser = Depends(require_admin)):
+async def create_user(
+    user_data: UserCreate, current_user: CurrentUser = Depends(require_admin)
+) -> UserResponse:
     """Create a new user (admin only)."""
     try:
         user_manager = UserManager()
@@ -106,7 +109,7 @@ async def create_user(user_data: UserCreate, current_user: CurrentUser = Depends
 
 
 @router.get("/users/me", response_model=dict)
-async def read_users_me(current_user: CurrentUser = Depends(get_current_user)):
+async def read_users_me(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, Any]:
     """Get current user information."""
     return {
         "user_id": current_user.user_id,
@@ -120,7 +123,7 @@ async def read_users_me(current_user: CurrentUser = Depends(get_current_user)):
 @router.post("/api-keys", response_model=APIKeyResponse)
 async def create_api_key(
     api_key_data: APIKeyCreate, current_user: CurrentUser = Depends(require_admin)
-):
+) -> APIKeyResponse:
     """Create a new API key (admin only)."""
     try:
         api_key_manager = APIKeyManager()
@@ -133,7 +136,9 @@ async def create_api_key(
 
 
 @router.get("/api-keys", response_model=list[APIKeyInfo])
-async def list_api_keys(user_id: str = None, current_user: CurrentUser = Depends(require_user)):
+async def list_api_keys(
+    user_id: str | None = None, current_user: CurrentUser = Depends(require_user)
+) -> list[APIKeyInfo]:
     """List API keys. Non-admin users can only see their own keys."""
     try:
         api_key_manager = APIKeyManager()
@@ -151,7 +156,9 @@ async def list_api_keys(user_id: str = None, current_user: CurrentUser = Depends
 
 
 @router.delete("/api-keys/{api_key_id}")
-async def revoke_api_key(api_key_id: UUID, current_user: CurrentUser = Depends(require_admin)):
+async def revoke_api_key(
+    api_key_id: UUID, current_user: CurrentUser = Depends(require_admin)
+) -> dict[str, str]:
     """Revoke an API key (admin only)."""
     try:
         api_key_manager = APIKeyManager()
@@ -170,7 +177,9 @@ async def revoke_api_key(api_key_id: UUID, current_user: CurrentUser = Depends(r
 
 
 @router.post("/api-keys/{api_key_id}/rotate", response_model=APIKeyResponse)
-async def rotate_api_key(api_key_id: UUID, current_user: CurrentUser = Depends(require_admin)):
+async def rotate_api_key(
+    api_key_id: UUID, current_user: CurrentUser = Depends(require_admin)
+) -> APIKeyResponse:
     """Rotate an API key (admin only)."""
     try:
         api_key_manager = APIKeyManager()
@@ -189,7 +198,7 @@ async def rotate_api_key(api_key_id: UUID, current_user: CurrentUser = Depends(r
 
 
 @router.get("/validate")
-async def validate_token(current_user: CurrentUser = Depends(get_current_user)):
+async def validate_token(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, Any]:
     """Validate current authentication token."""
     return {
         "valid": True,

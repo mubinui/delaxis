@@ -1,5 +1,6 @@
 """Streaming chat endpoints for real-time agent responses."""
 
+from collections.abc import AsyncIterator
 from uuid import UUID
 
 from fastapi import (
@@ -69,7 +70,7 @@ async def stream_chat(
         username=current_user.username,
     )
 
-    async def event_stream():
+    async def event_stream() -> AsyncIterator[str]:
         try:
             session_manager = get_session_manager()
             async for delta in session_manager.stream_message(

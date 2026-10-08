@@ -1,10 +1,12 @@
 """Rate limiting middleware and utilities."""
 
 import time
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar, cast
 
 import structlog
 from fastapi import Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -12,6 +14,8 @@ from slowapi.util import get_remote_address
 from src.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 def get_user_id_for_rate_limiting(request: Request) -> str:
@@ -62,7 +66,7 @@ limiter = Limiter(
 class RateLimitingMiddleware:
     """Custom rate limiting middleware with different limits for different user types."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.settings = get_settings()
         self._rate_limit_store: dict[str, dict[str, float]] = {}
 
@@ -132,7 +136,9 @@ class RateLimitingMiddleware:
             headers={"Retry-After": str(retry_after)},
         )
 
-    async def __call__(self, request: Request, call_next):
+    async def __call__(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Apply rate limiting based on user type."""
         # Skip rate limiting for health checks and static files
         if request.url.path in ["/health", "/metrics"] or request.url.path.startswith("/static"):
@@ -198,7 +204,7 @@ class RateLimitingMiddleware:
 rate_limiting_middleware = RateLimitingMiddleware()
 
 
-def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
     """Custom rate limit exceeded handler."""
     user_id = get_user_id_for_rate_limiting(request)
     api_key_id = get_api_key_id_for_rate_limiting(request)
@@ -208,38 +214,40 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         user_id=user_id,
         api_key_id=api_key_id,
         path=request.url.path,
-        detail=str(exc.detail),
+        detail=str(getattr(exc, "detail", exc)),
     )
 
+    assert isinstance(exc, RateLimitExceeded)  # registered for this type only
     return _rate_limit_exceeded_handler(request, exc)
 
 
 # Decorator for endpoint-specific rate limiting
-def endpoint_rate_limit(rate: str):
+def endpoint_rate_limit(rate: str) -> Callable[[F], F]:
     """Decorator for endpoint-specific rate limiting."""
-    return limiter.limit(rate)
+    return cast(Callable[[F], F], limiter.limit(rate))
 
 
 # Common rate limit decorators
-def strict_rate_limit(rate: str = "10/minute"):
+def strict_rate_limit(rate: str = "10/minute") -> Callable[[F], F]:
     """Strict rate limit for sensitive endpoints."""
-    return limiter.limit(rate)
+    return cast(Callable[[F], F], limiter.limit(rate))
 
 
-def api_key_rate_limit(rate: str = "100/minute"):
+def api_key_rate_limit(rate: str = "100/minute") -> Callable[[F], F]:
     """Rate limit for API key authenticated endpoints."""
 
-    def decorator(func):
-        return limiter.limit(
+    def decorator(func: F) -> F:
+        limit = limiter.limit(
             rate,
             key_func=lambda request: (
                 get_api_key_id_for_rate_limiting(request) or get_remote_address(request)
             ),
-        )(func)
+        )
+        return cast(F, limit(func))
 
     return decorator
 
 
-def user_rate_limit(rate: str = "60/minute"):
+def user_rate_limit(rate: str = "60/minute") -> Callable[[F], F]:
     """Rate limit for user authenticated endpoints."""
-    return limiter.limit(rate)
+    return cast(Callable[[F], F], limiter.limit(rate))

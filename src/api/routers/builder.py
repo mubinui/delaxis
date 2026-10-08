@@ -1034,9 +1034,7 @@ def _normalize_plan(plan: dict[str, Any], prompt: str) -> dict[str, Any]:
     plan = dict(plan or {})
     known_tools = set(_known_tool_ids())
 
-    agents: list[dict] = [
-        dict(a) for a in plan.get("agents") or [] if isinstance(a, dict)
-    ]
+    agents: list[dict] = [dict(a) for a in plan.get("agents") or [] if isinstance(a, dict)]
     planned_tool_ids = {
         _slug(t.get("id") or t.get("name") or "", "tool")
         for t in plan.get("tools") or []

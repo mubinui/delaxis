@@ -2,9 +2,10 @@
 
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 
 import structlog
-from fastapi import Request
+from fastapi import Request, Response
 
 from src.api.context import set_request_user
 from src.audit_logging import bind_correlation_ids, clear_correlation_ids
@@ -12,6 +13,8 @@ from src.config.settings import get_settings
 from src.observability.metrics import track_http_request
 
 logger = structlog.get_logger(__name__)
+
+CallNext = Callable[[Request], Awaitable[Response]]
 
 PUBLIC_PATHS = {
     "/",
@@ -23,7 +26,7 @@ PUBLIC_PATHS = {
 }
 
 
-async def request_logging_middleware(request: Request, call_next):
+async def request_logging_middleware(request: Request, call_next: CallNext) -> Response:
     """Log requests with correlation IDs, timing, and metrics."""
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
@@ -76,7 +79,7 @@ async def request_logging_middleware(request: Request, call_next):
         clear_correlation_ids()
 
 
-async def jwt_validation_middleware(request: Request, call_next):
+async def jwt_validation_middleware(request: Request, call_next: CallNext) -> Response:
     """Validate JWT tokens and add user context to request state."""
     settings = get_settings()
 

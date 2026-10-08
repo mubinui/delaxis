@@ -2,6 +2,7 @@
 
 import copy
 import json
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -501,7 +502,7 @@ async def stream_workflow_execution(
     """Execute a workflow and stream real-time agent/tool deltas as SSE."""
     request_id = getattr(request.state, "request_id", None)
 
-    async def event_stream():
+    async def event_stream() -> AsyncIterator[str]:
         session_manager = get_session_manager()
         conversation = await session_manager.create_session(
             workflow_id=workflow_id,
@@ -548,7 +549,7 @@ class GraphValidateResponse(BaseModel):
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
 
-def _library_snapshot() -> tuple[list[dict], list[dict], list[dict]]:
+def _library_snapshot() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Agents, tools and providers as plain dicts for the diagnostics engine."""
     from src.config.config_loader import get_config_loader
 
@@ -752,7 +753,7 @@ async def create_test_case(
     test_case_id = uuid4()
     now = datetime.now(UTC)
 
-    test_case = {
+    test_case: dict[str, Any] = {
         "id": test_case_id,
         "workflow_id": workflow_id,
         "name": body.name,
@@ -1054,7 +1055,7 @@ async def run_workflow_tests(
     else:
         run_status = TestStatus.PASSED
 
-    run = {
+    run: dict[str, Any] = {
         "id": run_id,
         "workflow_id": workflow_id,
         "name": body.name if body else f"Test run {run_id}",

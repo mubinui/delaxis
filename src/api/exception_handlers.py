@@ -11,7 +11,8 @@ from fastapi.responses import JSONResponse
 logger = structlog.get_logger(__name__)
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, RequestValidationError)  # registered for this type only
     """Handle request validation errors with a stable response shape."""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     logger.warning(
@@ -35,7 +36,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-async def general_exception_handler(request: Request, exc: Exception):
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle unhandled exceptions without exposing internals."""
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     logger.error(
