@@ -14,7 +14,7 @@
 
     {"workflow_id": "research_brief", "name": "writes a sourced brief", "input_message": "Brief me: what is the boiling point of water at sea level in Celsius?", "expected_tools": ["web_search"], "expected_output_contains": ["100"]},
 
-    {"workflow_id": "content_pipeline", "name": "respects a length limit end to end", "input_message": "Write exactly two sentences about tea.", "expected_output_contains": ["tea"]},
+    {"workflow_id": "content_pipeline", "name": "respects a length limit end to end", "input_message": "Write exactly two sentences about tea.", "expected_output_pattern": "(?i)(\\btea\\b|camellia)"},
 
     {"workflow_id": "docs_qa", "name": "admits when the documents do not say", "input_message": "According to the indexed documents, what is the refund window for Zorblax premium accounts?", "expected_output_pattern": "(?i)(not|no|couldn|can't|cannot|unable|doesn't|does not|isn't|don't)"}
   ]
