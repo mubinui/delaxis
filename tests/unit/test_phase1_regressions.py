@@ -386,3 +386,71 @@ def test_the_api_reads_and_writes_the_configured_directory(monkeypatch, tmp_path
     shutil.copytree(ROOT / "configs", target)
     monkeypatch.setenv("DELAXIS_CONFIG_DIR", str(target))
     assert workflows_router._get_workflows_config_path() == target / "workflows.json"
+
+
+# --- Crew memory survives an embedder change -----------------------------------------------
+
+
+def _memory_table(memory_dir: Path, dimensions: int) -> None:
+    import lancedb
+    import pyarrow as pa
+
+    schema = pa.schema(
+        [
+            pa.field("id", pa.string()),
+            pa.field("vector", pa.list_(pa.float32(), dimensions)),
+        ]
+    )
+    lancedb.connect(str(memory_dir)).create_table("memories", schema=schema)
+
+
+def test_a_store_written_by_another_embedder_is_moved_aside(tmp_path) -> None:
+    from src.crewai_runtime import memory_store
+
+    memory_store.reset_for_tests()
+    memory_dir = tmp_path / "memory"
+    _memory_table(memory_dir, 1536)
+    assert memory_store.stored_vector_dim(memory_dir) == 1536
+
+    retired = memory_store.retire_mismatched_store(tmp_path, 512)
+    assert retired is not None and retired.exists(), "moved, never deleted"
+    assert "1536d" in retired.name
+    assert not (memory_dir / memory_store.TABLE_DIR).exists()
+
+
+def test_a_matching_store_is_left_alone(tmp_path) -> None:
+    from src.crewai_runtime import memory_store
+
+    memory_store.reset_for_tests()
+    _memory_table(tmp_path / "memory", 512)
+    assert memory_store.retire_mismatched_store(tmp_path, 512) is None
+    assert (tmp_path / "memory" / memory_store.TABLE_DIR).exists()
+
+
+def test_no_store_means_nothing_to_do(tmp_path) -> None:
+    from src.crewai_runtime import memory_store
+
+    memory_store.reset_for_tests()
+    assert memory_store.retire_mismatched_store(tmp_path, 512) is None
+
+
+def test_run_memory_uses_the_workflow_model_and_the_local_embedder(monkeypatch, tmp_path) -> None:
+    from src.config.workflow_registry import get_workflow_registry
+    from src.crewai_runtime import memory_store
+    from src.crewai_runtime.runtime import CrewAIWorkflowRuntime
+    from src.rag.service import get_rag_service
+
+    memory_store.reset_for_tests()
+    monkeypatch.setenv("CREWAI_STORAGE_DIR", str(tmp_path))
+    runtime = CrewAIWorkflowRuntime(memory_enabled=True, storage_dir=str(tmp_path))
+    monkeypatch.setattr(runtime, "_resolve_llm_model", lambda config: f"llm:{config.get('model')}")
+    workflow = get_workflow_registry().get_workflow("assistant_chat")
+    from src.config.loader import load_agents_config
+
+    agents = {agent.id: agent for agent in load_agents_config().agents}
+    memory = runtime._build_memory(workflow, agents, ["general_assistant"])
+    assert memory.llm == f"llm:{agents['general_assistant'].llm_config.model}"
+    assert memory.root_scope == "/crew/assistant_chat"
+    # The local embedder, not CrewAI's OpenAI default.
+    assert memory.embedder is not None
+    assert get_rag_service().embedder.dimensions == 512

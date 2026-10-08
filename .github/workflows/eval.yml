@@ -1,0 +1,45 @@
+name: Live evaluation
+
+# Grades the shipped workflows against a real model (evals/starters.json):
+# which agent handled each case, which tools ran, and what the answer says.
+# Fails when the pass rate drops below the threshold in that file. Needs the
+# OPENROUTER_API_KEY repository secret; costs a few cents per run.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-eval
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Evaluate
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          REDIS_URL: ""
+        run: uv run --no-sync python scripts/eval_starters.py --json eval-results.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: eval-results.json
+          retention-days: 30

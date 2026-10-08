@@ -79,12 +79,13 @@ def test_create_agent_merges_extra_tools_and_attachment_kwargs(monkeypatch) -> N
         config,
         emitter=None,
         extra_tool_ids=["t1", "t2"],
-        memory_attached=True,
+        memory="shared-memory",
         knowledge_sources=knowledge_sources,
     )
 
     assert captured_tool_ids == [["t1", "t2"]]  # deduped: config t1 + extra t2
-    assert captured_kwargs["memory"] is True
+    # The run's shared, explicitly configured memory, not CrewAI's OpenAI default.
+    assert captured_kwargs["memory"] == "shared-memory"
     assert captured_kwargs["knowledge_sources"] == knowledge_sources
 
 

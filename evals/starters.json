@@ -1,0 +1,21 @@
+{
+  "_comment": "Graded cases for the shipped workflows, run against a live model by scripts/eval_starters.py. Each expectation is something a correct run must do; phrasing is free. Keep cases cheap and unambiguous.",
+  "threshold": 0.9,
+  "cases": [
+    {"workflow_id": "assistant_chat", "name": "follows an exact instruction", "input_message": "Reply with exactly the word READY and nothing else.", "expected_output_pattern": "^\\W*READY\\W*$"},
+    {"workflow_id": "assistant_chat", "name": "does simple arithmetic", "input_message": "What is 17 multiplied by 3? Answer with the number only.", "expected_output_contains": ["51"]},
+    {"workflow_id": "assistant_chat", "name": "keeps to the requested length", "input_message": "Write exactly one sentence about the sea.", "expected_output_pattern": "^[^.!?]*[.!?]\\W*$"},
+
+    {"workflow_id": "support_triage", "name": "routes arithmetic to the calculator", "input_message": "What is (12 + 8) * 3? Answer with the number only.", "expected_agent": "calculator_agent", "expected_tools": ["calculate"], "expected_output_contains": ["60"]},
+    {"workflow_id": "support_triage", "name": "routes current facts to search", "input_message": "Search the web: what is the capital city of Australia? One word.", "expected_agent": "search_assistant", "expected_tools": ["web_search"], "expected_output_contains": ["Canberra"]},
+    {"workflow_id": "support_triage", "name": "routes a percentage to the calculator", "input_message": "What is 15% of 240? Number only.", "expected_agent": "calculator_agent", "expected_output_contains": ["36"]},
+
+    {"workflow_id": "web_research_chat", "name": "searches and cites", "input_message": "Which planet is the largest in the solar system? Answer in one sentence with a source URL.", "expected_tools": ["web_search"], "expected_output_contains": ["Jupiter", "http"]},
+
+    {"workflow_id": "research_brief", "name": "writes a sourced brief", "input_message": "Brief me: what is the boiling point of water at sea level in Celsius?", "expected_tools": ["web_search"], "expected_output_contains": ["100"]},
+
+    {"workflow_id": "content_pipeline", "name": "respects a length limit end to end", "input_message": "Write exactly two sentences about tea.", "expected_output_contains": ["tea"]},
+
+    {"workflow_id": "docs_qa", "name": "admits when the documents do not say", "input_message": "According to the indexed documents, what is the refund window for Zorblax premium accounts?", "expected_output_pattern": "(?i)(not|no|couldn|can't|cannot|unable|doesn't|does not|isn't|don't)"}
+  ]
+}

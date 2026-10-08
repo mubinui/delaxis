@@ -138,6 +138,7 @@ def runtime(monkeypatch: pytest.MonkeyPatch) -> CrewAIWorkflowRuntime:
     monkeypatch.setattr(rt, "_get_crewai_tools", lambda tool_ids, *a, **k: list(tool_ids))
     monkeypatch.setattr(rt, "_knowledge_retrieval_tools", lambda workflow: [])
     monkeypatch.setattr(rt, "_resolve_knowledge_sources", lambda *a, **k: [])
+    monkeypatch.setattr(rt, "_build_memory", lambda *a, **k: "run-memory")
     monkeypatch.setattr(
         "src.crewai_runtime.runtime.load_agents_config",
         lambda: types.SimpleNamespace(agents=agents()),
@@ -260,3 +261,14 @@ def test_a_studio_save_with_one_task_per_node_stays_manager_led(runtime, fake_cr
     assert tasks[0].agent is None
     assert tasks[0].kwargs["description"].startswith("Route the request to the right specialist.")
     assert tasks[0].kwargs["expected_output"] == "The specialist's answer, in your words."
+
+
+def test_crew_memory_is_the_runs_own_memory(runtime, fake_crewai) -> None:
+    """Left at True, CrewAI built memory on OpenAI defaults that failed on every run."""
+    run(runtime, selector_workflow(memory={"enabled": True}))
+    assert fake_crewai.built[-1].kwargs["memory"] == "run-memory"
+
+
+def test_memory_off_means_no_memory(runtime, fake_crewai) -> None:
+    run(runtime, selector_workflow(memory={"enabled": False}))
+    assert fake_crewai.built[-1].kwargs["memory"] is False

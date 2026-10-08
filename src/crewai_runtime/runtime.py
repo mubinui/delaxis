@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import inspect
 import os
+import re
 import time
 import typing
 from collections.abc import Callable
@@ -223,6 +224,17 @@ class CrewAIWorkflowRuntime:
 
             return on_step
 
+        memory_active = (
+            workflow.memory.enabled if hasattr(workflow, "memory") else self.memory_enabled
+        )
+        # One memory per run, shared by the crew and any agent with memory
+        # attached, built with the workflow's own model and the local embedder.
+        memory = (
+            self._build_memory(workflow, agent_configs, workflow_agent_ids)
+            if memory_active or wants_memory
+            else None
+        )
+
         crew_agents: list[Any] = []
         crew_agent_by_id: dict[str, Any] = {}
         # One factory build per tool id per run: agents sharing an MCP tool share
@@ -244,7 +256,7 @@ class CrewAIWorkflowRuntime:
                 run_tool_cache,
                 emitter=emitter,
                 extra_tool_ids=extra_tools.get(agent_id, []),
-                memory_attached=agent_id in wants_memory,
+                memory=memory if agent_id in wants_memory else None,
                 knowledge_sources=attached_knowledge_sources
                 if agent_id in wants_knowledge
                 else None,
@@ -284,7 +296,7 @@ class CrewAIWorkflowRuntime:
                 stack,
                 run_tool_cache,
                 emitter=emitter,
-                memory_attached=manager_node.agent_id in wants_memory,
+                memory=memory if manager_node.agent_id in wants_memory else None,
                 delegates=True,
                 model_override=model_override,
                 step_callback=step_callback_for(manager_node.agent_id),
@@ -319,15 +331,11 @@ class CrewAIWorkflowRuntime:
             for step in trace_steps:
                 emitter.emit_trace(step)
 
-        memory_active = (
-            workflow.memory.enabled if hasattr(workflow, "memory") else self.memory_enabled
-        )
-
         crew_kwargs: dict[str, Any] = {
             "agents": crew_agents,
             "tasks": tasks,
             "process": process,
-            "memory": memory_active,
+            "memory": memory if memory_active and memory is not None else False,
             "verbose": bool(getattr(workflow, "verbose", False)),
             "cache": bool(getattr(workflow, "cache", True)),
             "task_callback": emitter.task_callback,
@@ -628,7 +636,7 @@ class CrewAIWorkflowRuntime:
         run_tool_cache: dict[str, list[Any]] | None = None,
         emitter: ExecutionEventEmitter | None = None,
         extra_tool_ids: list[str] | None = None,
-        memory_attached: bool = False,
+        memory: Any | None = None,
         knowledge_sources: list[Any] | None = None,
         knowledge_tools: list[Any] | None = None,
         delegates: bool = False,
@@ -660,8 +668,8 @@ class CrewAIWorkflowRuntime:
             # A canvas Flow Router branching off this node means it must be able
             # to hand work to those branches.
             agent_kwargs["allow_delegation"] = True
-        if memory_attached:
-            agent_kwargs["memory"] = True
+        if memory is not None:
+            agent_kwargs["memory"] = memory
         if knowledge_sources:
             agent_kwargs["knowledge_sources"] = knowledge_sources
             agent_kwargs["embedder"] = knowledge_embedder()
@@ -995,6 +1003,40 @@ class CrewAIWorkflowRuntime:
         ):
             return process_cls.hierarchical
         return process_cls.sequential
+
+    def _build_memory(
+        self,
+        workflow: WorkflowConfig,
+        agent_configs: dict[str, Any],
+        workflow_agent_ids: list[str],
+    ) -> Any:
+        """CrewAI memory configured for this deployment rather than for OpenAI.
+
+        Left to its defaults, CrewAI memory extracts facts with gpt-4o-mini via
+        OPENAI_API_KEY and embeds with OpenAI's 1536-dimension model. On any
+        other provider both failed on every run (401s, then dimension
+        mismatches against the store), so memory never worked. It now uses the
+        workflow's own model and the same local embedder as retrieval.
+        """
+        from crewai.memory.unified_memory import Memory
+        from crewai.rag.embeddings.factory import build_embedder
+
+        from src.crewai_runtime.memory_store import retire_mismatched_store
+        from src.rag.service import get_rag_service
+
+        retire_mismatched_store(
+            os.environ.get("CREWAI_STORAGE_DIR", self.storage_dir),
+            get_rag_service().embedder.dimensions,
+        )
+        llm = self._resolve_llm_model(
+            self._crew_llm_config(workflow, "memory_llm", agent_configs, workflow_agent_ids)
+        )
+        scope = re.sub(r"[^a-z0-9_-]+", "-", workflow.id.lower()).strip("-") or "crew"
+        return Memory(
+            llm=llm,
+            embedder=build_embedder(knowledge_embedder()),
+            root_scope=f"/crew/{scope}",
+        )
 
     @staticmethod
     def _manager_node(ordered_nodes: list[Any], agent_configs: dict[str, Any]) -> Any | None:
