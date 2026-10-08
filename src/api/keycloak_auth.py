@@ -16,10 +16,10 @@ from src.utils.jsonio import as_object
 logger = structlog.get_logger(__name__)
 
 # Cache for JWKS keys - will be initialized with TTL from settings
-_jwks_cache: TTLCache | None = None
+_jwks_cache: TTLCache[str, Any] | None = None
 
 
-def _get_jwks_cache() -> TTLCache:
+def _get_jwks_cache() -> TTLCache[str, Any]:
     """Get or initialize the JWKS cache with configured TTL."""
     global _jwks_cache
     if _jwks_cache is None:

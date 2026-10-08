@@ -8,7 +8,11 @@ from src.api.app_factory import create_app
 
 def test_create_app_registers_core_routes() -> None:
     app = create_app()
-    route_paths = {getattr(route, "path", None) for route in app.routes}
+    # The OpenAPI schema is the public contract. app.routes no longer lists
+    # the paths of included routers (FastAPI 0.142 keeps them nested).
+    route_paths = {getattr(route, "path", None) for route in app.routes} | set(
+        app.openapi()["paths"]
+    )
 
     assert "/" in route_paths or "/{path:path}" in route_paths
     assert "/api" in route_paths

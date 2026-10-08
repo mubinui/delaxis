@@ -23,6 +23,11 @@ import pytest
 
 # The suite must never depend on a Redis being up, whatever the developer's .env says.
 os.environ["REDIS_URL"] = ""
+# Nor on an OpenTelemetry collector: FastAPI builds exporters from OTEL_*
+# variables (a developer's .env may set them) and every app shutdown then waits
+# out a flush to a collector that is not there.
+for _signal in ("TRACES", "METRICS", "LOGS"):
+    os.environ[f"OTEL_{_signal}_EXPORTER"] = "none"
 
 
 @pytest.fixture

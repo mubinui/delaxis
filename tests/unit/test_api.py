@@ -1,5 +1,7 @@
 """Unit tests for FastAPI application."""
 
+from importlib.metadata import version
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -18,7 +20,7 @@ def test_api_info_endpoint(client):
     assert response.status_code == 200
     data = response.json()
     assert data["service"] == "Delaxis"
-    assert data["version"] == "0.1.0"
+    assert data["version"] == version("delaxis")
     assert "docs" in data
 
 
@@ -29,7 +31,7 @@ def test_health_check(client):
     data = response.json()
     assert data["status"] == "healthy"
     assert data["service"] == "delaxis"
-    assert data["version"] == "0.1.0"
+    assert data["version"] == version("delaxis")
 
 
 def test_request_id_header(client):
@@ -67,4 +69,4 @@ def test_openapi_docs_available(client):
     assert response.status_code == 200
     data = response.json()
     assert data["info"]["title"] == "Delaxis"
-    assert data["info"]["version"] == "0.1.0"
+    assert data["info"]["version"] == version("delaxis")

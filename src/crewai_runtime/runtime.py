@@ -772,6 +772,10 @@ class CrewAIWorkflowRuntime:
             llm = self._resolve_registered_provider(str(provider_id), model, model_config)
             if llm is not None:
                 return llm
+        else:
+            routed = self._route_prefixed_model(model, model_config)
+            if routed is not None:
+                return routed
 
         model = self._legacy_prefix_model(model)
         # When the studio config carries actual sampling/limit parameters, build a
@@ -795,6 +799,32 @@ class CrewAIWorkflowRuntime:
         except Exception as e:
             logger.warning("crewai_llm_params_ignored", error=str(e), model=model)
             return model
+
+    # Prefixes people write that name a registered provider by another name.
+    _PREFIX_ALIASES = {"xai": "grok", "google": "gemini", "claude": "anthropic"}
+
+    def _route_prefixed_model(self, model: Any, model_config: dict[str, Any]) -> Any | None:
+        """Route ``<provider>/<model>`` through the provider registry when unambiguous.
+
+        CrewAI only speaks to some vendors natively; ``groq/``, ``mistral/`` or
+        ``xai/`` strings need LiteLLM, which is not installed, and ``gemini/``
+        needs an extra package. The registry reaches all of them through their
+        OpenAI-compatible endpoints. Under the default LLM_PROVIDER=openrouter a
+        ``vendor/model`` string is an OpenRouter model id, so only ``gemini/``
+        (never an OpenRouter id) is routed there; with any other LLM_PROVIDER
+        every registered prefix is.
+        """
+        if not isinstance(model, str) or "/" not in model:
+            return None
+        prefix, _, name = model.partition("/")
+        provider_id = self._PREFIX_ALIASES.get(prefix, prefix)
+        openrouter_mode = os.getenv("LLM_PROVIDER", "openrouter").lower() == "openrouter"
+        # "google/..." is an OpenRouter id; only the literal "gemini/" prefix is not.
+        if openrouter_mode and prefix != "gemini":
+            return None
+        if provider_id == "openrouter":
+            return None
+        return self._resolve_registered_provider(provider_id, name, model_config)
 
     def _resolve_registered_provider(
         self, provider_id: str, model: Any, model_config: dict[str, Any]
@@ -1201,11 +1231,26 @@ class CrewAIWorkflowRuntime:
                     workflow_id=workflow.id,
                     ignored=ignored,
                 )
+            # Name the coworkers and what each is for. Told only to "delegate
+            # when one is suited", the manager often answered itself, so a
+            # question the calculator or search exists for skipped them.
+            roster = "\n".join(
+                f"- {getattr(agent, 'role', '')}: {getattr(agent, 'goal', '')}".rstrip(": ")
+                for agent_id, agent in crew_agent_by_id.items()
+                if agent_id != manager_node.agent_id
+            )
+            routing = (
+                "Your coworkers, and what each is for:\n"
+                f"{roster}\n\n"
+                "Delegate the request to the coworker whose purpose covers it, even when you "
+                "could answer yourself: they have the tools to get it right. Answer directly only "
+                "when no coworker's purpose applies. Give the final answer in your own words."
+            )
             description = self._task_description(
-                override.get("task")
-                or (
-                    "Answer the user's request. Delegate to the coworker best suited to it "
-                    "when one is, and give the final answer to the user in your own words."
+                "\n\n".join(
+                    part
+                    for part in (override.get("task") or "Answer the user's request.", routing)
+                    if part
                 ),
                 final=True,
             )

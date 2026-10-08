@@ -10,6 +10,8 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
+from src import __version__
+from src.config.env_compat import env
 from src.config.settings import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -29,13 +31,18 @@ def configure_tracing() -> None:
     """
     global _tracer
 
+    # Once per process. The lifespan runs for every app instance, and each call
+    # used to install another global provider with its own exporter threads.
+    if _tracer is not None:
+        return
+
     settings = get_settings()
 
     # Create resource with service information
     resource = Resource.create(
         {
             "service.name": "delaxis",
-            "service.version": "0.1.0",
+            "service.version": __version__,
             "deployment.environment": settings.app.environment,
         }
     )
@@ -43,8 +50,9 @@ def configure_tracing() -> None:
     # Create tracer provider
     provider = TracerProvider(resource=resource)
 
-    # Add console exporter for development
-    if settings.app.environment == "development":
+    # Printing every span to stdout is opt-in: on by default in development it
+    # buried the application's own logs.
+    if (env("DELAXIS_TRACE_CONSOLE") or "").lower() in {"1", "true", "yes"}:
         console_exporter = ConsoleSpanExporter()
         provider.add_span_processor(BatchSpanProcessor(console_exporter))
         logger.info("tracing_configured", exporter="console")

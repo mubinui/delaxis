@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from src import __version__
 from src.api.models import HealthResponse
 from src.audit_logging import get_logger
 from src.observability.metrics import get_metrics_registry
@@ -30,7 +31,7 @@ async def health_check(request: Request) -> HealthResponse:
     return HealthResponse(
         status="healthy",
         service="delaxis",
-        version="0.1.0",
+        version=__version__,
     )
 
 
@@ -74,7 +75,7 @@ async def readiness_check(request: Request) -> dict[str, Any]:
     return {
         "status": "ready" if all_ok else "not_ready",
         "service": "delaxis",
-        "version": "0.1.0",
+        "version": __version__,
         "timestamp": time.time(),
         "checks": checks,
     }
@@ -99,7 +100,7 @@ async def liveness_check(request: Request) -> dict[str, Any]:
     return {
         "status": "alive",
         "service": "delaxis",
-        "version": "0.1.0",
+        "version": __version__,
         "timestamp": time.time(),
     }
 

@@ -524,3 +524,62 @@ def test_runtime_overrides_are_applied_not_ignored() -> None:
         manager.get_effective_config(runtime_overrides={"agents": {}})
     with pytest.raises(ConfigurationError, match="Invalid runtime override"):
         manager.get_effective_config(runtime_overrides={"execution": {"max_workers": 0}})
+
+
+def test_the_api_reports_the_package_version(client: TestClient) -> None:
+    from importlib.metadata import version
+
+    expected = version("delaxis")
+    assert client.get("/openapi.json").json()["info"]["version"] == expected
+    assert client.get("/api/v1/health/ready").json()["version"] == expected
+
+
+def test_app_shutdown_does_not_wait_on_an_absent_collector(monkeypatch) -> None:
+    """FastAPI 0.142 built OTLP exporters from OTEL_* variables and, with no
+    collector listening, waited out a 15-second flush on every shutdown."""
+    import time
+
+    from src.api.app_factory import create_app
+
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:9")
+    started = time.perf_counter()
+    with TestClient(create_app()) as fresh:
+        fresh.get("/health")
+    assert time.perf_counter() - started < 5
+
+
+# --- Provider prefixes reach vendors CrewAI cannot call natively -------------------------
+
+
+@pytest.mark.parametrize(
+    ("model", "provider"),
+    [
+        ("groq/llama-3.3-70b-versatile", "groq"),
+        ("mistral/mistral-large-latest", "mistral"),
+        ("xai/grok-4", "grok"),
+        ("gemini/gemini-2.5-pro", "gemini"),
+    ],
+)
+def test_direct_prefixes_route_through_the_registry(monkeypatch, model, provider) -> None:
+    from src.crewai_runtime.runtime import CrewAIWorkflowRuntime
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    runtime = CrewAIWorkflowRuntime(memory_enabled=False, storage_dir="./.crewai-test")
+    seen: dict = {}
+
+    def registry(provider_id, name, config):
+        seen.update(provider=provider_id, name=name)
+        return "llm"
+
+    monkeypatch.setattr(runtime, "_resolve_registered_provider", registry)
+    assert runtime._resolve_llm_model({"model": model}) == "llm"
+    assert seen == {"provider": provider, "name": model.split("/", 1)[1]}
+
+
+def test_openrouter_mode_keeps_vendor_ids_as_openrouter_models(monkeypatch) -> None:
+    from src.crewai_runtime.runtime import CrewAIWorkflowRuntime
+
+    monkeypatch.setenv("LLM_PROVIDER", "openrouter")
+    runtime = CrewAIWorkflowRuntime(memory_enabled=False, storage_dir="./.crewai-test")
+    assert runtime._resolve_llm_model({"model": "openai/gpt-4o"}) == "openrouter/openai/gpt-4o"
+    assert runtime._resolve_llm_model({"model": "xai/grok-4"}) == "openrouter/xai/grok-4"

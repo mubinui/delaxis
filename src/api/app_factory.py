@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
+from src import __version__
 from src.api.exception_handlers import register_exception_handlers
 from src.api.lifespan import lifespan
 from src.api.middleware import jwt_validation_middleware, request_logging_middleware
@@ -41,9 +42,14 @@ def create_app() -> FastAPI:
     _seed_config_dir()
 
     app = FastAPI(
+        # Delaxis configures OpenTelemetry itself (src/observability/tracing.py).
+        # FastAPI 0.142 would also build exporters from OTEL_* variables, and
+        # with no collector listening it then waited out a 15-second flush on
+        # every shutdown.
+        telemetry={"auto_configure": False},
         title="Delaxis",
         description="Open-source multi-agent development kit for building, testing, and deploying AI agent workflows",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 
@@ -71,7 +77,7 @@ def create_app() -> FastAPI:
     api_info = {
         "service": "Delaxis",
         "product": "Delaxis",
-        "version": "0.1.0",
+        "version": __version__,
         "description": "Open-source multi-agent development kit for building, testing, and deploying AI agent workflows",
         "docs": "/docs",
         "openapi": "/openapi.json",

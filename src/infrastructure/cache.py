@@ -113,10 +113,7 @@ class RedisCache:
             True if successful, False otherwise
         """
         try:
-            if ttl:
-                result = self.client.setex(key, ttl, value)
-            else:
-                result = self.client.set(key, value)
+            result: Any = self.client.setex(key, ttl, value) if ttl else self.client.set(key, value)
             logger.debug(f"Cache set: {key} (ttl={ttl})")
             return bool(result)
         except (ConnectionError, TimeoutError, RedisError) as e:
@@ -225,7 +222,7 @@ class RedisCache:
             New value after increment or None on error
         """
         try:
-            result = cast(int, self.client.incrby(key, amount))
+            result = self.client.incrby(key, amount)
             logger.debug(f"Cache increment: {key} by {amount}")
             return result
         except (ConnectionError, TimeoutError, RedisError) as e:
@@ -243,7 +240,7 @@ class RedisCache:
             New value after decrement or None on error
         """
         try:
-            result = cast(int, self.client.decrby(key, amount))
+            result = self.client.decrby(key, amount)
             logger.debug(f"Cache decrement: {key} by {amount}")
             return result
         except (ConnectionError, TimeoutError, RedisError) as e:
