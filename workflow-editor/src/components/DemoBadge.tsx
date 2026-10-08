@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Github, X } from 'lucide-react';
+import { BookOpen, FolderGit2, X } from 'lucide-react';
 
 const REPO_URL = 'https://github.com/mubinui/delaxis';
 const INTRO_SEEN_KEY = 'delaxis-demo-intro-seen';
@@ -94,7 +94,7 @@ export const DemoBadge = () => {
                                 rel="noreferrer"
                                 className="dlx-btn dlx-btn-secondary items-center gap-2 px-4 py-2.5 text-sm"
                             >
-                                <Github size={15} />
+                                <FolderGit2 size={15} />
                                 Source
                             </a>
                             <a

@@ -19,7 +19,7 @@
     "@xyflow/react": "^12.10.0",
     "classnames": "^2.5.1",
     "dagre": "^0.8.5",
-    "lucide-react": "^0.562.0",
+    "lucide-react": "^1.53.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
@@ -33,7 +33,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
+    "@vitejs/plugin-react": "^6.1.2",
     "autoprefixer": "^10.4.23",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -44,7 +44,7 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4",
+    "vite": "^8.3.3",
     "vitest": "^4.1.10"
   }
 }

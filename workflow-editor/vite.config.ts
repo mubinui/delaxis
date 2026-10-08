@@ -32,12 +32,19 @@ export default defineConfig({
     // Chunk splitting for better caching
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          xyflow: ['@xyflow/react'],
-        }
-      }
-    }
+        // Long-lived libraries get their own chunks so a Studio release does
+        // not invalidate them. (The old object form produced an empty
+        // "vendor" chunk: React was pulled into the main bundle regardless.)
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('/@xyflow/') || id.includes('/d3-')) return 'canvas';
+          if (/\/(react|react-dom|scheduler)\//.test(id)) return 'react';
+          if (/\/(react-markdown|remark-[^/]+|micromark[^/]*|mdast-[^/]+|hast-[^/]+|unified|unist-[^/]+|vfile[^/]*|property-information|space-separated-tokens|comma-separated-tokens|decode-named-character-reference|character-entities[^/]*|trim-lines|zwitch|bail|devlop|ccount|markdown-table|longest-streak|html-url-attributes|estree-util-is-identifier-name|style-to-js|style-to-object|inline-style-parser|is-plain-obj|trough|extend)\//.test(id)) return 'markdown';
+          if (id.includes('/lucide-react/')) return 'icons';
+          return 'vendor';
+        },
+      },
+    },
   },
   server: {
     // Development server settings
