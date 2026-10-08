@@ -54,7 +54,7 @@ No install, no API key — the real Studio running against an in-browser stub of
 Delaxis is a self-hosted platform for building multi-agent AI applications:
 
 - **Visual Studio** — a React Flow canvas for composing agent workflows (selector, sequential, parallel topologies) with drag-and-drop agents, tools, and triggers
-- **CrewAI runtime** — workflows execute on [CrewAI](https://crewai.com), with any LLM via LiteLLM (OpenAI, Gemini, Grok, Claude, OpenRouter, self-hosted vLLM, local Ollama)
+- **CrewAI runtime** — workflows execute on [CrewAI](https://crewai.com), with OpenRouter, OpenAI, Gemini, Claude, Grok, Groq, Mistral, DeepSeek, Qwen, GLM, Kimi, self-hosted vLLM and local Ollama
 - **Tools out of the box** — web search, RAG, a calculator, Gmail, and any REST API via Swagger/OpenAPI import
 - **Data access** — [SQL and MongoDB](#data-tools) with schema introspection and read-only enforcement, a browsable file tree, and analysis of uploaded PDFs, spreadsheets, and images
 - **Privacy, security, and audit** — [PII detection and redaction](#trust-tools), secret and prompt-injection scanning, and an append-only, hash-chained audit trail
@@ -155,7 +155,7 @@ uv run delaxis --workflow support_triage --message "What is 2 + 2 * 5?"
 
 ## Choosing an LLM provider
 
-Workflows run on CrewAI, which calls models through [LiteLLM](https://docs.litellm.ai/docs/providers). That means **any LiteLLM-supported provider works** — OpenAI, Google Gemini, xAI Grok, Anthropic Claude, Groq, Mistral, DeepSeek, Azure OpenAI, AWS Bedrock, or a local Ollama/vLLM server.
+Workflows run on CrewAI. Every provider in [`configs/api_providers.json`](configs/api_providers.json) works out of the box — OpenRouter, OpenAI, Google Gemini, Anthropic Claude, xAI Grok, Groq, Mistral, DeepSeek, Qwen (DashScope), Zhipu GLM, Moonshot Kimi, and local Ollama, LM Studio or vLLM. CrewAI calls some of them natively; the rest are reached through their OpenAI-compatible endpoints by the provider registry, so no extra library is needed.
 
 There are two ways to get there, and the difference matters.
 
@@ -178,14 +178,14 @@ LLM_MODEL=openai/gpt-4o          # or any id below
 | DeepSeek | `deepseek/deepseek-chat` |
 | Open-weight default | `openai/gpt-oss-20b` |
 
-Under the default `LLM_PROVIDER=openrouter`, any `vendor/model` string is automatically prefixed with `openrouter/` before it reaches LiteLLM, so you write the plain OpenRouter id and routing is handled for you. Browse the full catalogue at [openrouter.ai/models](https://openrouter.ai/models).
+Under the default `LLM_PROVIDER=openrouter`, any `vendor/model` string is treated as an OpenRouter model id and sent through OpenRouter, so you write the plain OpenRouter id and routing is handled for you. The one exception is `gemini/…`, which never names an OpenRouter model and always goes to Google directly. Browse the full catalogue at [openrouter.ai/models](https://openrouter.ai/models).
 
 ### Path B — talk to a provider directly
 
-To bill a vendor directly instead of going through OpenRouter, use LiteLLM's own provider prefix and supply that vendor's key.
+To bill a vendor directly instead of going through OpenRouter, prefix the model with the provider and supply that vendor's key. The prefix names a provider in `configs/api_providers.json`, which says where its endpoint is and which key it reads. The simplest way is per agent: pick the provider and model in the Studio's properties panel.
 
 > [!IMPORTANT]
-> Set `LLM_PROVIDER` to something other than `openrouter` (e.g. `LLM_PROVIDER=openai`). Otherwise a string like `xai/grok-4` is rewritten to `openrouter/xai/grok-4` and your direct key is never used. The prefixes `gemini/`, `ollama/`, `azure/`, and `openrouter/` are always passed through untouched and don't need this.
+> For a global `LLM_MODEL`, set `LLM_PROVIDER` to something other than `openrouter` (e.g. `LLM_PROVIDER=openai`). Otherwise a string like `xai/grok-4` is an OpenRouter id and goes through OpenRouter, and your direct key is never used. The prefixes `gemini/`, `ollama/` and `openrouter/` mean the same thing in either mode.
 
 ```bash
 LLM_PROVIDER=openai              # disables OpenRouter rewriting
@@ -197,14 +197,18 @@ GEMINI_API_KEY=...
 |---|---|---|
 | OpenAI | `gpt-4o` (bare) or `openai/gpt-4o` | `OPENAI_API_KEY` |
 | Google Gemini | `gemini/gemini-2.5-pro` | `GEMINI_API_KEY` |
-| xAI Grok | `xai/grok-4` | `XAI_API_KEY` |
+| xAI Grok | `xai/grok-4` or `grok/grok-4` | `XAI_API_KEY` |
 | Anthropic Claude | `anthropic/claude-sonnet-4.5` | `ANTHROPIC_API_KEY` |
 | Groq | `groq/llama-3.3-70b-versatile` | `GROQ_API_KEY` |
 | Mistral | `mistral/mistral-large-latest` | `MISTRAL_API_KEY` |
 | DeepSeek | `deepseek/deepseek-chat` | `DEEPSEEK_API_KEY` |
-| Azure OpenAI | `azure/<your-deployment>` | `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` |
+| Qwen (DashScope) | `dashscope/qwen3.7-plus` | `DASHSCOPE_API_KEY` |
+| Zhipu GLM | `zhipu/glm-5.2` | `ZHIPUAI_API_KEY` |
+| Moonshot Kimi | `moonshot/kimi-k3` | `MOONSHOT_API_KEY` |
 
-Prefixes and key names follow [LiteLLM's provider conventions](https://docs.litellm.ai/docs/providers) — check there for vendors not listed above.
+To add a vendor that is not listed, add it to `configs/api_providers.json` (or in the Studio under Providers) with its OpenAI-compatible base URL and key variable; its id becomes a prefix.
+
+Azure OpenAI and AWS Bedrock go through CrewAI's own clients, which are optional packages: install `crewai[azure-ai-inference]` or `crewai[bedrock]` and use the `azure/<deployment>` or `bedrock/<model>` prefix.
 
 ### Path C — local and self-hosted models
 
@@ -227,7 +231,7 @@ The global `LLM_MODEL` is only the default. Each agent can override it in the St
 
 | Field | Purpose |
 |---|---|
-| `model` | LiteLLM model string (resolved exactly as above) |
+| `model` | Model id, resolved exactly as above |
 | `temperature`, `max_tokens`, `top_p`, `timeout` | Sampling and limits |
 | `base_url` | Point this agent at a different OpenAI-compatible endpoint |
 | `api_key_env` | Name of an environment variable to read this agent's key from |
@@ -447,7 +451,7 @@ Each carries `metadata.setup` listing exactly what it needs beyond an API key.
 │  FastAPI backend                      ← /api/v1/*   │
 │  Deployed chat pages                  ← /d/<name>/  │
 │                                                     │
-│  CrewAI runtime ──→ LiteLLM ──→ any LLM provider    │
+│  CrewAI runtime ──→ provider registry ──→ any LLM   │
 │                                                     │
 │  configs/*.json   agents · workflows · tools        │
 │  data/            SQLite DB · sessions · deployments│
@@ -465,7 +469,7 @@ All settings come from environment variables (see [.env.example](.env.example)).
 | Variable | Default | Purpose |
 |---|---|---|
 | `OPENROUTER_API_KEY` | — | Key for the default provider |
-| `LLM_MODEL` | `openrouter/google/gemma-3-27b-it` | Default model for agents without their own |
+| `LLM_MODEL` | `openrouter/google/gemini-3.5-flash-lite` | Default model for agents without their own |
 | `LLM_PROVIDER` | `openrouter` | Set to anything else to disable OpenRouter model-string rewriting |
 | `LLM_API_BASE` / `LLM_API_KEY` | — | For `LLM_PROVIDER=local` (vLLM, LM Studio, any OpenAI-compatible server) |
 
@@ -477,6 +481,10 @@ All settings come from environment variables (see [.env.example](.env.example)).
 | `ENVIRONMENT` | `development` | `production` enforces authentication |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `FRONTEND_URL` | `*` | Comma-separated allowed CORS origins |
+| `DELAXIS_CONFIG_DIR` | `configs` | Where agent, tool and workflow configs are read and saved. The Docker image sets `/app/data/configs` so Studio edits survive the container; it is filled from the bundled configs on first boot and never overwritten |
+| `DELAXIS_MAX_CONCURRENT_RUNS` | `10` | Runs of one workflow that execute at once; further runs wait their turn |
+| `REQUESTS_PER_MINUTE` / `REQUESTS_PER_HOUR` | `60` / `1000` | Per-client limit for writes and anything that runs a model |
+| `READ_REQUESTS_PER_MINUTE` / `READ_REQUESTS_PER_HOUR` | `600` / `20000` | Per-client limit for reads (GET), so the Studio's page loads do not use up the write budget |
 
 **Database**
 
@@ -499,7 +507,7 @@ Authentication is **off by default** in development mode: every endpoint works u
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `REDIS_URL` | — | Redis cache |
+| `REDIS_URL` | — | Redis cache. Optional: if it is set but nothing answers, Delaxis logs a warning and runs without it |
 | `QDRANT_URL` / `QDRANT_API_KEY` / `QDRANT_COLLECTION` | — | Qdrant vector store |
 | `RAG_BACKEND` | `sqlite` | Where vectors live: `sqlite`, `qdrant`, `pgvector`, `pinecone`, `faiss`, `chromadb` |
 | `RAG_EMBEDDING_PROVIDER` | `local` | How text becomes vectors: `local` (no key), `openai`, `gemini` |
@@ -507,6 +515,7 @@ Authentication is **off by default** in development mode: every endpoint works u
 | `PGVECTOR_URL` / `PINECONE_API_KEY` / `FAISS_PATH` / `CHROMA_PATH` | — | Settings for the backend you chose |
 | `RAG_PIPELINE_ENABLED` | `true` | Master switch for the `rag_*` tools |
 | `ENABLE_METRICS` / `PROMETHEUS_PORT` / `OTEL_EXPORTER_OTLP_ENDPOINT` | `true` / `9090` | Observability |
+| `DELAXIS_TRACE_CONSOLE` | `false` | Also print every trace span to stdout |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` / `ENCRYPTION_KEY` | — | Gmail integration via Google OAuth 2.0 |
 | `DELAXIS_VOICE_ENABLED` | `true` | [Live voice](#live-voice) kill switch (needs `GEMINI_API_KEY`) |
 | `DELAXIS_VOICE_MAX_SESSION_SECONDS` / `DELAXIS_VOICE_MAX_CONCURRENT` | `300` / `4` | Realtime session caps |
@@ -554,15 +563,34 @@ helm/  k8s/           Kubernetes deployment manifests
 
 ## Development
 
+Every change runs through the same gates in CI ([ci.yml](.github/workflows/ci.yml)):
+
 ```bash
-uv run pytest tests/unit -q          # backend unit tests
-uv run pytest tests/integration -q   # integration tests
-cd workflow-editor && npm test       # frontend unit tests (vitest)
-cd workflow-editor && npm run lint   # frontend lint
-docker build -t delaxis .     # full image build
+uv run ruff check src tests scripts       # lint
+uv run ruff format --check src tests scripts
+uv run mypy src                           # strict typing, zero errors
+uv run pytest -q                          # unit and integration tests
+uv run python scripts/check_configs.py    # every shipped config loads, validates and round-trips
+
+cd workflow-editor
+npm run lint -- --max-warnings 0
+npx tsc -b
+npm test                                  # unit tests (vitest)
+npx playwright test                       # end-to-end: the built Studio against the real API
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+The end-to-end suite starts the API from a throwaway copy of `configs/`, so saving in a test never changes the shipped files. Run `npx playwright install chromium` once first.
+
+### Measuring answer quality
+
+Tests cannot tell you whether a model answers well, so the shipped workflows are also graded against a live model ([evals/starters.json](evals/starters.json)): which agent handled each case, which tools ran, and what the answer says.
+
+```bash
+uv run python scripts/eval_starters.py            # needs a provider key; a few cents per run
+uv run python scripts/eval_starters.py --only support_triage
+```
+
+It fails below the threshold in that file. A nightly job ([eval.yml](.github/workflows/eval.yml)) runs it with the `OPENROUTER_API_KEY` secret.
 
 ### The GitHub Pages demo
 
@@ -588,7 +616,7 @@ never reach the bundle the API server ships. Pushing to the `demo` branch publis
 ## Production deployment
 
 - **Docker** — the published image at `ghcr.io/mubinui/delaxis:latest` is the fastest path; mount a volume at `/app/data` to persist the database.
-- **Kubernetes** — manifests in [k8s/](k8s/) cover deployment, ingress, HPA, network policy, and optional Postgres/Redis/RabbitMQ StatefulSets.
+- **Kubernetes** — manifests in [k8s/](k8s/) cover deployment, ingress, HPA, network policy, and optional Postgres/Redis/RabbitMQ StatefulSets. Delaxis keeps sessions in process and its data on a ReadWriteOnce volume, so it runs as one replica; scale it up, not out.
 - **Helm** — the chart in [helm/delaxis/](helm/delaxis/) ships `values-dev.yaml` and `values-prod.yaml`.
 
 For production, set `ENVIRONMENT=production`, a strong `SECRET_KEY`, a PostgreSQL `DATABASE_URL`, and restrict `FRONTEND_URL` to your own origins.
@@ -601,7 +629,7 @@ For production, set `ENVIRONMENT=production`, a strong `SECRET_KEY`, a PostgreSQ
 | `AuthenticationError` despite a valid vendor key | `LLM_PROVIDER` is still `openrouter`, so your model string was rewritten to route through OpenRouter. See [Path B](#path-b--talk-to-a-provider-directly). |
 | Canvas nodes show "Missing model" | The agent has no `model_config.model` and no `LLM_MODEL` fallback is set. |
 | Studio loads but shows "Backend unreachable" | The API isn't running on the expected port, or `FRONTEND_URL` is blocking the origin. |
-| `rag_*` tools return errors | The RAG pipeline is optional — set `RAG_PIPELINE_ENABLED=true` and `RAG_PIPELINE_BASE_URL`. |
+| `rag_*` tools return nothing | Retrieval is built in, but a collection is empty until you index documents into it — see [Retrieval](#retrieval). |
 | Mic button does nothing / "Voice unavailable" | Check `GET /api/v1/voice/health` — usually a missing `GEMINI_API_KEY` or a `GEMINI_LIVE_MODEL` that is not in the provider's `live.models` allow-list. |
 | Voice answers differ from typed ones | Expected: [voice bypasses the workflow](#live-voice) and uses the persona alone. |
 | Voice works in production but not `npm run dev` | The Vite proxy needs `ws: true` on `/api` (already set in `vite.config.ts`). |
