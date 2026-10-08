@@ -62,8 +62,13 @@ export const DeploymentManager: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'deployments' | 'embed' | 'api'>('deployments');
     const [refreshing, setRefreshing] = useState(false);
     const [selectedId, setSelectedId] = useState<string>('');
-    const [integration, setIntegration] = useState<IntegrationSnippets | null>(null);
-    const [integrationError, setIntegrationError] = useState<string | null>(null);
+    // Keyed by deployment id, so switching deployments never shows the
+    // previous one's snippets while the next ones load.
+    const [loadedIntegration, setLoadedIntegration] = useState<{
+        id: string;
+        snippets: IntegrationSnippets | null;
+        error: string | null;
+    } | null>(null);
 
     useEffect(() => {
         void fetchOperationsData().catch(() => undefined);
@@ -78,21 +83,25 @@ export const DeploymentManager: React.FC = () => {
     // custom domain, rather than being guessed from window.location.
     const shownDeploymentId = selected?.id;
     useEffect(() => {
-        if (!shownDeploymentId) {
-            setIntegration(null);
-            return;
-        }
+        if (!shownDeploymentId) return;
         let cancelled = false;
-        setIntegrationError(null);
         api<IntegrationSnippets>(`/api/v1/deployments/${shownDeploymentId}/integration`)
-            .then((data) => { if (!cancelled) setIntegration(data); })
+            .then((data) => {
+                if (!cancelled) setLoadedIntegration({ id: shownDeploymentId, snippets: data, error: null });
+            })
             .catch((error: unknown) => {
                 if (cancelled) return;
-                setIntegration(null);
-                setIntegrationError(error instanceof Error ? error.message : 'Could not load the snippets.');
+                setLoadedIntegration({
+                    id: shownDeploymentId,
+                    snippets: null,
+                    error: error instanceof Error ? error.message : 'Could not load the snippets.',
+                });
             });
         return () => { cancelled = true; };
     }, [shownDeploymentId]);
+    const current = loadedIntegration?.id === shownDeploymentId ? loadedIntegration : null;
+    const integration = current?.snippets ?? null;
+    const integrationError = current?.error ?? null;
 
     const origin = window.location.origin;
     const workflowId = currentWorkflowId || 'support_triage';

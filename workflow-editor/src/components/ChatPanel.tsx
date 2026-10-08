@@ -100,12 +100,16 @@ export const ChatPanel = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // Reset session when workflow changes
-    useEffect(() => {
+    // A different workflow means a different conversation. Adjusted during
+    // render, as React recommends for state derived from a changing input,
+    // rather than in an effect that renders the stale chat once first.
+    const [chatWorkflowId, setChatWorkflowId] = useState(currentWorkflowId);
+    if (chatWorkflowId !== currentWorkflowId) {
+        setChatWorkflowId(currentWorkflowId);
         setSessionId(null);
         setMessages([]);
         setError(null);
-    }, [currentWorkflowId]);
+    }
 
     // Check if canvas has a workflow
     const hasWorkflow = nodesLength > 0;

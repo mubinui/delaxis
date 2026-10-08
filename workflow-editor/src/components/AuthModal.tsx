@@ -37,15 +37,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         return token ? { Authorization: `Bearer ${token}` } : {};
     }, []);
 
-    const loadCurrentUser = useCallback(async () => {
-        try {
-            const me = await api<{ username?: string }>('/api/v1/auth/users/me', { headers: authHeaders() });
-            if (me?.username) setLoggedInUser(me.username);
-        } catch {
-            setLoggedInUser(null);
-        }
-    }, [authHeaders]);
-
     const loadKeys = useCallback(async () => {
         try {
             const list = await api<ApiKeyInfo[]>('/api/v1/auth/api-keys', { headers: authHeaders() });
@@ -57,11 +48,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }, [authHeaders]);
 
     useEffect(() => {
-        if (isOpen) {
-            void loadCurrentUser();
-            if (activeTab === 'keys') void loadKeys();
+        if (!isOpen) return;
+        let cancelled = false;
+        api<{ username?: string }>('/api/v1/auth/users/me', { headers: authHeaders() })
+            .then((me) => { if (!cancelled && me?.username) setLoggedInUser(me.username); })
+            .catch(() => { if (!cancelled) setLoggedInUser(null); });
+        if (activeTab === 'keys') {
+            api<ApiKeyInfo[]>('/api/v1/auth/api-keys', { headers: authHeaders() })
+                .then((list) => { if (!cancelled) setKeys(list); })
+                .catch((e: unknown) => {
+                    if (cancelled) return;
+                    setKeys([]);
+                    setStatus({ type: 'error', msg: e instanceof Error ? e.message : String(e) });
+                });
         }
-    }, [isOpen, activeTab, loadCurrentUser, loadKeys]);
+        return () => { cancelled = true; };
+    }, [isOpen, activeTab, authHeaders]);
 
     if (!isOpen) return null;
 

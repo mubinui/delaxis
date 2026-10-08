@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Cable, Code2, ExternalLink, Loader2, Mic, MicOff, PlayCircle, Rocket, Send, Trash2, Volume2, VolumeX, Wand2, Wrench, X } from 'lucide-react';
 import { applyBuilderPlan, generateBuilderConfig, generateFrontend, listBuilderModels, normalizeApi, planChatbot, streamBuilderChat } from '../api/builderApi';
 import type { BuilderType, ChatMessage, ModelInfo } from '../api/builderApi';
@@ -74,7 +74,10 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [voiceReply, setVoiceReply] = useState('');
     // Set when a spoken "start building" is heard; consumed by the effect below
     // so the build runs outside the audio callback.
-    const [voiceBuildPending, setVoiceBuildPending] = useState(false);
+    // Each spoken "start building" bumps the request; the effect below acts on
+    // each value once, so no state has to be reset from inside the effect.
+    const [voiceBuildRequest, setVoiceBuildRequest] = useState(0);
+    const handledVoiceBuild = useRef(0);
 
     // Spoken build commands are detected on the accumulating turn, not on each
     // delta: "start building" almost always arrives split across two or three
@@ -93,7 +96,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 // Latch it: the phrase stays in the buffer for a moment and must
                 // not launch a second build.
                 buildRequested.current = true;
-                setVoiceBuildPending(true);
+                setVoiceBuildRequest((n) => n + 1);
             }
         } else {
             setVoiceReply((current) => current + entry.text);
@@ -235,18 +238,6 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
         return text;
     };
 
-    // Acting on a spoken "start building". Runs from an effect rather than from
-    // inside the audio callback so the build is not kicked off mid-transcript,
-    // and closes the mic first: a live session would otherwise keep listening
-    // through the whole build and talk over the narration.
-    useEffect(() => {
-        if (!voiceBuildPending) return;
-        setVoiceBuildPending(false);
-        voice.stop();
-        speech.speak('Starting the build.');
-        void runChatBuilder();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [voiceBuildPending]);
 
     const runChatBuilder = async () => {
         const requestText = buildInput.trim();
@@ -312,6 +303,24 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
             setBusy(false);
         }
     };
+    const runChatBuilderRef = useRef(runChatBuilder);
+    useLayoutEffect(() => {
+        runChatBuilderRef.current = runChatBuilder;
+    });
+
+    // Acting on a spoken "start building". Runs from an effect rather than from
+    // inside the audio callback so the build is not kicked off mid-transcript,
+    // and closes the mic first: a live session would otherwise keep listening
+    // through the whole build and talk over the narration.
+    useEffect(() => {
+        if (voiceBuildRequest === handledVoiceBuild.current) return;
+        handledVoiceBuild.current = voiceBuildRequest;
+        voice.stop();
+        speech.speak('Starting the build.');
+        // Started on the next tick, outside this effect, with the latest state.
+        const timer = window.setTimeout(() => void runChatBuilderRef.current(), 0);
+        return () => window.clearTimeout(timer);
+    }, [voiceBuildRequest, voice, speech]);
 
     const finalizeChatBuilder = async () => {
         if (!['agent', 'tool', 'function', 'workflow'].includes(buildKind)) {

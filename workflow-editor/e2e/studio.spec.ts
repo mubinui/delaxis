@@ -38,3 +38,15 @@ for (const starter of STARTERS) {
         }
     });
 }
+
+test('the inspector follows the selected node', async ({ page }) => {
+    await openStudio(page);
+    await openWorkflow(page, 'Support Triage');
+
+    const title = page.locator('.glass-pane .title-2').first();
+    await page.locator('.react-flow__node').filter({ hasText: 'CalculatorAgent' }).first().click();
+    await expect(title).toHaveText('CalculatorAgent');
+
+    await page.locator('.react-flow__node').filter({ hasText: 'SearchAssistant' }).first().click();
+    await expect(title).toHaveText('SearchAssistant');
+});

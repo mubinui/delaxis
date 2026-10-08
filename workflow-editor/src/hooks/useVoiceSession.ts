@@ -11,7 +11,7 @@
  * asks for; speech comes back as binary PCM16 at the output rate and is
  * scheduled on a moving playhead so consecutive chunks are gapless.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { API_BASE_URL } from '../api/client';
 import { errorText } from '../utils/apiErrors';
 import type { JsonObject } from '../types/json';
@@ -90,7 +90,6 @@ export const useVoiceSession = ({
     // handler is created once, and a prop captured directly would go stale on
     // the first re-render — which here would mean silently dropping edits.
     const toolCallRef = useRef(onToolCall);
-    toolCallRef.current = onToolCall;
 
     const ws = useRef<WebSocket | null>(null);
     const inCtx = useRef<AudioContext | null>(null);
@@ -108,8 +107,13 @@ export const useVoiceSession = ({
     const outAnalyser = useRef<AnalyserNode | null>(null);
     const frame = useRef<number | null>(null);
 
-    transcriptRef.current = onTranscript;
-    levelsRef.current = onLevels;
+    // Refs must not be written during render; a layout effect updates them
+    // before any socket or audio callback can run with the new props.
+    useLayoutEffect(() => {
+        toolCallRef.current = onToolCall;
+        transcriptRef.current = onTranscript;
+        levelsRef.current = onLevels;
+    });
 
     const makeAnalyser = useCallback((ctx: AudioContext, from: AudioNode) => {
         const analyser = ctx.createAnalyser();

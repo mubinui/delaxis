@@ -83,28 +83,33 @@ export const PropertiesPanel = () => {
     const [testResult, setTestResult] = useState('');
     const [isTesting, setIsTesting] = useState(false);
 
-    // Sync state when a different node is selected. Keyed on the id alone, so
-    // edits to the selected node's data do not reset the form mid-edit; the
-    // node itself is read from the store at that moment.
+    // Load the form when a different node is selected. Done during render, as
+    // React recommends for state derived from a changing input, and keyed on
+    // the id alone so edits to the selected node do not reset the form.
     const selectedNodeId = selectedNode?.id;
-    useEffect(() => {
-        if (!selectedNodeId) return;
-        const node = useWorkflowStore.getState().nodes.find((n) => n.id === selectedNodeId);
-        if (!node) return;
-        setLabel((node.data?.label as string) || '');
-        setDescription((node.data?.description as string) || '');
+    const [formNodeId, setFormNodeId] = useState<string | undefined>(undefined);
+    if (selectedNodeId && selectedNodeId !== formNodeId) {
+        setFormNodeId(selectedNodeId);
+        setLabel((selectedNode?.data?.label as string) || '');
+        setDescription((selectedNode?.data?.description as string) || '');
         // A copy: this used to add `tools` to the store's own config object.
-        const initialConfig: JsonObject = { ...((node.data?.config as JsonObject) || {}) };
+        const initialConfig: JsonObject = { ...((selectedNode?.data?.config as JsonObject) || {}) };
         if (!initialConfig.tools) initialConfig.tools = [];
         setConfig(initialConfig);
         setActiveInspectorTab('overview');
         setTestResult('');
         setMcpInspection('');
         setLibrarySaveState('idle');
-        if (initialConfig.type === 'gmail') {
-            void fetchGmailStatus().then(setGmailStatus);
-        }
-    }, [selectedNodeId]);
+    }
+
+    // Gmail nodes show whether an account is connected.
+    const isGmailNode = config.type === 'gmail';
+    useEffect(() => {
+        if (!selectedNodeId || !isGmailNode) return;
+        let cancelled = false;
+        void fetchGmailStatus().then((status) => { if (!cancelled) setGmailStatus(status); });
+        return () => { cancelled = true; };
+    }, [selectedNodeId, isGmailNode]);
 
     // Which sampling fields are worth showing depends on the route that will
     // actually run. Must sit above the early return — hooks cannot be conditional.
