@@ -1,4 +1,6 @@
+import { MarkerType } from '@xyflow/react';
 import type { VisualEdge, VisualNode } from '../types/workflow';
+import type { JsonObject } from '../types/json';
 
 /**
  * Turn a saved workflow config into canvas nodes and edges.
@@ -14,18 +16,18 @@ interface AgentLike {
     id: string;
     name?: string;
     description?: string;
-    config?: Record<string, any>;
+    config?: JsonObject;
 }
 
 interface ToolLike {
     id: string;
     name?: string;
     description?: string;
-    config?: Record<string, any>;
+    config?: JsonObject;
 }
 
 export interface CanvasBuildInput {
-    config: Record<string, any>;
+    config: JsonObject;
     /** Saved agents, used to fill in a topology node's model and instructions. */
     agents?: AgentLike[];
     /** Saved tools, used to render attached tool nodes with their real settings. */
@@ -37,15 +39,15 @@ const ROW_HEIGHT = 190;
 const AGENT_Y = 200;
 const TOOL_OFFSET_Y = 210;
 
-const isSelectorTopology = (topology: any) => (
+const isSelectorTopology = (topology: JsonObject) => (
     Boolean(topology?.entry_node)
     && Array.isArray(topology?.domain_agents)
     && topology.domain_agents.length > 0
 );
 
 /** A canvas the Studio saved: nodes carry `data`, which topology nodes never do. */
-const hasVisualCanvas = (canvas: any) =>
-    Array.isArray(canvas?.nodes) && canvas.nodes.some((node: any) => node?.data);
+const hasVisualCanvas = (canvas: JsonObject) =>
+    Array.isArray(canvas?.nodes) && canvas.nodes.some((node: JsonObject) => node?.data);
 
 const flowEdge = (source: string, target: string, index: number): VisualEdge => ({
     id: `xy-edge__${source}-${target}-${index}`,
@@ -56,7 +58,7 @@ const flowEdge = (source: string, target: string, index: number): VisualEdge => 
     // (the store sets that), so a loaded workflow sits still.
     animated: false,
     style: { stroke: 'var(--wire)', strokeWidth: 1.5 },
-    markerEnd: { type: 'arrowclosed', color: 'var(--wire)', width: 14, height: 14 } as any,
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--wire)', width: 14, height: 14 },
 });
 
 const auxEdge = (source: string, target: string, handle: string): VisualEdge => ({
@@ -73,9 +75,9 @@ const auxEdge = (source: string, target: string, handle: string): VisualEdge => 
  * Depth of each node from the entry, so a generated graph is laid out left to
  * right by execution order instead of in one flat row.
  */
-function depthByNode(topology: any): Map<string, number> {
-    const nodes: any[] = topology?.nodes ?? [];
-    const edges: any[] = topology?.edges ?? [];
+function depthByNode(topology: JsonObject): Map<string, number> {
+    const nodes: JsonObject[] = topology?.nodes ?? [];
+    const edges: JsonObject[] = topology?.edges ?? [];
     const depth = new Map<string, number>();
     const outgoing = new Map<string, string[]>();
 
@@ -113,10 +115,10 @@ function depthByNode(topology: any): Map<string, number> {
 }
 
 /** Positions nodes in columns by depth, stacking siblings vertically. */
-function layout(topology: any): Map<string, { x: number; y: number }> {
+function layout(topology: JsonObject): Map<string, { x: number; y: number }> {
     const depth = depthByNode(topology);
     const byLevel = new Map<number, string[]>();
-    (topology?.nodes ?? []).forEach((node: any) => {
+    (topology?.nodes ?? []).forEach((node: JsonObject) => {
         const level = depth.get(node.id) ?? 0;
         byLevel.set(level, [...(byLevel.get(level) ?? []), node.id]);
     });
@@ -155,7 +157,7 @@ const restyleEdge = (edge: VisualEdge): VisualEdge => {
         type: attachment ? (edge.type ?? 'straight') : 'default',
         animated: false,
         style: { ...style, strokeWidth: 1.5, ...(attachment ? { strokeDasharray: '4 5' } : { strokeDasharray: undefined }) },
-        markerEnd: attachment ? undefined : ({ type: 'arrowclosed', color: 'var(--wire)', width: 14, height: 14 } as any),
+        markerEnd: attachment ? undefined : { type: MarkerType.ArrowClosed, color: 'var(--wire)', width: 14, height: 14 },
     } as VisualEdge;
 };
 
@@ -165,9 +167,9 @@ const restyleEdge = (edge: VisualEdge): VisualEdge => {
  * the payload builder reads back, so the curated wording survives a save
  * instead of being regenerated from the agent's description.
  */
-function tasksByNode(config: Record<string, any> | undefined): Map<string, { task: string; expected_output?: string }> {
+function tasksByNode(config: JsonObject | undefined): Map<string, { task: string; expected_output?: string }> {
     const map = new Map<string, { task: string; expected_output?: string }>();
-    for (const task of (Array.isArray(config?.tasks) ? config!.tasks : []) as any[]) {
+    for (const task of (Array.isArray(config?.tasks) ? config!.tasks : []) as JsonObject[]) {
         const nodeId = String(task?.node_id ?? '');
         const description = String(task?.description ?? '').trim();
         if (!nodeId || !description) continue;
@@ -217,7 +219,7 @@ export function workflowToCanvas(input: CanvasBuildInput): CanvasGraph {
     const toolById = new Map(tools.map((tool) => [tool.id, tool]));
     const selector = isSelectorTopology(topology);
     const positions = layout(topology);
-    const topologyNodes: any[] = topology?.nodes ?? [];
+    const topologyNodes: JsonObject[] = topology?.nodes ?? [];
 
     const nodes: VisualNode[] = [];
     const edges: VisualEdge[] = [];
@@ -234,7 +236,7 @@ export function workflowToCanvas(input: CanvasBuildInput): CanvasGraph {
         },
     } as VisualNode);
 
-    topologyNodes.forEach((node: any, index: number) => {
+    topologyNodes.forEach((node: JsonObject, index: number) => {
         const agentId = String(node.agent_id ?? node.id);
         const agent = agentById.get(agentId);
         const agentConfig = agent?.config ?? {};
@@ -271,9 +273,9 @@ export function workflowToCanvas(input: CanvasBuildInput): CanvasGraph {
 
     // Attachments: a topology node's tools/memory/knowledge become real nodes on
     // the aux handles, so what the builder configured is visible and editable.
-    topologyNodes.forEach((node: any) => {
+    topologyNodes.forEach((node: JsonObject) => {
         const position = positions.get(node.id) ?? { x: 320, y: AGENT_Y };
-        const attached: Array<{ id: string; label: string; config: Record<string, any>; handle: string }> = [];
+        const attached: Array<{ id: string; label: string; config: JsonObject; handle: string }> = [];
 
         (node.tools ?? []).forEach((toolId: string) => {
             const tool = toolById.get(toolId);
@@ -348,7 +350,7 @@ export function workflowToCanvas(input: CanvasBuildInput): CanvasGraph {
     }
 
     // Flow edges: explicit topology edges, else the selector's fan-out.
-    const topologyEdges: any[] = topology?.edges ?? [];
+    const topologyEdges: JsonObject[] = topology?.edges ?? [];
     if (topologyEdges.length > 0) {
         topologyEdges.forEach((edge, index) => {
             const source = String(edge.from_node ?? edge.source ?? '');

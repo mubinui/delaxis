@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import type { CSSProperties, DragEvent } from 'react';
 import type { NodeType } from '../../types/workflow';
 import { StatusBadge } from './StatusBadge';
+import type { JsonObject } from '../../types/json';
 
 export type ResourceTone =
     | 'agent'
@@ -107,7 +108,7 @@ export const ResourceCard = ({
     icon: LucideIcon;
     tone: ResourceTone;
     badges?: ResourceCardBadge[];
-    config?: Record<string, any>;
+    config?: JsonObject;
     collapsed: boolean;
     level?: number;
     expandable?: boolean;

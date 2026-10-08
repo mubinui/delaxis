@@ -3,6 +3,7 @@ import type { VisualEdge, VisualNode } from '../types/workflow';
 import { isValidConnection } from './connectionRules';
 import { getNodeSummary } from './studioDerivedState';
 import { getAgentBindings } from './workflowPayload';
+import type { JsonObject } from '../types/json';
 
 export type DiagnosticSeverity = 'error' | 'warning' | 'info';
 
@@ -36,7 +37,7 @@ const slugish = (value: string) =>
     value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
 
 const modelConfigOf = (node: VisualNode) =>
-    (node.data?.config?.model_config ?? node.data?.config?.llm_config ?? {}) as Record<string, any>;
+    (node.data?.config?.model_config ?? node.data?.config?.llm_config ?? {}) as JsonObject;
 
 /**
  * Everything wrong with a graph, computed locally.
@@ -194,7 +195,7 @@ export function diagnoseWorkflow(input: DiagnosticsInput): Diagnostic[] {
         .forEach((edge) => {
             const source = nodes.find((n) => n.id === edge.source);
             if (!source || source.type !== 'tool') return;
-            const config = (source.data?.config ?? {}) as Record<string, any>;
+            const config = (source.data?.config ?? {}) as JsonObject;
             const toolId = String(config.id ?? config.tool_id ?? config.name ?? source.data?.label ?? source.id);
             if (toolNameOrId.has(toolId) || toolNameOrId.has(slugish(toolId))) return;
             push({
@@ -288,7 +289,7 @@ export function diagnoseWorkflow(input: DiagnosticsInput): Diagnostic[] {
         }
 
         const modelName = String(model.model ?? '');
-        const known = (provider.models ?? []).map((m: any) => String(m.name ?? '')).filter(Boolean);
+        const known = (provider.models ?? []).map((m: JsonObject) => String(m.name ?? '')).filter(Boolean);
         if (modelName && known.length > 0 && !known.includes(modelName)) {
             push({
                 code: 'model_unknown_for_provider',
@@ -320,7 +321,7 @@ export function diagnoseWorkflow(input: DiagnosticsInput): Diagnostic[] {
                     component: 'tool',
                     suggestions: [...knownTools.values()].slice(0, 5).map((t) => t.name),
                 });
-            } else if ((tool.config as any)?.enabled === false) {
+            } else if ((tool.config as JsonObject)?.enabled === false) {
                 push({
                     code: 'tool_disabled_but_referenced',
                     severity: 'error',

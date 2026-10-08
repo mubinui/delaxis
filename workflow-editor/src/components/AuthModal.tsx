@@ -19,7 +19,7 @@ interface ApiKeyInfo {
 
 const TOKEN_KEY = 'delaxis-access-token';
 
-export const getStoredToken = (): string | null => sessionStorage.getItem(TOKEN_KEY);
+const getStoredToken = (): string | null => sessionStorage.getItem(TOKEN_KEY);
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     const [username, setUsername] = useState('');

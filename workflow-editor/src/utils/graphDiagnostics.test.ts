@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { ApiProvider, LibraryItem } from '../api/backendTypes';
 import type { VisualEdge, VisualNode } from '../types/workflow';
 import { diagnoseWorkflow, summarizeDiagnostics } from './graphDiagnostics';
+import type { JsonObject } from '../types/json';
 
-const agent = (id: string, label: string, config: Record<string, any> = {}): VisualNode => ({
+const agent = (id: string, label: string, config: JsonObject = {}): VisualNode => ({
     id,
     type: 'agent',
     position: { x: 0, y: 0 },
@@ -26,7 +27,7 @@ const trigger = (id = 't1'): VisualNode => ({
     data: { label: 'Start', config: { trigger_type: 'manual' } },
 });
 
-const node = (id: string, type: VisualNode['type'], config: Record<string, any> = {}): VisualNode => ({
+const node = (id: string, type: VisualNode['type'], config: JsonObject = {}): VisualNode => ({
     id,
     type,
     position: { x: 0, y: 0 },

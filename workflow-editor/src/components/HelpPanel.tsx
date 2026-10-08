@@ -12,6 +12,7 @@ import { autoFixable, fixFor } from '../utils/diagnosticFixes';
 import type { Diagnostic } from '../utils/graphDiagnostics';
 import type { FixContext } from '../utils/diagnosticFixes';
 import { StatusGlyph } from './shell/StatusGlyph';
+import type { JsonObject } from '../types/json';
 
 type Tab = 'issues' | 'components' | 'ask';
 
@@ -23,7 +24,7 @@ const severityIcon = { error: XCircle, warning: AlertTriangle, info: CheckCircle
  * Built from an explicit allowlist, never a config spread: node config carries a
  * raw api_key, and this payload is sent to a third-party model.
  */
-const buildDigest = (nodes: any[], edges: any[]) => ({
+const buildDigest = (nodes: JsonObject[], edges: JsonObject[]) => ({
     pattern: nodes.some((n) => n.data?.config?.is_selector) ? 'selector' : 'sequential',
     nodes: nodes.map((node) => {
         const model = node.data?.config?.model_config ?? node.data?.config?.llm_config ?? {};

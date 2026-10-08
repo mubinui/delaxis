@@ -1,3 +1,4 @@
+import type { JsonObject } from '../types/json';
 import { describe, expect, it } from 'vitest';
 import { itemToAgentCreate } from './libraryStore';
 
@@ -56,7 +57,7 @@ describe('agent execution settings', () => {
                     respect_context_window: false,
                 },
             },
-        }) as any;
+        }) as JsonObject;
 
         expect(payload.agent_settings).toEqual({
             max_iter: 3,
@@ -73,7 +74,7 @@ describe('agent execution settings', () => {
             name: 'Plain',
             type: 'conversable',
             config: { id: 'plain', model_config: { provider_id: 'gemini', model: 'm' } },
-        }) as any;
+        }) as JsonObject;
         expect(payload.agent_settings).toBeNull();
     });
 
@@ -82,7 +83,7 @@ describe('agent execution settings', () => {
             name: 'Router',
             type: 'conversable',
             config: { id: 'router', is_selector: true, model_config: { provider_id: 'g', model: 'm' } },
-        }) as any;
+        }) as JsonObject;
         expect(payload.is_selector).toBe(true);
     });
 });

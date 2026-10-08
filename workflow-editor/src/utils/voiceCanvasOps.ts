@@ -1,8 +1,9 @@
-import type { LibraryItem } from '../api/backendTypes';
+import type { ApiProvider, LibraryItem } from '../api/backendTypes';
 import type { VisualEdge, VisualNode } from '../types/workflow';
 import { autoFixable, fixFor } from './diagnosticFixes';
 import type { FixContext } from './diagnosticFixes';
 import { diagnoseWorkflow } from './graphDiagnostics';
+import type { JsonObject } from '../types/json';
 
 /**
  * Applies the canvas operations a spoken build conversation asks for.
@@ -24,7 +25,7 @@ export interface OpsContext {
     edges: VisualEdge[];
     tools: LibraryItem[];
     agents: LibraryItem[];
-    providers: any[];
+    providers: ApiProvider[];
 }
 
 export interface OpsResult {
@@ -39,9 +40,9 @@ export interface OpsResult {
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const labelOf = (node: VisualNode) => String(node.data?.label ?? node.id);
-const configOf = (node: VisualNode) => (node.data?.config ?? {}) as Record<string, any>;
+const configOf = (node: VisualNode) => (node.data?.config ?? {}) as JsonObject;
 
-const withConfig = (node: VisualNode, patch: Record<string, any>): VisualNode => ({
+const withConfig = (node: VisualNode, patch: JsonObject): VisualNode => ({
     ...node,
     data: { ...node.data, config: { ...configOf(node), ...patch } },
 });
@@ -95,7 +96,7 @@ const nextSpot = (nodes: VisualNode[]) => {
 // Operations
 // --------------------------------------------------------------------------- //
 
-type Operation = (args: Record<string, any>, context: OpsContext) => OpsResult;
+type Operation = (args: JsonObject, context: OpsContext) => OpsResult;
 
 const addAgent: Operation = (args, { nodes }) => {
     const name = String(args.name ?? 'Agent').trim() || 'Agent';
@@ -215,7 +216,7 @@ const setModel: Operation = (args, { nodes }) => {
 
     const config = configOf(target);
     const key = config.model_config ? 'model_config' : 'llm_config';
-    const patch: Record<string, any> = { ...(config[key] ?? {}) };
+    const patch: JsonObject = { ...(config[key] ?? {}) };
     const changed: string[] = [];
 
     if (args.model) { patch.model = String(args.model); changed.push(`model ${args.model}`); }
@@ -351,7 +352,7 @@ export const VOICE_OPERATIONS = Object.keys(OPERATIONS);
 
 export const applyVoiceOperation = (
     name: string,
-    args: Record<string, any>,
+    args: JsonObject,
     context: OpsContext,
 ): OpsResult => {
     const operation = OPERATIONS[name];

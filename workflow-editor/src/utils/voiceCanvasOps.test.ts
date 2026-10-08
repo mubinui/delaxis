@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { VOICE_OPERATIONS, applyVoiceOperation } from './voiceCanvasOps';
 import type { OpsContext, OpsResult } from './voiceCanvasOps';
+import type { JsonObject } from '../types/json';
+import type { VisualEdge, VisualNode } from '../types/workflow';
 
 /**
  * These run against the operations a spoken conversation performs on the canvas.
@@ -14,17 +16,17 @@ import type { OpsContext, OpsResult } from './voiceCanvasOps';
 // The compiler treats an indexed lookup and an optional `data` as possibly
 // undefined. These collapse both in one place rather than scattering `!`
 // through every assertion, where it would bury what is actually being checked.
-const at = (nodes: OpsResult['nodes'], index = 0) => (nodes as any[])[index] as any;
+const at = (nodes: OpsResult['nodes'], index = 0) => (nodes as JsonObject[])[index] as JsonObject;
 const byId = (nodes: OpsResult['nodes'], id: string) =>
-    (nodes as any[]).find((node) => node.id === id) as any;
-const cfg = (node: any) => node.data.config as Record<string, any>;
+    (nodes as JsonObject[]).find((node) => node.id === id) as JsonObject;
+const cfg = (node: JsonObject) => node.data.config as JsonObject;
 
-const agent = (id: string, label: string, config: Record<string, any> = {}) => ({
+const agent = (id: string, label: string, config: JsonObject = {}) => ({
     id,
     type: 'agent',
     position: { x: 0, y: 0 },
     data: { label, config: { type: 'LlmAgent', ...config } },
-}) as any;
+}) as VisualNode;
 
 const context = (over: Partial<OpsContext> = {}): OpsContext => ({
     nodes: [],
@@ -32,7 +34,7 @@ const context = (over: Partial<OpsContext> = {}): OpsContext => ({
     tools: [
         { id: 'web_search', name: 'search_web', description: 'Search the web', config: {}, category: 'research' },
         { id: 'detect_pii', name: 'detect_pii', description: 'Find personal data', config: {}, category: 'privacy' },
-    ] as any,
+    ],
     agents: [],
     providers: [],
     ...over,
@@ -138,7 +140,7 @@ describe('connect', () => {
     it('wires one component into another', () => {
         const result = applyVoiceOperation('connect', { from_name: 'First', to_name: 'Second' }, context({ nodes }));
         expect(result.edges).toHaveLength(1);
-        expect((result.edges as any[])[0]).toMatchObject({ source: 'a1', target: 'a2' });
+        expect((result.edges as JsonObject[])[0]).toMatchObject({ source: 'a1', target: 'a2' });
     });
 
     it('refuses to connect something to itself', () => {
@@ -147,7 +149,7 @@ describe('connect', () => {
     });
 
     it('does not duplicate an existing connection', () => {
-        const edges = [{ id: 'e1', source: 'a1', target: 'a2' }] as any;
+        const edges: VisualEdge[] = [{ id: 'e1', source: 'a1', target: 'a2' }];
         const result = applyVoiceOperation('connect', { from_name: 'First', to_name: 'Second' }, context({ nodes, edges }));
         expect(result.edges).toBeUndefined();
         expect(result.say).toMatch(/already/);
@@ -158,7 +160,7 @@ describe('addTrigger', () => {
     it('wires the trigger into an unfed agent', () => {
         const result = applyVoiceOperation('add_trigger', { kind: 'chat' }, context({ nodes: [agent('a', 'Agent')] }));
         expect(result.edges).toHaveLength(1);
-        expect((result.edges as any[])[0].target).toBe('a');
+        expect((result.edges as JsonObject[])[0].target).toBe('a');
         expect(result.say).toMatch(/chat trigger/i);
     });
 
@@ -199,7 +201,7 @@ describe('removeNode', () => {
 
     it('drops the edges that pointed at it', () => {
         const nodes = [agent('a1', 'First'), agent('a2', 'Second')];
-        const edges = [{ id: 'e1', source: 'a1', target: 'a2' }] as any;
+        const edges: VisualEdge[] = [{ id: 'e1', source: 'a1', target: 'a2' }];
         const result = applyVoiceOperation('remove_node', { name: 'Second' }, context({ nodes, edges }));
         expect(result.edges).toHaveLength(0);
     });
@@ -218,7 +220,7 @@ describe('describeCanvas', () => {
 
     it('names components, wiring and gaps', () => {
         const nodes = [agent('a1', 'First', { tools: ['web_search'] }), agent('a2', 'Second')];
-        const edges = [{ id: 'e1', source: 'a1', target: 'a2' }] as any;
+        const edges: VisualEdge[] = [{ id: 'e1', source: 'a1', target: 'a2' }];
         const say = applyVoiceOperation('describe_canvas', {}, context({ nodes, edges })).say;
         expect(say).toContain('First');
         expect(say).toContain('web_search');
@@ -254,7 +256,7 @@ describe('unknown and failing calls', () => {
     it('turns a thrown error into a sentence rather than propagating it', () => {
         // The model only learns the outcome from this string, so an exception
         // must never escape and leave the turn unanswered.
-        const broken = { get nodes(): any { throw new Error('boom'); } } as any;
+        const broken = { get nodes(): never { throw new Error('boom'); } } as unknown as OpsContext;
         const result = applyVoiceOperation('describe_canvas', {}, broken);
         expect(result.say).toMatch(/failed/i);
     });

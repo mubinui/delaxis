@@ -1,6 +1,7 @@
 import type { Diagnostic } from './graphDiagnostics';
-import type { LibraryItem } from '../api/backendTypes';
+import type { ApiProvider, LibraryItem } from '../api/backendTypes';
 import type { VisualEdge, VisualNode } from '../types/workflow';
+import type { JsonObject } from '../types/json';
 
 /**
  * Repairs for the problems the diagnostics find.
@@ -20,7 +21,7 @@ export interface FixContext {
     edges: VisualEdge[];
     agents: LibraryItem[];
     tools: LibraryItem[];
-    providers: any[];
+    providers: ApiProvider[];
 }
 
 export interface FixResult {
@@ -62,9 +63,9 @@ const freeSpot = (nodes: VisualNode[], dx = 0) => {
     return { x: minX - 260 + dx, y: Math.round(midY) };
 };
 
-const configOf = (node: VisualNode) => (node.data?.config ?? {}) as Record<string, any>;
+const configOf = (node: VisualNode) => (node.data?.config ?? {}) as JsonObject;
 
-const withConfig = (node: VisualNode, patch: Record<string, any>): VisualNode => ({
+const withConfig = (node: VisualNode, patch: JsonObject): VisualNode => ({
     ...node,
     data: { ...node.data, config: { ...configOf(node), ...patch } },
 });
@@ -73,9 +74,15 @@ const withConfig = (node: VisualNode, patch: Record<string, any>): VisualNode =>
 const usableToolIds = (tools: LibraryItem[]) =>
     new Set(tools.filter((t) => t.config?.enabled !== false).map((t) => t.id));
 
-const firstWorkingProvider = (providers: any[]) =>
-    providers.find((p) => p?.enabled !== false && (p?.has_key || p?.api_key_set || p?.key_present))
-    ?? providers.find((p) => p?.enabled !== false);
+/**
+ * The provider a repair should switch to: an enabled one the server holds a key
+ * for, else any enabled one. It used to test fields the API never returns
+ * (has_key, api_key_set, key_present), so it always took the first enabled
+ * provider, keyed or not.
+ */
+export const firstWorkingProvider = (providers: ApiProvider[]) =>
+    providers.find((p) => p.enabled !== false && p.key_source !== undefined && p.key_source !== 'none')
+    ?? providers.find((p) => p.enabled !== false);
 
 // --------------------------------------------------------------------------- //
 // The repairs

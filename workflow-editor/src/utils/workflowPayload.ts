@@ -1,5 +1,6 @@
 import type { VisualEdge, VisualNode } from '../types/workflow';
 import { isAuxHandle } from './connectionRules';
+import type { JsonObject } from '../types/json';
 
 const slugify = (value: string, fallback: string) => {
     const slug = value
@@ -186,7 +187,7 @@ const taskForNode = (node: VisualNode, index: number) => {
 const GENERATED_DESCRIPTION = /^Workflow with \d+ nodes? and \d+ edges?$/;
 
 /** A description written by a person, or nothing. Generated placeholders don't count. */
-const keptDescription = (existing: Record<string, any> | null | undefined): string | null => {
+const keptDescription = (existing: JsonObject | null | undefined): string | null => {
     const text = String(existing?.description ?? '').trim();
     return text && !GENERATED_DESCRIPTION.test(text) ? text : null;
 };
@@ -201,7 +202,7 @@ export function buildWorkflowPayload(options: {
      * setting, limits and metadata are carried through; the canvas only
      * decides the graph. Without this every save reset them to defaults.
      */
-    existing?: Record<string, any> | null;
+    existing?: JsonObject | null;
 }) {
     const existing = options.existing ?? null;
     const id = slugify(options.id || options.name, 'workflow');

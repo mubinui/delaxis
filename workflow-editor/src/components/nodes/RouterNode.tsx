@@ -4,9 +4,10 @@ import type { Node, NodeProps } from '@xyflow/react';
 import { GitBranch, ShieldCheck } from 'lucide-react';
 import type { WorkflowNodeData } from '../../types/workflow';
 import { laneStyle } from '../../utils/nodeTheme';
+import type { JsonObject } from '../../types/json';
 
 export const RouterNode = memo(({ data, selected }: NodeProps<Node<WorkflowNodeData>>) => {
-    const config = (data.config ?? {}) as Record<string, any>;
+    const config = (data.config ?? {}) as JsonObject;
     const isGuardrail = config.type === 'guardrail';
     const Icon = isGuardrail ? ShieldCheck : GitBranch;
     const caption = isGuardrail

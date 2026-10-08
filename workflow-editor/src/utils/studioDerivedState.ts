@@ -1,7 +1,8 @@
 import type { LibraryItem } from '../api/backendTypes';
 import type { VisualNode } from '../types/workflow';
+import type { JsonObject } from '../types/json';
 
-type ConfigLike = Record<string, any> | undefined;
+type ConfigLike = JsonObject | undefined;
 
 const asArray = (value: unknown): string[] => (Array.isArray(value) ? value.map(String) : []);
 
@@ -105,7 +106,7 @@ export const countAgentUsage = (agents: LibraryItem[], workflows: LibraryItem[])
     agents.forEach((agent) => usage.set(agent.id, 0));
     workflows.forEach((workflow) => {
         const nodes = workflow.config?.topology?.nodes ?? workflow.config?.nodes ?? [];
-        nodes.forEach((node: any) => {
+        nodes.forEach((node: JsonObject) => {
             const agentId = String(node.agent_id ?? node.id ?? '');
             if (usage.has(agentId)) usage.set(agentId, (usage.get(agentId) ?? 0) + 1);
         });

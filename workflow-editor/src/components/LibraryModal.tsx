@@ -9,8 +9,10 @@ import { StatusGlyph } from './shell/StatusGlyph';
 import type { LibraryItem, ItemType } from '../stores/libraryStore';
 import { SwaggerImportModal } from './SwaggerImportModal';
 import { AGENT_TYPES, HUMAN_INPUT_MODES } from '../constants/agentOptions';
-import { LibraryStore, toStoreEntries } from './studio/LibraryStore';
-import type { StoreEntry } from './studio/LibraryStore';
+import { LibraryStore } from './studio/LibraryStore';
+import { toStoreEntries } from './studio/storeEntries';
+import type { StoreEntry } from './studio/storeEntries';
+import type { JsonObject } from '../types/json';
 
 // --- Shared Constants (Matched with PropertiesPanel.tsx) ---
 type ResourceTab = LibraryTab;
@@ -26,7 +28,7 @@ const TAB_TITLE: Record<ResourceTab, { title: string; lead: string }> = {
 };
 
 // A grouped box with a disclosure header.
-const Section = ({ title, children, defaultOpen = true, className = "" }: { title: string; icon?: any; children: React.ReactNode; defaultOpen?: boolean; className?: string }) => {
+const Section = ({ title, children, defaultOpen = true, className = "" }: { title: string; icon?: JsonObject; children: React.ReactNode; defaultOpen?: boolean; className?: string }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
         <section className={`panel ${className}`}>
@@ -45,7 +47,7 @@ const Section = ({ title, children, defaultOpen = true, className = "" }: { titl
 };
 
 const FormInput = ({ label, placeholder, value, onChange, type = 'text', mono = false, rows, disabled = false, helpText }: {
-    label: string; placeholder?: string; value: string; onChange: (v: string) => void; type?: string; icon?: any; mono?: boolean; rows?: number; disabled?: boolean; helpText?: string;
+    label: string; placeholder?: string; value: string; onChange: (v: string) => void; type?: string; icon?: JsonObject; mono?: boolean; rows?: number; disabled?: boolean; helpText?: string;
 }) => (
     <label className="block w-full">
         <span className="field-label">{label}</span>
@@ -73,7 +75,7 @@ const FormInput = ({ label, placeholder, value, onChange, type = 'text', mono = 
 );
 
 const FormSelect = ({ label, value, onChange, options, helpText }: {
-    label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; icon?: any; helpText?: string;
+    label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; icon?: JsonObject; helpText?: string;
 }) => (
     <label className="block w-full">
         <span className="field-label">{label}</span>
@@ -158,7 +160,7 @@ export const LibraryModal = ({ tab }: { tab: ResourceTab }) => {
         name: '',
         description: '',
         type: 'function',
-        config: {} as Record<string, any>,
+        config: {} as JsonObject,
     });
 
     // Tool Config State
@@ -223,7 +225,7 @@ export const LibraryModal = ({ tab }: { tab: ResourceTab }) => {
     useEffect(() => {
         fetchLibraryItems();
         fetchOperationsData();
-    }, []);
+    }, [fetchLibraryItems, fetchOperationsData]);
 
 
     // Providers come from the backend registry so the studio and the runtime
@@ -341,7 +343,7 @@ export const LibraryModal = ({ tab }: { tab: ResourceTab }) => {
         }
 
         const itemType: ItemType = activeTab === 'tools' ? 'tool' : 'agent';
-        let config: Record<string, any> = {};
+        let config: JsonObject = {};
         let type = formData.type;
 
         if (activeTab === 'tools') {
@@ -719,11 +721,12 @@ export const LibraryModal = ({ tab }: { tab: ResourceTab }) => {
                             ) : activeTab === 'ops' ? (
                                 <div className="scroll-soft max-w-[900px] flex-1 space-y-4 pb-4 pt-1">
                                     {(() => {
-                                        const h = (health ?? {}) as Record<string, any>;
-                                        const m = (metricsDashboard ?? {}) as Record<string, any>;
+                                        const h = (health ?? {}) as JsonObject;
+                                        const m = (metricsDashboard ?? {}) as JsonObject;
                                         const healthy = String(h.status ?? '').toLowerCase() === 'healthy' || String(h.status ?? '').toLowerCase() === 'ok';
                                         const pct = (value: unknown) => (typeof value === 'number' ? `${(value * 100).toFixed(value < 0.1 ? 1 : 0)}%` : '—');
-                                        const collections: Array<Record<string, any>> = Array.isArray((ragCollections as any)?.collections) ? (ragCollections as any).collections : [];
+                                        const listed = (ragCollections as JsonObject | undefined)?.collections;
+                                        const collections: Array<JsonObject> = Array.isArray(listed) ? listed : [];
                                         return (
                                             <>
                                                 <div className="panel figures flex-wrap gap-y-3 px-5 py-4">

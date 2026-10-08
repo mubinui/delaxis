@@ -10,7 +10,6 @@ import {
     BackgroundVariant,
     MarkerType,
 } from '@xyflow/react';
-import type { Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { useWorkflowStore } from '../stores/workflowStore';
@@ -19,7 +18,7 @@ import { useUiStore } from '../stores/uiStore';
 import { canvasFit } from '../utils/layout';
 import { workflowToCanvas } from '../utils/workflowToCanvas';
 import { isValidConnection as isValidConnectionRule } from '../utils/connectionRules';
-import type { NodeType } from '../types/workflow';
+import type { NodeType, VisualNode } from '../types/workflow';
 
 import { AgentNode } from './nodes/AgentNode';
 import { ToolNode } from './nodes/ToolNode';
@@ -27,6 +26,7 @@ import { TriggerNode } from './nodes/TriggerNode';
 import { RouterNode } from './nodes/RouterNode';
 import { OutputNode } from './nodes/OutputNode';
 import { WorkflowNode } from './nodes/WorkflowNode';
+import type { JsonObject } from '../types/json';
 
 const nodeTypes = {
     agent: AgentNode,
@@ -35,6 +35,97 @@ const nodeTypes = {
     router: RouterNode,
     output: OutputNode,
     workflow: WorkflowNode,
+};
+
+
+// --- SMART MERGE: Preserves non-empty values from base when override has empty/null/undefined ---
+const smartMerge = (base: JsonObject, override: JsonObject): JsonObject => {
+    const result = { ...base };
+
+    for (const key in override) {
+        const overrideVal = override[key];
+        const baseVal = base[key];
+
+        // Skip if override value is empty/null/undefined
+        if (overrideVal === null || overrideVal === undefined || overrideVal === '') {
+            continue;
+        }
+
+        // For arrays, only use override if it has items
+        if (Array.isArray(overrideVal)) {
+            if (overrideVal.length > 0) {
+                result[key] = overrideVal;
+            }
+            continue;
+        }
+
+        // For objects, recursively merge
+        if (typeof overrideVal === 'object' && typeof baseVal === 'object' && !Array.isArray(baseVal)) {
+            result[key] = smartMerge(baseVal, overrideVal);
+            continue;
+        }
+
+        // Otherwise, use override value
+        result[key] = overrideVal;
+    }
+
+    return result;
+};
+
+// --- DATA NORMALIZATION ---
+const normalizeConfig = (config: JsonObject, type: string) => {
+    const newConfig = { ...config };
+
+    // Normalize Agent Configs
+    if (type === 'agent' || type === 'LlmAgent' || type === 'ReasoningAgent' || type === 'conversable') {
+        // 1. Model Config normalization
+        // Merge llm_config into model_config if model_config is missing or incomplete
+        const existingModelConfig = newConfig.model_config || {};
+        const llmConfig = newConfig.llm_config || {};
+
+        // Spread both sources first so settings this function does not know
+        // about (max_iter, top_p, seed, …) survive a drop from the library.
+        // Listing keys explicitly here silently deleted every field added
+        // after this code was written. No api_key: keys belong in the
+        // provider secret store, not in node config, where they would also
+        // ride along in any payload built from it.
+        newConfig.model_config = {
+            ...llmConfig,
+            ...existingModelConfig,
+            provider_id: existingModelConfig.provider_id || llmConfig.provider_id || 'openai',
+            model: existingModelConfig.model || llmConfig.model || '',
+            base_url: existingModelConfig.base_url || llmConfig.base_url || '',
+            temperature: existingModelConfig.temperature ?? llmConfig.temperature ?? 0.7,
+            max_tokens: existingModelConfig.max_tokens || llmConfig.max_tokens || 2048,
+        };
+        delete newConfig.model_config.api_key;
+
+        // If model has provider prefix like "openai/gpt-4o", extract provider
+        if (newConfig.model_config.model && newConfig.model_config.model.includes('/')) {
+            const [providerFromModel] = newConfig.model_config.model.split('/');
+            if (!existingModelConfig.provider_id && !llmConfig.provider_id) {
+                newConfig.model_config.provider_id = providerFromModel;
+            }
+        }
+
+        // 2. System Message / Instruction sync
+        // Always keep both in sync, preferring 'instruction'
+        const instruction = newConfig.instruction || newConfig.system_message || '';
+        newConfig.instruction = instruction;
+        newConfig.system_message = instruction;
+
+        // 3. Ensure tools array exists
+        if (!Array.isArray(newConfig.tools)) {
+            newConfig.tools = [];
+        }
+
+        // 4. Ensure type is set
+        if (!newConfig.type) {
+            newConfig.type = 'LlmAgent';
+        }
+    }
+
+    return newConfig;
 };
 
 const WorkflowCanvasContent = () => {
@@ -94,96 +185,6 @@ const WorkflowCanvasContent = () => {
     }, [rightPane, selectedId, getViewport, setViewport, getNodesBounds]);
 
 
-    // --- SMART MERGE: Preserves non-empty values from base when override has empty/null/undefined ---
-    const smartMerge = (base: any, override: any): any => {
-        const result = { ...base };
-
-        for (const key in override) {
-            const overrideVal = override[key];
-            const baseVal = base[key];
-
-            // Skip if override value is empty/null/undefined
-            if (overrideVal === null || overrideVal === undefined || overrideVal === '') {
-                continue;
-            }
-
-            // For arrays, only use override if it has items
-            if (Array.isArray(overrideVal)) {
-                if (overrideVal.length > 0) {
-                    result[key] = overrideVal;
-                }
-                continue;
-            }
-
-            // For objects, recursively merge
-            if (typeof overrideVal === 'object' && typeof baseVal === 'object' && !Array.isArray(baseVal)) {
-                result[key] = smartMerge(baseVal, overrideVal);
-                continue;
-            }
-
-            // Otherwise, use override value
-            result[key] = overrideVal;
-        }
-
-        return result;
-    };
-
-    // --- DATA NORMALIZATION ---
-    const normalizeConfig = (config: any, type: string) => {
-        const newConfig = { ...config };
-
-        // Normalize Agent Configs
-        if (type === 'agent' || type === 'LlmAgent' || type === 'ReasoningAgent' || type === 'conversable') {
-            // 1. Model Config normalization
-            // Merge llm_config into model_config if model_config is missing or incomplete
-            const existingModelConfig = newConfig.model_config || {};
-            const llmConfig = newConfig.llm_config || {};
-
-            // Spread both sources first so settings this function does not know
-            // about (max_iter, top_p, seed, …) survive a drop from the library.
-            // Listing keys explicitly here silently deleted every field added
-            // after this code was written. No api_key: keys belong in the
-            // provider secret store, not in node config, where they would also
-            // ride along in any payload built from it.
-            newConfig.model_config = {
-                ...llmConfig,
-                ...existingModelConfig,
-                provider_id: existingModelConfig.provider_id || llmConfig.provider_id || 'openai',
-                model: existingModelConfig.model || llmConfig.model || '',
-                base_url: existingModelConfig.base_url || llmConfig.base_url || '',
-                temperature: existingModelConfig.temperature ?? llmConfig.temperature ?? 0.7,
-                max_tokens: existingModelConfig.max_tokens || llmConfig.max_tokens || 2048,
-            };
-            delete newConfig.model_config.api_key;
-
-            // If model has provider prefix like "openai/gpt-4o", extract provider
-            if (newConfig.model_config.model && newConfig.model_config.model.includes('/')) {
-                const [providerFromModel] = newConfig.model_config.model.split('/');
-                if (!existingModelConfig.provider_id && !llmConfig.provider_id) {
-                    newConfig.model_config.provider_id = providerFromModel;
-                }
-            }
-
-            // 2. System Message / Instruction sync
-            // Always keep both in sync, preferring 'instruction'
-            const instruction = newConfig.instruction || newConfig.system_message || '';
-            newConfig.instruction = instruction;
-            newConfig.system_message = instruction;
-
-            // 3. Ensure tools array exists
-            if (!Array.isArray(newConfig.tools)) {
-                newConfig.tools = [];
-            }
-
-            // 4. Ensure type is set
-            if (!newConfig.type) {
-                newConfig.type = 'LlmAgent';
-            }
-        }
-
-        return newConfig;
-    };
-
     // A palette drag gives no feedback about where it can land unless the canvas
     // says so. dragenter/dragleave fire for every child element crossed, so a
     // depth counter is what keeps the highlight from flickering on the way in.
@@ -219,14 +220,12 @@ const WorkflowCanvasContent = () => {
                 return;
             }
 
-            console.log("DROP EVENT:", { type, label, configStr: configStr ? configStr.substring(0, 50) + "..." : "null" });
-
             const mousePos = screenToFlowPosition({
                 x: event.clientX,
                 y: event.clientY,
             });
 
-            let config: any = {};
+            let config: JsonObject = {};
             if (configStr) {
                 try {
                     config = JSON.parse(configStr);
@@ -288,8 +287,14 @@ const WorkflowCanvasContent = () => {
             }
 
             // --- Handle Single Node Drop ---
-            // @ts-ignore - type checking for keys
-            const nodeType = nodeTypes[type] ? type : 'default';
+            // Every palette entry maps to a registered component. Anything else
+            // used to land as an unstyled 'default' node the save could not
+            // represent, so it is refused instead.
+            if (!(type in nodeTypes)) {
+                console.warn('Ignoring a drop of unknown component type', type);
+                return;
+            }
+            const nodeType: NodeType = type;
 
             // For agents and tools, look up full config from library
             let fullConfig = { ...config };
@@ -297,23 +302,21 @@ const WorkflowCanvasContent = () => {
             if (type === 'agent' || nodeType === 'agent') {
                 // Check if we need to look up from library (if config seems empty or is a reference)
                 const agentId = config.id || config.agent_id || config.name || label;
-                const libraryAgent = savedAgents.find((a: any) =>
+                const libraryAgent = savedAgents.find((a: JsonObject) =>
                     a.id === agentId || a.name === agentId || a.config?.id === agentId || a.config?.name === agentId
                 );
 
                 if (libraryAgent?.config) {
-                    console.log("Found library agent for drop:", libraryAgent.name, libraryAgent.config);
                     // Start with library config, then apply any overrides from drag data
                     fullConfig = smartMerge(libraryAgent.config, config);
                 }
             } else if (type === 'tool' || nodeType === 'tool') {
                 const toolId = config.id || config.tool_id || config.name || label;
-                const libraryTool = savedTools.find((t: any) =>
+                const libraryTool = savedTools.find((t: JsonObject) =>
                     t.id === toolId || t.name === toolId || t.config?.id === toolId || t.config?.name === toolId
                 );
 
                 if (libraryTool?.config) {
-                    console.log("Found library tool for drop:", libraryTool.name);
                     fullConfig = smartMerge(libraryTool.config, config);
                 }
             }
@@ -321,7 +324,7 @@ const WorkflowCanvasContent = () => {
             // Normalize single node config
             const normalizedConfig = normalizeConfig(fullConfig, nodeType);
 
-            const newNode: Node = {
+            const newNode: VisualNode = {
                 id: `${type}-${Date.now()}`,
                 type: nodeType,
                 position: mousePos,
@@ -331,9 +334,9 @@ const WorkflowCanvasContent = () => {
                 },
             };
 
-            addNode(newNode as any);
+            addNode(newNode);
         },
-        [screenToFlowPosition, fitView, fit, addNode, savedAgents, savedTools]
+        [screenToFlowPosition, fitView, fit, addNode, addNodes, addEdges, setCurrentWorkflow, savedAgents, savedTools]
     );
 
     // Typed aux handles: only matching tool kinds may land on an agent's
@@ -365,7 +368,7 @@ const WorkflowCanvasContent = () => {
                 onNodeDragStop={() => setNodeDragging(false)}
                 onSelectionDragStart={() => setNodeDragging(true)}
                 onSelectionDragStop={() => setNodeDragging(false)}
-                nodeTypes={nodeTypes as any}
+                nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={fit}
                 minZoom={0.2}
@@ -379,7 +382,7 @@ const WorkflowCanvasContent = () => {
                     animated: false,
                     style: { strokeWidth: 1.5 },
                     markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: 'var(--wire)' },
-                } as any}
+                }}
                 // Strict: the drag preview only snaps to valid target handles, so the
                 // edge always lands exactly where the preview showed it.
                 connectionMode={ConnectionMode.Strict}

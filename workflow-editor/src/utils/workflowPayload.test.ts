@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { VisualEdge, VisualNode } from '../types/workflow';
 import { buildWorkflowPayload, compileFlowLinks, getAgentBindings } from './workflowPayload';
+import type { JsonObject } from '../types/json';
 
 const router = (id: string, label = 'Flow Router'): VisualNode => ({
     id,
@@ -9,7 +10,7 @@ const router = (id: string, label = 'Flow Router'): VisualNode => ({
     data: { label, config: { type: 'router', routing_mode: 'conditional' } },
 });
 
-const guardrail = (id: string, config: Record<string, any> = {}): VisualNode => ({
+const guardrail = (id: string, config: JsonObject = {}): VisualNode => ({
     id,
     type: 'router',
     position: { x: 0, y: 0 },

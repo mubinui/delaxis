@@ -1,25 +1,26 @@
 import type { VisualEdge, VisualNode } from '../types/workflow';
+import type { JsonObject } from '../types/json';
 
 export interface WorkflowConfig {
     id: string;
     name: string;
     description: string;
-    topology?: Record<string, any>;
+    topology?: JsonObject;
     execution_strategy?: string;
     enabled?: boolean;
-    metadata?: Record<string, any>;
+    metadata?: JsonObject;
     workflow_type?: string;
     persistence?: string;
     runtime?: string;
     process?: string;
-    tasks?: Array<Record<string, any>>;
-    memory?: Record<string, any>;
-    knowledge?: Record<string, any>;
-    guardrails?: Record<string, any>;
-    tracing?: Record<string, any>;
-    event_listeners?: Array<Record<string, any>>;
-    mcp_servers?: Array<Record<string, any>>;
-    output_schema?: Record<string, any> | string | null;
+    tasks?: Array<JsonObject>;
+    memory?: JsonObject;
+    knowledge?: JsonObject;
+    guardrails?: JsonObject;
+    tracing?: JsonObject;
+    event_listeners?: Array<JsonObject>;
+    mcp_servers?: Array<JsonObject>;
+    output_schema?: JsonObject | string | null;
     deployment_auth_mode?: string;
     version?: number;
     last_updated?: string;
@@ -30,12 +31,12 @@ export interface AgentConfig {
     type: string;
     name: string;
     system_message?: string;
-    llm_config?: Record<string, any> | boolean | null;
+    llm_config?: JsonObject | boolean | null;
     human_input_mode?: string;
-    code_execution_config?: Record<string, any> | boolean | null;
+    code_execution_config?: JsonObject | boolean | null;
     tools: string[];
     max_consecutive_auto_reply?: number;
-    retrieve_config?: Record<string, any> | null;
+    retrieve_config?: JsonObject | null;
     description?: string;
 }
 
@@ -45,7 +46,7 @@ export interface ToolConfig {
     description: string;
     entrypoint?: string | null;
     enabled: boolean;
-    settings: Record<string, any>;
+    settings: JsonObject;
     /** Presentation grouping for the Library; never affects execution. */
     category?: string | null;
 }
@@ -79,10 +80,12 @@ export interface ApiProvider {
     base_url?: string | null;
     api_key_masked?: string | null;
     api_key_env?: string | null;
+    /** Where the server finds this provider's key; 'none' means it has none. */
+    key_source?: 'inline' | 'secret_store' | 'env' | 'none';
     litellm_prefix?: string | null;
     enabled: boolean;
-    config: Record<string, any>;
-    models?: Array<Record<string, any>>;
+    config: JsonObject;
+    models?: Array<JsonObject>;
     version?: number;
     etag?: string;
     last_updated?: string;
@@ -123,9 +126,9 @@ export interface TriggerConfig {
     public_slug?: string | null;
     secret?: string | null;
     allowed_origins: string[];
-    input_mapping: Record<string, any>;
-    response_mapping: Record<string, any>;
-    metadata: Record<string, any>;
+    input_mapping: JsonObject;
+    response_mapping: JsonObject;
+    metadata: JsonObject;
     created_at: string;
     updated_at: string;
 }
@@ -156,7 +159,7 @@ export interface LibraryItem {
     id: string;
     name: string;
     description?: string;
-    config: Record<string, any>;
+    config: JsonObject;
     type?: string;
     category?: string | null;
     created_at?: string;

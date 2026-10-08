@@ -7,11 +7,12 @@ import {
 } from 'lucide-react';
 import type { NodeType } from '../types/workflow';
 import { useLibraryStore } from '../stores/libraryStore';
-import { useLibraryModal } from '../App';
+import { useLibraryModal } from '../contexts/libraryModal';
 import { useUiStore } from '../stores/uiStore';
 import { ResourceCard } from './studio/ResourceCard';
 import type { ResourceTone } from './studio/ResourceCard';
 import { getAgentSummary, getToolSummary, getWorkflowSummary } from '../utils/studioDerivedState';
+import type { JsonObject } from '../types/json';
 
 interface PaletteItem {
     type: NodeType;
@@ -20,7 +21,7 @@ interface PaletteItem {
     tone: ResourceTone;
     /** Shown in the tile tooltip and matched by palette search. */
     hint: string;
-    config: Record<string, any>;
+    config: JsonObject;
 }
 
 interface PaletteGroup {
@@ -103,7 +104,7 @@ interface SidebarItemProps {
     label: string;
     icon: LucideIcon;
     tone: ResourceTone;
-    config?: any;
+    config?: JsonObject;
     description?: string;
     children?: React.ReactNode;
     level?: number;
@@ -174,7 +175,7 @@ export const Sidebar = () => {
 
     useEffect(() => {
         fetchLibraryItems();
-    }, []);
+    }, [fetchLibraryItems]);
 
     const savedCount = savedWorkflows.length + savedAgents.length + savedTools.length;
 
@@ -201,7 +202,7 @@ export const Sidebar = () => {
     const findAgentById = (id: string) => savedAgents.find(a => a.id === id || a.name === id || a.config?.id === id);
     const findToolById = (id: string) => savedTools.find(t => t.id === id || t.name === id || t.config?.id === id);
 
-    const renderAgentTools = (agentConfig: any) => {
+    const renderAgentTools = (agentConfig: JsonObject) => {
         if (!agentConfig?.tools || !Array.isArray(agentConfig.tools)) return null;
 
         return agentConfig.tools.map((toolRef: string) => {
@@ -220,9 +221,9 @@ export const Sidebar = () => {
         });
     };
 
-    const renderWorkflowAgents = (workflow: any) => {
+    const renderWorkflowAgents = (workflow: JsonObject) => {
         const nodes = workflow.config?.topology?.nodes || [];
-        return nodes.map((node: any) => {
+        return nodes.map((node: JsonObject) => {
             const agentId = node.agent_id || node.id;
             const agent = findAgentById(agentId);
             const config = agent ? agent.config : {};

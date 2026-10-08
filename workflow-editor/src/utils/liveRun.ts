@@ -1,9 +1,10 @@
 import { API_BASE_URL } from '../api/client';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { errorText } from './apiErrors';
+import type { JsonObject } from '../types/json';
 
 /** Read a server-sent event stream, handing each JSON `data:` frame to `onEvent`. */
-export const readSse = async (response: Response, onEvent: (event: Record<string, any>) => void) => {
+export const readSse = async (response: Response, onEvent: (event: JsonObject) => void) => {
     if (!response.body) throw new Error('No stream body returned');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -42,7 +43,7 @@ export const runWorkflowLive = async (
     store.beginFlow(options.fromNodeIds);
 
     let failed = false;
-    const apply = (event: Record<string, any>) => {
+    const apply = (event: JsonObject) => {
         if (event.type === 'error') failed = true;
         useWorkflowStore.getState().applyExecutionEvent(event);
     };

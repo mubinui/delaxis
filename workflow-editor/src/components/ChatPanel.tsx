@@ -111,7 +111,7 @@ export const ChatPanel = () => {
     const hasWorkflow = nodesLength > 0;
     const hasLoadedWorkflow = currentWorkflowId && hasWorkflow;
 
-    const createSession = async () => {
+    const createSession = useCallback(async (): Promise<string> => {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
         };
@@ -135,26 +135,24 @@ export const ChatPanel = () => {
         }
 
         const data = await response.json();
-        return data.session_id;
-    };
+        return String(data.session_id);
+    }, [jwtToken, currentWorkflowId]);
 
-    // Auto-create session on panel open
+    // Auto-create a session once the panel is open and a workflow is loaded. It
+    // only reacted to the panel opening, so opening the chat before a workflow
+    // finished loading left it without a session until the first send.
+    const initializingSession = useRef(false);
     useEffect(() => {
-        if (isOpen && !sessionId && hasLoadedWorkflow && !isLoading) {
-            // We init session silently
-            const initSession = async () => {
-                try {
-                    console.log('Auto-initializing session...');
-                    const id = await createSession();
-                    setSessionId(id);
-                } catch (err) {
-                    console.warn('Auto-init session failed:', err);
-                    // Don't show error to user yet, wait for interaction
-                }
-            };
-            initSession();
-        }
-    }, [isOpen]);
+        if (!isOpen || sessionId || !hasLoadedWorkflow || isLoading || initializingSession.current) return;
+        initializingSession.current = true;
+        createSession()
+            .then((id) => setSessionId(id))
+            .catch((err: unknown) => {
+                // Silent: the first send creates one and reports any failure.
+                console.warn('Auto-init session failed:', err);
+            })
+            .finally(() => { initializingSession.current = false; });
+    }, [isOpen, sessionId, hasLoadedWorkflow, isLoading, createSession]);
 
     const handleNewSession = () => {
         setSessionId(null);
@@ -389,14 +387,14 @@ export const ChatPanel = () => {
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{
-                                    a: ({ children, ...props }: any) => (
+                                    a: ({ children, ...props }) => (
                                         <a target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
                                     ),
-                                    table: ({ children }: any) => (
+                                    table: ({ children }) => (
                                         <div className="my-2 overflow-x-auto"><table className="min-w-full text-xs">{children}</table></div>
                                     ),
-                                    th: ({ children }: any) => <th className="px-2 py-1 text-left font-semibold" style={{ borderBottom: '1px solid var(--line)' }}>{children}</th>,
-                                    td: ({ children }: any) => <td className="px-2 py-1" style={{ borderBottom: '1px solid var(--line)' }}>{children}</td>,
+                                    th: ({ children }) => <th className="px-2 py-1 text-left font-semibold" style={{ borderBottom: '1px solid var(--line)' }}>{children}</th>,
+                                    td: ({ children }) => <td className="px-2 py-1" style={{ borderBottom: '1px solid var(--line)' }}>{children}</td>,
                                 }}
                             >
                                 {msg.content}

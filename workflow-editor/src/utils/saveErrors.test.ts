@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { describeSaveError, parseApiError } from './saveErrors';
+import type { JsonObject } from '../types/json';
 
 const dependency422 = `API 422: ${JSON.stringify({
     detail: {
@@ -13,7 +14,7 @@ describe('parseApiError', () => {
     it('splits status and JSON detail', () => {
         const parsed = parseApiError(dependency422);
         expect(parsed.status).toBe(422);
-        expect((parsed.detail as any).type).toBe('dependency_error');
+        expect((parsed.detail as JsonObject).type).toBe('dependency_error');
     });
 
     it('handles non-JSON bodies', () => {

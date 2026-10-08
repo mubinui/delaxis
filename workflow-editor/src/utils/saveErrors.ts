@@ -1,3 +1,4 @@
+import type { JsonObject } from '../types/json';
 /**
  * The api() client throws `Error("API <status>: <body>")`. These helpers turn
  * that raw string into something a user can act on — especially the backend's
@@ -27,7 +28,7 @@ export function describeSaveError(message: string): string {
     const { status, detail } = parseApiError(message);
 
     if (detail && typeof detail === 'object') {
-        const d = detail as Record<string, any>;
+        const d = detail as JsonObject;
         if (d.type === 'dependency_error') {
             const missing: string[] = d.dependencies?.missing ?? [];
             const available: string[] = d.dependencies?.available ?? [];

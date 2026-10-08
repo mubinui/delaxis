@@ -7,8 +7,9 @@
  * edit / delete flows — they just reset on reload instead of hitting SQLite.
  */
 import seed from './seed.json';
+import type { JsonObject } from '../types/json';
 
-export type Json = Record<string, any>;
+export type Json = JsonObject;
 
 /** `structuredClone` keeps the frozen JSON import from leaking into mutable state. */
 const clone = <T,>(value: T): T => structuredClone(value);

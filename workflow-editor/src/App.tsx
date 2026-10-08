@@ -1,4 +1,3 @@
-import { createContext, useContext } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Shapes } from 'lucide-react';
@@ -18,20 +17,10 @@ import { LiveLlmTester } from './components/LiveLlmTester';
 import { DeploymentManager } from './components/DeploymentManager';
 import { AppSidebar } from './components/shell/AppSidebar';
 import { useUiStore } from './stores/uiStore';
-import type { LibraryTab } from './stores/uiStore';
+import { LibraryModalContext } from './contexts/libraryModal';
 import { useTheme } from './hooks/useTheme';
 
-interface LibraryModalContextType {
-    openLibraryModal: (tab?: LibraryTab) => void;
-}
 
-// Kept for components that open the Library by tab; it now navigates to the
-// Library place in the sidebar rather than stacking a modal over the Studio.
-export const LibraryModalContext = createContext<LibraryModalContextType>({
-    openLibraryModal: () => { },
-});
-
-export const useLibraryModal = () => useContext(LibraryModalContext);
 
 /**
  * The Studio: one full-width canvas. The palette, the inspector, the test chat,

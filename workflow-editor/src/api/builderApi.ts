@@ -1,4 +1,5 @@
 import { api, API_BASE_URL } from './client';
+import type { JsonObject } from '../types/json';
 
 export type BuilderType = 'agent' | 'tool' | 'function' | 'workflow';
 
@@ -22,7 +23,7 @@ export interface FrontendGenerateResponse {
     used_fallback: boolean;
     /** Which path produced the page — 'custom' output that failed its checks comes back as 'themed'. */
     mode?: 'themed' | 'custom';
-    design?: Record<string, any>;
+    design?: JsonObject;
     warnings?: string[];
 }
 
@@ -52,8 +53,8 @@ export function planChatbot(body: {
     prompt: string;
     provider_id: string;
     model_id: string;
-}): Promise<Record<string, any>> {
-    return api<Record<string, any>>('/api/v1/builder/plan-chatbot', {
+}): Promise<JsonObject> {
+    return api<JsonObject>('/api/v1/builder/plan-chatbot', {
         method: 'POST',
         body: JSON.stringify(body),
     });
@@ -64,15 +65,15 @@ export function normalizeApi(body: {
     specification: string;
     provider_id: string;
     model_id: string;
-}): Promise<Record<string, any>> {
-    return api<Record<string, any>>('/api/v1/builder/normalize-api', {
+}): Promise<JsonObject> {
+    return api<JsonObject>('/api/v1/builder/normalize-api', {
         method: 'POST',
         body: JSON.stringify(body),
     });
 }
 
-export function applyBuilderPlan(plan: Record<string, any>): Promise<Record<string, any>> {
-    return api<Record<string, any>>('/api/v1/builder/apply', {
+export function applyBuilderPlan(plan: JsonObject): Promise<JsonObject> {
+    return api<JsonObject>('/api/v1/builder/apply', {
         method: 'POST',
         body: JSON.stringify({ plan }),
     });
@@ -83,8 +84,8 @@ export function generateBuilderConfig(body: {
     history: ChatMessage[];
     provider_id: string;
     model_id: string;
-}): Promise<{ builder_type: BuilderType; config: Record<string, any> | string; raw: string }> {
-    return api<{ builder_type: BuilderType; config: Record<string, any> | string; raw: string }>('/api/v1/builder/generate', {
+}): Promise<{ builder_type: BuilderType; config: JsonObject | string; raw: string }> {
+    return api<{ builder_type: BuilderType; config: JsonObject | string; raw: string }>('/api/v1/builder/generate', {
         method: 'POST',
         body: JSON.stringify(body),
     });

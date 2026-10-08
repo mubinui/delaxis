@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Blocks, Check, Copy, Download, FilePlus2, LayoutDashboard, LifeBuoy, Play, Save, ShieldCheck, Upload, Zap } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
+import type { NodeChange } from '@xyflow/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
+import type { VisualNode } from '../types/workflow';
 import { useLibraryStore } from '../stores/libraryStore';
 import { buildWorkflowPayload, getAgentBindings } from '../utils/workflowPayload';
 import { workflowToCanvas } from '../utils/workflowToCanvas';
@@ -53,12 +55,11 @@ export const Header: React.FC = () => {
     const handleLayout = useCallback(() => {
         const { nodes, edges } = useWorkflowStore.getState();
         const { nodes: layoutedNodes } = getLayoutedElements(nodes, edges);
-        const changes = layoutedNodes.map((node) => ({
+        const changes: NodeChange<VisualNode>[] = layoutedNodes.map((node) => ({
             id: node.id,
             type: 'position',
-            position: node.position
+            position: node.position,
         }));
-        // @ts-ignore
         onNodesChange(changes);
         setTimeout(() => fitView(canvasFit(useUiStore.getState().paletteOpen, 800)), 100);
     }, [onNodesChange, fitView]);

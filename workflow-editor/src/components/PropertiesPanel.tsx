@@ -15,6 +15,7 @@ import { getAgentSummary, getToolSummary } from '../utils/studioDerivedState';
 import { api } from '../api/client';
 import type { FieldSpec } from '../constants/agentOptions';
 import { AGENT_SETTING_FIELDS, AGENT_TYPES, HUMAN_INPUT_MODES, LLM_PARAM_FIELDS, fieldsForProvider, unsupportedFields } from '../constants/agentOptions';
+import type { JsonObject } from '../types/json';
 
 interface GmailStatus {
     configured: boolean;
@@ -23,6 +24,14 @@ interface GmailStatus {
 }
 
 // CrewAI & Model Definitions
+const fetchGmailStatus = async (): Promise<GmailStatus | null> => {
+    try {
+        return await api<GmailStatus>('/api/v1/integrations/gmail/status');
+    } catch {
+        return null;
+    }
+};
+
 export const PropertiesPanel = () => {
     // Custom equality (not just useShallow) because a node being *dragged* gets a new
     // object reference every frame via applyNodeChanges (position updates), even while
@@ -43,7 +52,7 @@ export const PropertiesPanel = () => {
     const isNodeDragging = useWorkflowStore((state) => state.isNodeDragging);
     const { savedTools, executeTool, saveItem, updateItem, providers, fetchProviderModels } = useLibraryStore();
     const [liveModels, setLiveModels] = useState<Record<string, string[]>>({});
-    const [capabilities, setCapabilities] = useState<Record<string, any>>({});
+    const [capabilities, setCapabilities] = useState<JsonObject>({});
     const [loadingModels, setLoadingModels] = useState(false);
 
     // Integration state (gmail tools)
@@ -55,14 +64,9 @@ export const PropertiesPanel = () => {
     const [librarySaveState, setLibrarySaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
     const refreshGmailStatus = async () => {
-        try {
-            const status = await api<GmailStatus>('/api/v1/integrations/gmail/status');
-            setGmailStatus(status);
-            return status;
-        } catch {
-            setGmailStatus(null);
-            return null;
-        }
+        const status = await fetchGmailStatus();
+        setGmailStatus(status);
+        return status;
     };
 
     // Core State
@@ -70,7 +74,7 @@ export const PropertiesPanel = () => {
     const [description, setDescription] = useState('');
 
     // Dynamic Configuration State
-    const [config, setConfig] = useState<Record<string, any>>({});
+    const [config, setConfig] = useState<JsonObject>({});
 
     // UI State
     const [activeSection, setActiveSection] = useState<string>('basic');
@@ -79,23 +83,28 @@ export const PropertiesPanel = () => {
     const [testResult, setTestResult] = useState('');
     const [isTesting, setIsTesting] = useState(false);
 
-    // Sync state when selection changes
+    // Sync state when a different node is selected. Keyed on the id alone, so
+    // edits to the selected node's data do not reset the form mid-edit; the
+    // node itself is read from the store at that moment.
+    const selectedNodeId = selectedNode?.id;
     useEffect(() => {
-        if (selectedNode) {
-            setLabel((selectedNode.data?.label as string) || '');
-            setDescription((selectedNode.data?.description as string) || '');
-            const initialConfig = (selectedNode.data?.config as Record<string, any>) || {};
-            if (!initialConfig.tools) initialConfig.tools = [];
-            setConfig(initialConfig);
-            setActiveInspectorTab('overview');
-            setTestResult('');
-            setMcpInspection('');
-            setLibrarySaveState('idle');
-            if (initialConfig.type === 'gmail') {
-                refreshGmailStatus();
-            }
+        if (!selectedNodeId) return;
+        const node = useWorkflowStore.getState().nodes.find((n) => n.id === selectedNodeId);
+        if (!node) return;
+        setLabel((node.data?.label as string) || '');
+        setDescription((node.data?.description as string) || '');
+        // A copy: this used to add `tools` to the store's own config object.
+        const initialConfig: JsonObject = { ...((node.data?.config as JsonObject) || {}) };
+        if (!initialConfig.tools) initialConfig.tools = [];
+        setConfig(initialConfig);
+        setActiveInspectorTab('overview');
+        setTestResult('');
+        setMcpInspection('');
+        setLibrarySaveState('idle');
+        if (initialConfig.type === 'gmail') {
+            void fetchGmailStatus().then(setGmailStatus);
         }
-    }, [selectedNode?.id]);
+    }, [selectedNodeId]);
 
     // Which sampling fields are worth showing depends on the route that will
     // actually run. Must sit above the early return — hooks cannot be conditional.
@@ -103,7 +112,7 @@ export const PropertiesPanel = () => {
     useEffect(() => {
         if (!activeProviderId || capabilities[activeProviderId]) return;
         let cancelled = false;
-        api<any>(`/api/v1/api-providers/${activeProviderId}/capabilities`)
+        api<JsonObject>(`/api/v1/api-providers/${activeProviderId}/capabilities`)
             .then((caps) => {
                 if (!cancelled) setCapabilities((prev) => ({ ...prev, [activeProviderId]: caps }));
             })
@@ -133,11 +142,11 @@ export const PropertiesPanel = () => {
         }
     };
 
-    const updateConfig = (key: string, value: any) => {
+    const updateConfig = (key: string, value: unknown) => {
         setConfig(prev => ({ ...prev, [key]: value }));
     };
 
-    const updateNestedConfig = (parent: string, key: string, value: any) => {
+    const updateNestedConfig = (parent: string, key: string, value: unknown) => {
         setConfig(prev => ({
             ...prev,
             [parent]: {
@@ -158,7 +167,6 @@ export const PropertiesPanel = () => {
 
     const handleDelete = () => {
         if (selectedNode) {
-            // @ts-ignore
             onNodesChange([{ id: selectedNode.id, type: 'remove' }]);
         }
     };
@@ -358,7 +366,7 @@ export const PropertiesPanel = () => {
         const samplingFields = fieldsForProvider(LLM_PARAM_FIELDS, effectiveRoute);
         const droppedFields = unsupportedFields(LLM_PARAM_FIELDS, effectiveRoute);
         const keyPresent = Boolean(selectedProvider?.api_key_masked);
-        const keySource = String((selectedProvider as any)?.key_source ?? 'none');
+        const keySource = String(selectedProvider?.key_source ?? 'none');
 
         const loadLiveModels = async () => {
             if (!providerId) return;
@@ -1260,7 +1268,6 @@ export const PropertiesPanel = () => {
                 </div>
                 <button
                     onClick={() => {
-                        // @ts-ignore
                         onNodesChange([{ id: selectedNode.id, type: 'select', selected: false }]);
                     }}
                     type="button"

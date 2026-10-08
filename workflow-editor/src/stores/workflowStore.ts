@@ -15,6 +15,7 @@ import type {
 } from '@xyflow/react';
 import type { VisualNode, VisualEdge } from '../types/workflow';
 import { AUX_EDGE_OPTIONS, isAuxHandle } from '../utils/connectionRules';
+import type { JsonObject } from '../types/json';
 
 export interface ExecutionTimelineItem {
     id: string;
@@ -22,7 +23,7 @@ export interface ExecutionTimelineItem {
     label: string;
     nodeId?: string;
     agentId?: string;
-    payload: Record<string, any>;
+    payload: JsonObject;
     status: 'running' | 'success' | 'error' | 'info';
     timestamp: string;
 }
@@ -49,7 +50,7 @@ interface WorkflowState {
     addNode: (node: VisualNode) => void;
     addNodes: (nodes: VisualNode[]) => void;
     addEdges: (edges: VisualEdge[]) => void;
-    updateNodeData: (id: string, data: Record<string, any>) => void;
+    updateNodeData: (id: string, data: JsonObject) => void;
     setNodes: (nodes: VisualNode[]) => void;
     setEdges: (edges: VisualEdge[]) => void;
     // Workflow tracking actions
@@ -59,8 +60,8 @@ interface WorkflowState {
     // Trigger execution actions
     setExecutingTrigger: (id: string | null, result?: 'success' | 'error' | null) => void;
     resetExecution: () => void;
-    applyExecutionEvent: (event: Record<string, any>) => void;
-    applyNodeIo: (nodeIo?: Record<string, any> | null, toolIo?: Record<string, any> | null) => void;
+    applyExecutionEvent: (event: JsonObject) => void;
+    applyNodeIo: (nodeIo?: JsonObject | null, toolIo?: JsonObject | null) => void;
     /** Start a run's flow at these nodes (triggers): their outgoing wires start moving. */
     beginFlow: (fromNodeIds?: string[]) => void;
     /** End a run: wires still moving turn green, or red if the run failed. */
@@ -170,7 +171,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         });
     },
 
-    updateNodeData: (id: string, data: Record<string, any>) => {
+    updateNodeData: (id: string, data: JsonObject) => {
         set({
             nodes: get().nodes.map((node) => {
                 if (node.id === id) {
@@ -256,10 +257,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     // Populate per-node run data from a completed run's metadata (node_io keyed
     // by topology node id == canvas node id; tool_io keyed by tool name). Used
     // by the non-streaming chat path and as a final fill on the live 'done'.
-    applyNodeIo: (nodeIo?: Record<string, any> | null, toolIo?: Record<string, any> | null) => {
+    applyNodeIo: (nodeIo?: JsonObject | null, toolIo?: JsonObject | null) => {
         if (!nodeIo && !toolIo) return;
         const timestamp = new Date().toISOString();
-        const toolEntries = Object.values(toolIo ?? {}) as Array<Record<string, any>>;
+        const toolEntries = Object.values(toolIo ?? {}) as Array<JsonObject>;
         const ran: string[] = [];
         const nextNodes = get().nodes.map((node) => {
                 const config = node.data?.config ?? {};
@@ -297,9 +298,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         set({ nodes: nextNodes, edges });
     },
 
-    applyExecutionEvent: (event: Record<string, any>) => {
+    applyExecutionEvent: (event: JsonObject) => {
         const eventType = String(event.type ?? 'info');
-        const payload = (event.payload ?? {}) as Record<string, any>;
+        const payload = (event.payload ?? {}) as JsonObject;
         if (eventType === 'done') {
             // Backfill any node/tool data the stream didn't attribute live.
             get().applyNodeIo(payload.metadata?.node_io, payload.metadata?.tool_io);

@@ -12,8 +12,7 @@ import type {
     TriggerConfig,
     WorkflowConfig,
 } from '../api/backendTypes';
-
-type JsonObject = Record<string, any>;
+import type { JsonObject } from '../types/json';
 
 interface LibraryState {
     savedWorkflows: LibraryItem[];
@@ -41,7 +40,7 @@ interface LibraryState {
     previewDeployment: (body: JsonObject) => Promise<JsonObject>;
     flashDeploy: (body: JsonObject) => Promise<DeploymentConfig>;
     deleteDeployment: (deploymentId: string) => Promise<void>;
-    saveWorkflow: (workflowData: any) => Promise<WorkflowConfig>;
+    saveWorkflow: (workflowData: JsonObject) => Promise<WorkflowConfig>;
     validateWorkflow: (workflowId: string) => Promise<JsonObject>;
     executeWorkflow: (workflowId: string, message: string, dryRun?: boolean) => Promise<JsonObject>;
 
@@ -109,10 +108,10 @@ const agentToLibraryItem = (agent: AgentConfig): LibraryItem => ({
         system_message: agent.system_message ?? '',
         model_config: {
             ...(agent.llm_config && typeof agent.llm_config === 'object' ? agent.llm_config : {}),
-            ...((agent as any).agent_settings ?? {}),
+            ...((agent as JsonObject).agent_settings ?? {}),
         },
-        is_selector: Boolean((agent as any).is_selector),
-        output_key: (agent as any).output_key ?? '',
+        is_selector: Boolean((agent as JsonObject).is_selector),
+        output_key: (agent as JsonObject).output_key ?? '',
         human_input_mode: agent.human_input_mode ?? 'NEVER',
         code_execution_config: agent.code_execution_config,
         tools: agent.tools ?? [],
@@ -330,7 +329,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         await get().fetchDeployments();
     },
 
-    saveWorkflow: async (workflowData: any) => {
+    saveWorkflow: async (workflowData: JsonObject) => {
         set({ isLoading: true, error: null });
         try {
             const currentId = workflowData.currentId ? String(workflowData.currentId) : '';

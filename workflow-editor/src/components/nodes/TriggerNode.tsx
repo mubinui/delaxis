@@ -9,6 +9,7 @@ import { useWorkflowStore } from '../../stores/workflowStore';
 import { runWorkflowLive } from '../../utils/liveRun';
 import { laneStyle } from '../../utils/nodeTheme';
 import { StatusGlyph } from '../shell/StatusGlyph';
+import type { JsonObject } from '../../types/json';
 
 const ICON_FOR_TRIGGER_TYPE: Record<string, LucideIcon> = {
     chat: MessageSquare,
@@ -17,7 +18,7 @@ const ICON_FOR_TRIGGER_TYPE: Record<string, LucideIcon> = {
 };
 
 export const TriggerNode = memo(({ id, data, selected }: NodeProps<Node<WorkflowNodeData>>) => {
-    const config = data.config as any;
+    const config = (data.config ?? {}) as JsonObject;
     const triggerType = config?.trigger_type || 'manual';
     const Icon = ICON_FOR_TRIGGER_TYPE[triggerType] ?? Play;
 

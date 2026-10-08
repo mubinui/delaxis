@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '../api/client';
 import { errorText } from '../utils/apiErrors';
+import type { JsonObject } from '../types/json';
 
 export type VoiceState = 'idle' | 'starting' | 'listening' | 'speaking' | 'error';
 
@@ -60,7 +61,7 @@ interface UseVoiceSessionOptions {
      * outcome, so it has to be true — the hook does not invent a result when
      * this is absent, it says the canvas is unavailable.
      */
-    onToolCall?: (name: string, args: Record<string, any>) => Promise<string> | string;
+    onToolCall?: (name: string, args: JsonObject) => Promise<string> | string;
     /**
      * Called on every animation frame with the measured audio level. Kept out of
      * React state deliberately — 60 setState calls a second would re-render the
@@ -363,7 +364,7 @@ export const useVoiceSession = ({
                         break;
                     case 'tool_call': {
                         const name = String(frame.name ?? '');
-                        const args = (frame.args ?? {}) as Record<string, any>;
+                        const args = (frame.args ?? {}) as JsonObject;
                         const callId = String(frame.id ?? name);
 
                         // Answer every call, including the ones that fail. The

@@ -11,6 +11,7 @@ import { useLibraryStore } from '../stores/libraryStore';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { applyVoiceOperation } from '../utils/voiceCanvasOps';
 import { workflowToCanvas } from '../utils/workflowToCanvas';
+import type { JsonObject } from '../types/json';
 
 type Tab = 'build' | 'api' | 'triggers' | 'frontend' | 'deploy';
 type BuildKind = BuilderType | 'chatbot' | 'api' | 'frontend';
@@ -43,8 +44,8 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     const [modelId, setModelId] = useState('');
     const [rawApi, setRawApi] = useState('GET https://api.example.com/students/{id}\\nAuthorization: Bearer token\\nReturn student profile by id');
     const [specification, setSpecification] = useState('Create a tool that agents can use safely. Infer path/query params and auth.');
-    const [plan, setPlan] = useState<Record<string, any> | null>(null);
-    const [normalizedTool, setNormalizedTool] = useState<Record<string, any> | null>(null);
+    const [plan, setPlan] = useState<JsonObject | null>(null);
+    const [normalizedTool, setNormalizedTool] = useState<JsonObject | null>(null);
     const [frontendPrompt, setFrontendPrompt] = useState('Create a premium university admissions chatbot UI with a clean welcome panel, suggested questions, and a fast mobile layout.');
     const [frontendMessages, setFrontendMessages] = useState<ChatMessage[]>([]);
     const [frontendHtml, setFrontendHtml] = useState('');
@@ -117,7 +118,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
      * whatever the canvas looked like when the session opened — several edits
      * ago by the third or fourth thing the model says.
      */
-    const handleVoiceToolCall = useCallback((name: string, args: Record<string, any>) => {
+    const handleVoiceToolCall = useCallback((name: string, args: JsonObject) => {
         const workflow = useWorkflowStore.getState();
         const library = useLibraryStore.getState();
 
@@ -187,7 +188,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
             })
             .catch(() => undefined);
         fetchOperationsData();
-    }, []);
+    }, [fetchOperationsData]);
 
     const reportSuccess = (text: string) => {
         setMessageIsError(false);
@@ -333,7 +334,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                 return;
             }
 
-            const config = result.config as Record<string, any>;
+            const config = result.config as JsonObject;
             if (buildKind === 'workflow') {
                 // Route through the plan applier so its agents are created too,
                 // then the workflow opens on the canvas.
@@ -359,7 +360,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
                     description: saved.description ?? '',
                     config: { ...config, id: saved.id },
                 },
-            } as any);
+            });
             reportSuccess(`Saved "${saved.name}" to the library and added it to the canvas.`);
             onClose?.();
         } catch (error) {
@@ -394,7 +395,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
     };
 
     /** Put a saved workflow config on the canvas so it can be seen and edited. */
-    const openOnCanvas = async (config: Record<string, any>, name?: string) => {
+    const openOnCanvas = async (config: JsonObject, name?: string) => {
         // Refresh first: the agents and tools the plan just created are what the
         // canvas reads model settings and tool details from.
         await fetchLibraryItems().catch(() => undefined);
@@ -425,7 +426,7 @@ export const LaunchpadPanel = ({ onClose }: { onClose?: () => void }) => {
 
             // The whole point of applying is to end up with something editable —
             // previously this only printed JSON and left the canvas untouched.
-            const workflowConfig = result.workflow as Record<string, any> | null;
+            const workflowConfig = result.workflow as JsonObject | null;
             if (workflowConfig) {
                 await openOnCanvas(workflowConfig);
                 reportSuccess(

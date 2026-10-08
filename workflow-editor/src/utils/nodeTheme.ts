@@ -4,6 +4,7 @@
 // node repaints with the theme instead of freezing whatever it was drawn with.
 import type { CSSProperties } from 'react';
 import type { StatusShape } from '../components/shell/StatusGlyph';
+import type { JsonObject } from '../types/json';
 
 export type NodeKind = 'trigger' | 'agent' | 'logic' | 'tool' | 'data' | 'trust' | 'connect' | 'output';
 
@@ -13,7 +14,7 @@ const TRUST_TOOLS = ['security_scan', 'scan_for_secrets', 'detect_prompt_injecti
 const DATA_TOOLS = ['analyze_file', 'analyze_image', 'list_uploaded_files', 'context_tree', 'search_context_tree', 'read_context_file'];
 
 /** Which kind a tool node reads as, from its configuration alone. */
-export const kindForTool = (config: Record<string, any> | undefined): NodeKind => {
+export const kindForTool = (config: JsonObject | undefined): NodeKind => {
     const type = String(config?.type ?? 'function');
     if (type === 'memory' || type === 'knowledge') return 'logic';
     if (type === 'sql' || type === 'database' || type === 'mongodb') return 'data';

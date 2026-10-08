@@ -76,14 +76,15 @@ export const DeploymentManager: React.FC = () => {
 
     // Snippets come from the backend so the origin is right behind a proxy or a
     // custom domain, rather than being guessed from window.location.
+    const shownDeploymentId = selected?.id;
     useEffect(() => {
-        if (!selected) {
+        if (!shownDeploymentId) {
             setIntegration(null);
             return;
         }
         let cancelled = false;
         setIntegrationError(null);
-        api<IntegrationSnippets>(`/api/v1/deployments/${selected.id}/integration`)
+        api<IntegrationSnippets>(`/api/v1/deployments/${shownDeploymentId}/integration`)
             .then((data) => { if (!cancelled) setIntegration(data); })
             .catch((error: unknown) => {
                 if (cancelled) return;
@@ -91,7 +92,7 @@ export const DeploymentManager: React.FC = () => {
                 setIntegrationError(error instanceof Error ? error.message : 'Could not load the snippets.');
             });
         return () => { cancelled = true; };
-    }, [selected?.id]);
+    }, [shownDeploymentId]);
 
     const origin = window.location.origin;
     const workflowId = currentWorkflowId || 'support_triage';

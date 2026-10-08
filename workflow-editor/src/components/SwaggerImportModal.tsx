@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { X, Search, Check, Loader2 } from 'lucide-react';
 import { useLibraryStore } from '../stores/libraryStore';
+import type { JsonObject } from '../types/json';
 
 interface SwaggerImportModalProps {
     isOpen: boolean;
@@ -12,7 +13,7 @@ export const SwaggerImportModal = ({ isOpen, onClose }: SwaggerImportModalProps)
     const { previewSwagger, importSwagger, isLoading } = useLibraryStore();
     const [url, setUrl] = useState('');
     const [step, setStep] = useState<'input' | 'preview'>('input');
-    const [previewData, setPreviewData] = useState<any>(null);
+    const [previewData, setPreviewData] = useState<JsonObject | null>(null);
     const [selectedEndpoints, setSelectedEndpoints] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +24,7 @@ export const SwaggerImportModal = ({ isOpen, onClose }: SwaggerImportModalProps)
             const data = await previewSwagger(url);
             setPreviewData(data);
             // Select all by default
-            setSelectedEndpoints((data.endpoints ?? []).map((endpoint: any) => endpoint.operation_id));
+            setSelectedEndpoints((data.endpoints ?? []).map((endpoint: JsonObject) => endpoint.operation_id));
             setStep('preview');
         } catch (err) {
             setError((err as Error).message);
@@ -89,7 +90,7 @@ export const SwaggerImportModal = ({ isOpen, onClose }: SwaggerImportModalProps)
                             </div>
 
                             <div className="table-box max-h-[300px] overflow-y-auto">
-                                {previewData?.endpoints.map((tool: any) => (
+                                {previewData?.endpoints.map((tool: JsonObject) => (
                                     <label key={tool.operation_id} className="flex items-start gap-3 p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer">
                                         <input
                                             type="checkbox"

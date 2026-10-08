@@ -1,5 +1,6 @@
 
 import type { Node, Edge, Viewport } from '@xyflow/react';
+import type { JsonObject } from './json';
 
 export type NodeType = 'agent' | 'tool' | 'trigger' | 'router' | 'output' | 'workflow';
 
@@ -11,7 +12,7 @@ export interface NodeRunData {
 export interface WorkflowNodeData extends Record<string, unknown> {
     label: string;
     description?: string;
-    config?: Record<string, any>;
+    config?: JsonObject;
     status?: 'configured' | 'error' | 'running' | 'idle';
     /** Data that entered this node during the last live run. */
     lastInput?: NodeRunData;
