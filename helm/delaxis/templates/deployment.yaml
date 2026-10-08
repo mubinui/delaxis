@@ -105,9 +105,18 @@ spec:
         resources:
           {{- toYaml .Values.resources | nindent 12 }}
         volumeMounts:
+        - name: data
+          mountPath: /app/data
         - name: chromadb-storage
           mountPath: /app/data/chromadb
       volumes:
+      - name: data
+        {{- if .Values.data.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "delaxis.fullname" . }}-data-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
       - name: chromadb-storage
         {{- if .Values.chromadb.persistence.enabled }}
         persistentVolumeClaim:

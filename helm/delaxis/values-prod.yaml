@@ -1,8 +1,11 @@
 # Production environment values
-replicaCount: 5
+# A single replica until sessions move to a shared store: Delaxis holds them
+# in process, and its data volume is ReadWriteOnce. Scale up, not out.
+replicaCount: 1
 
 image:
-  tag: "1.0.0"
+  # Match the release you deploy; images are published per git tag.
+  tag: "2.3.1"
   pullPolicy: IfNotPresent
 
 config:
@@ -19,9 +22,9 @@ resources:
     memory: 1Gi
 
 autoscaling:
-  enabled: true
-  minReplicas: 5
-  maxReplicas: 20
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
   targetCPUUtilizationPercentage: 60
   targetMemoryUtilizationPercentage: 70
 

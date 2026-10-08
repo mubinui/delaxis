@@ -7,7 +7,12 @@ metadata:
     app: delaxis
     version: v1
 spec:
-  replicas: 3
+  # One replica: sessions live in process and configs, uploads and the SQLite
+  # database live on the data volume (ReadWriteOnce). More replicas would each
+  # see different sessions and could not attach the same volume.
+  replicas: 1
+  strategy:
+    type: Recreate
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -112,6 +117,9 @@ spec:
           failureThreshold: 3
         
         volumeMounts:
+        # Configs edited in the Studio, sessions, deployments, uploads, SQLite.
+        - name: data
+          mountPath: /app/data
         - name: chromadb-storage
           mountPath: /app/data/chromadb
         - name: config-volume
@@ -119,6 +127,9 @@ spec:
           readOnly: true
       
       volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: delaxis-data-pvc
       - name: chromadb-storage
         persistentVolumeClaim:
           claimName: chromadb-pvc
@@ -149,4 +160,22 @@ spec:
   resources:
     requests:
       storage: 10Gi
+  storageClassName: standard
+
+---
+# Everything under /app/data except ChromaDB, which keeps its own claim so
+# existing installations keep their vectors.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: delaxis-data-pvc
+  namespace: delaxis
+  labels:
+    app: delaxis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
   storageClassName: standard

@@ -1,3 +1,5 @@
+# Delaxis keeps sessions in process, so it runs as a single replica; this
+# autoscaler is pinned to one until a shared session store exists.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -10,8 +12,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: delaxis
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 1
+  maxReplicas: 1
   metrics:
   - type: Resource
     resource:

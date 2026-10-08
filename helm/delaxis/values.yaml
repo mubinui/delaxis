@@ -2,7 +2,9 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 3
+# One replica: sessions are held in process and configs, uploads and the
+# SQLite database live on a ReadWriteOnce data volume.
+replicaCount: 1
 
 image:
   repository: delaxis
@@ -67,8 +69,9 @@ resources:
     memory: 512Mi
 
 autoscaling:
-  enabled: true
-  minReplicas: 3
+  # Off until sessions move to a shared store; see replicaCount.
+  enabled: false
+  minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
@@ -185,6 +188,14 @@ ragPipeline:
   apiKey: ""  # Set via secrets if required
 
 # ChromaDB storage
+# /app/data: configs edited in the Studio, sessions, deployments, uploads and
+# the SQLite database. Without it they are lost whenever the pod restarts.
+data:
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: standard
+
 chromadb:
   persistence:
     enabled: true
