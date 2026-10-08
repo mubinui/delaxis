@@ -1,6 +1,7 @@
 """Multi-layer cache management with configuration hierarchy."""
 
 import logging
+from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import UTC, datetime
 from threading import Lock
@@ -17,9 +18,10 @@ from src.utils.time import parse_utc
 logger = logging.getLogger(__name__)
 
 
-class CacheInvalidationStrategy:
+class CacheInvalidationStrategy(ABC):
     """Base class for cache invalidation strategies."""
 
+    @abstractmethod
     def should_invalidate(self, key: str, metadata: dict[str, Any]) -> bool:
         """Determine if a cache entry should be invalidated.
 
@@ -30,7 +32,6 @@ class CacheInvalidationStrategy:
         Returns:
             True if entry should be invalidated, False otherwise
         """
-        raise NotImplementedError
 
 
 class TimeBasedInvalidation(CacheInvalidationStrategy):
@@ -723,33 +724,6 @@ class CacheManager:
             logger.info(f"Invalidated {count} embeddings using strategy")
 
         return results
-
-    def schedule_periodic_invalidation(
-        self,
-        interval_seconds: int,
-        max_age_seconds: int,
-    ) -> None:
-        """Schedule periodic cache invalidation based on age.
-
-        Args:
-            interval_seconds: Interval between invalidation runs
-            max_age_seconds: Maximum age before invalidation
-
-        Note:
-            This is a placeholder for future implementation with a task scheduler.
-            In production, use a task queue (Celery, APScheduler, etc.)
-        """
-        logger.info(
-            f"Periodic invalidation configured: "
-            f"interval={interval_seconds}s, max_age={max_age_seconds}s"
-        )
-
-        # TODO: Implement with task scheduler
-        # For now, just log the configuration
-        TimeBasedInvalidation(max_age_seconds)
-        logger.info(
-            "Periodic invalidation requires task scheduler integration (not yet implemented)"
-        )
 
 
 # Singleton instance

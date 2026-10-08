@@ -146,24 +146,6 @@ class ProviderAdapter:
         logger.info("llm_client_created", provider_id=provider_id)
         return client
 
-    def get_vector_db_client(self, db_id: str) -> Any:
-        """
-        Get or create a vector database client instance.
-
-        Note: Vector DB support (chromadb, pgvector, qdrant) has been removed.
-        Use the external RAG pipeline service instead.
-
-        Args:
-            db_id: Database identifier (collection name)
-
-        Raises:
-            NotImplementedError: Always, as vector DB clients are no longer supported
-        """
-        raise NotImplementedError(
-            "Local vector DB clients have been removed. "
-            "Use the external RAG pipeline service via src.tools.rag_pipeline instead."
-        )
-
     def get_search_client(self, provider_id: str) -> Any:
         """
         Get or create a search client instance.

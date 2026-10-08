@@ -190,18 +190,6 @@ def test_get_api_client_success(temp_config_files):
             assert call_kwargs["headers"]["X-API-Key"] == "api_key_456"
 
 
-def test_get_vector_db_client_removed(temp_config_files):
-    """Local vector DB clients were removed in favor of the external RAG service."""
-    adapter = ProviderAdapter(
-        config_path=str(temp_config_files["providers_file"]),
-        vector_db_config_path=str(temp_config_files["vector_db_file"]),
-        enable_file_watching=False,
-    )
-
-    with pytest.raises(NotImplementedError, match="RAG pipeline"):
-        adapter.get_vector_db_client("test_collection")
-
-
 def test_get_credentials_from_env(temp_config_files):
     """Test retrieving credentials from environment variables."""
     with patch.dict("os.environ", {"TEST_CREDENTIAL": "secret_value"}):

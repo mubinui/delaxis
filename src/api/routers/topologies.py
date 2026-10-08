@@ -25,6 +25,45 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/topologies", tags=["topologies"])
 
 
+def _store_topology(workflow_id: str, topology_config: TopologyConfig) -> None:
+    """Replace a workflow's topology with ``topology_config`` and save it.
+
+    404 when the workflow does not exist, 422 when a node names an agent that
+    does not exist or the workflow no longer validates with the new graph.
+    """
+    from src.api.routers.workflows import _load_workflows_config, _save_workflows_config
+    from src.config.dependency_validation import DependencyError, get_validator
+    from src.config.workflow_models import WorkflowConfig
+    from src.config.workflow_registry import get_workflow_registry
+
+    config = _load_workflows_config()
+    workflow = next((w for w in config.get("workflows", []) if w.get("id") == workflow_id), None)
+    if workflow is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Workflow not found: {workflow_id}"
+        )
+    try:
+        get_validator().validate_workflow_agent_references(
+            workflow_id, {node.agent_id for node in topology_config.nodes}
+        )
+    except DependencyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"type": "dependency_error", "message": str(exc), "missing": exc.missing},
+        ) from exc
+
+    workflow["topology"] = topology_config.model_dump(mode="json", exclude_none=True)
+    try:
+        WorkflowConfig.model_validate(workflow)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"The workflow does not validate with this topology: {exc}",
+        ) from exc
+    _save_workflows_config(config)
+    get_workflow_registry().reload()
+
+
 @router.post("", response_model=TopologyResponse, status_code=status.HTTP_201_CREATED)
 async def create_topology(
     request: Request,
@@ -113,8 +152,9 @@ async def create_topology(
                 },
             )
 
-        # TODO: Store topology configuration in workflow
-        # For now, return the validated topology
+        # Store it on the workflow it names. This endpoint used to answer 201
+        # Created and store nothing.
+        _store_topology(body.workflow_id, topology_config)
 
         logger.info(
             "Created topology",
@@ -134,6 +174,8 @@ async def create_topology(
             validation={"is_valid": True, "errors": [], "warnings": []},
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

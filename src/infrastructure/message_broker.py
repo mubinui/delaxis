@@ -705,8 +705,8 @@ class DeadLetterQueueHandler(MessageBroker):
                         },
                     )
 
-                    # TODO: Store failed task in database for manual review
-                    # This could be implemented as part of audit logging
+                    # The error log above, with the task id, session and message, is
+                    # the only record: a discarded task is not stored anywhere else.
 
                 # Message is acknowledged after processing
 

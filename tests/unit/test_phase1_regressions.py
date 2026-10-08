@@ -454,3 +454,73 @@ def test_run_memory_uses_the_workflow_model_and_the_local_embedder(monkeypatch, 
     # The local embedder, not CrewAI's OpenAI default.
     assert memory.embedder is not None
     assert get_rag_service().embedder.dimensions == 512
+
+
+# --- POST /topologies stores what it validates ---------------------------------------------
+
+
+def _topology_body(workflow_id: str, agent_id: str = "general_assistant") -> dict:
+    return {
+        "workflow_id": workflow_id,
+        "type": "single",
+        "nodes": [{"id": "only", "agent_id": agent_id}],
+        "edges": [],
+        "entry_node": "only",
+    }
+
+
+def test_creating_a_topology_saves_it_on_the_workflow(monkeypatch, tmp_path) -> None:
+    import shutil
+
+    from fastapi.testclient import TestClient
+
+    from src.api.main import app
+    from src.config.config_loader import get_config_loader
+    from src.config.workflow_registry import get_workflow_registry
+
+    target = tmp_path / "cfg"
+    shutil.copytree(ROOT / "configs", target)
+    monkeypatch.setenv("DELAXIS_CONFIG_DIR", str(target))
+    loader = get_config_loader()
+    monkeypatch.setattr(loader, "config_dir", target)
+    loader.reload_all()
+    registry = get_workflow_registry()
+    monkeypatch.setattr(registry, "config_path", target / "workflows.json")
+    try:
+        client = TestClient(app)
+        response = client.post("/api/v1/topologies", json=_topology_body("assistant_chat"))
+        assert response.status_code == 201, response.text
+        saved = json.loads((target / "workflows.json").read_text())
+        workflow = next(w for w in saved["workflows"] if w["id"] == "assistant_chat")
+        assert workflow["topology"]["entry_node"] == "only"
+        assert registry.get_workflow("assistant_chat").topology.entry_node == "only"
+
+        assert (
+            client.post("/api/v1/topologies", json=_topology_body("no_such_flow")).status_code
+            == 404
+        )
+        missing_agent = client.post(
+            "/api/v1/topologies", json=_topology_body("assistant_chat", "ghost")
+        )
+        assert missing_agent.status_code == 422
+    finally:
+        monkeypatch.undo()
+        get_config_loader().reload_all()
+        get_workflow_registry().reload()
+
+
+def test_runtime_overrides_are_applied_not_ignored() -> None:
+    from src.config.config_manager import ConfigurationError, ConfigurationManager
+
+    manager = ConfigurationManager(ROOT / "configs")
+    base = manager.get_effective_config()
+    overridden = manager.get_effective_config(
+        runtime_overrides={"execution": {"max_workers": base.execution.max_workers + 3}}
+    )
+    assert overridden.execution.max_workers == base.execution.max_workers + 3
+    assert overridden.cache == base.cache
+
+    with pytest.raises(ConfigurationError, match="Unsupported runtime override"):
+        manager.get_effective_config(runtime_overrides={"agents": {}})
+    with pytest.raises(ConfigurationError, match="Invalid runtime override"):
+        manager.get_effective_config(runtime_overrides={"execution": {"max_workers": 0}})

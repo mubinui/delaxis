@@ -46,6 +46,17 @@ class ConfigurationError(Exception):
     pass
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """``override`` laid over ``base``, merging nested dicts instead of replacing them."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 class ConfigFileHandler(FileSystemEventHandler):
     """Handler for configuration file changes."""
 
@@ -329,10 +340,26 @@ class ConfigurationManager:
             if agent is None:
                 raise ConfigurationError(f"Agent not found: {agent_id}")
 
-        # Apply runtime overrides if provided
+        # Runtime overrides win over every file-based layer. Only the layers
+        # that have a global model can be overridden; anything else is refused
+        # rather than silently ignored, which is what this used to do.
         if runtime_overrides:
-            # TODO: Implement runtime override merging
-            pass
+            unknown = set(runtime_overrides) - {"execution", "cache"}
+            if unknown:
+                raise ConfigurationError(
+                    f"Unsupported runtime override(s): {sorted(unknown)}; use 'execution' or 'cache'"
+                )
+            try:
+                if "execution" in runtime_overrides:
+                    execution = ExecutionConfig.model_validate(
+                        _deep_merge(execution.model_dump(), runtime_overrides["execution"])
+                    )
+                if "cache" in runtime_overrides:
+                    cache = CacheConfig.model_validate(
+                        _deep_merge(cache.model_dump(), runtime_overrides["cache"])
+                    )
+            except ValidationError as e:
+                raise ConfigurationError(f"Invalid runtime override: {e}") from e
 
         return EffectiveConfig(
             execution=execution, cache=cache, agent=agent, workflow=workflow, topology=topology
