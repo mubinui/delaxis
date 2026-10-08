@@ -237,3 +237,26 @@ def test_sequential_runs_report_every_agent_that_ran(runtime, fake_crewai) -> No
     result = run(runtime, workflow)
     assert result.metadata["agent_ids_called"] == ["calc", "search"]
     assert len(fake_crewai.built[-1].kwargs["tasks"]) == 2
+
+
+def test_a_studio_save_with_one_task_per_node_stays_manager_led(runtime, fake_crewai) -> None:
+    """The Studio writes a task for every node; a manager given those runs them all."""
+    workflow = selector_workflow(
+        tasks=[
+            {
+                "id": "t1",
+                "node_id": "triage",
+                "agent_id": "triage",
+                "description": "Route the request to the right specialist.",
+                "expected_output": "The specialist's answer, in your words.",
+            },
+            {"id": "t2", "node_id": "calc", "agent_id": "calc", "description": "Do maths."},
+            {"id": "t3", "node_id": "search", "agent_id": "search", "description": "Search."},
+        ]
+    )
+    run(runtime, workflow)
+    tasks = fake_crewai.built[-1].kwargs["tasks"]
+    assert len(tasks) == 1
+    assert tasks[0].agent is None
+    assert tasks[0].kwargs["description"].startswith("Route the request to the right specialist.")
+    assert tasks[0].kwargs["expected_output"] == "The specialist's answer, in your words."

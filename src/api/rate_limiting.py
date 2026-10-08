@@ -148,8 +148,13 @@ class RateLimitingMiddleware:
         user_id = get_user_id_for_rate_limiting(request)
         api_key_id = get_api_key_id_for_rate_limiting(request)
 
-        # Determine rate limits based on authentication method
-        if api_key_id:
+        # Determine rate limits based on the kind of request and the caller
+        is_read = request.method in ("GET", "HEAD", "OPTIONS")
+        if is_read:
+            requests_per_minute = self.settings.security.read_requests_per_minute
+            requests_per_hour = self.settings.security.read_requests_per_hour
+            user_id = f"{user_id}:read"
+        elif api_key_id:
             # API key users get higher limits
             requests_per_minute = self.settings.security.api_key_requests_per_minute
             requests_per_hour = self.settings.security.api_key_requests_per_hour

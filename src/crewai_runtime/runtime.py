@@ -1132,6 +1132,60 @@ class CrewAIWorkflowRuntime:
                 task_kwargs["guardrail_max_retries"] = 2
 
         explicit_tasks = getattr(workflow, "tasks", []) or []
+        if manager_node is not None:
+            # One request, no assigned agent: CrewAI then gives the manager a
+            # delegation tool over every specialist and lets it choose.
+            #
+            # This takes precedence over explicit tasks: the Studio saves one task
+            # per node, and handing those to a manager makes it run every
+            # specialist on every message. The manager's own task, if one was
+            # written, supplies the wording; tasks for specialists do not apply.
+            override = dict(manager_node.config_override or {})
+            own_task = next(
+                (
+                    task
+                    for task in explicit_tasks
+                    if task.node_id == manager_node.id or task.agent_id == manager_node.agent_id
+                ),
+                None,
+            )
+            if own_task is not None:
+                override.setdefault("task", own_task.description)
+                override.setdefault("expected_output", own_task.expected_output)
+            ignored = [task.node_id or task.id for task in explicit_tasks if task is not own_task]
+            if ignored:
+                logger.info(
+                    "manager_led_crew_ignores_specialist_tasks",
+                    workflow_id=workflow.id,
+                    ignored=ignored,
+                )
+            description = self._task_description(
+                override.get("task")
+                or (
+                    "Answer the user's request. Delegate to the coworker best suited to it "
+                    "when one is, and give the final answer to the user in your own words."
+                ),
+                final=True,
+            )
+            expected_output = override.get(
+                "expected_output", "A direct, complete answer to the user's request."
+            )
+            task_kwargs = {
+                "name": manager_node.id,
+                "description": description,
+                "expected_output": expected_output,
+            }
+            apply_task_extras(task_kwargs, None, is_final=True)
+            return [task_cls(**task_kwargs)], [
+                TaskMeta(
+                    node_id=manager_node.id,
+                    agent_id=manager_node.agent_id,
+                    index=0,
+                    description=description.replace(self.REQUEST_PLACEHOLDER, request_text),
+                    expected_output=expected_output,
+                )
+            ]
+
         if explicit_tasks:
             tasks: list[Any] = []
             metas: list[TaskMeta] = []
@@ -1168,37 +1222,6 @@ class CrewAIWorkflowRuntime:
                 )
             if tasks:
                 return tasks, metas
-
-        if manager_node is not None:
-            # One request, no assigned agent: CrewAI then gives the manager a
-            # delegation tool over every specialist and lets it choose.
-            override = manager_node.config_override or {}
-            description = self._task_description(
-                override.get("task")
-                or (
-                    "Answer the user's request. Delegate to the coworker best suited to it "
-                    "when one is, and give the final answer to the user in your own words."
-                ),
-                final=True,
-            )
-            expected_output = override.get(
-                "expected_output", "A direct, complete answer to the user's request."
-            )
-            task_kwargs = {
-                "name": manager_node.id,
-                "description": description,
-                "expected_output": expected_output,
-            }
-            apply_task_extras(task_kwargs, None, is_final=True)
-            return [task_cls(**task_kwargs)], [
-                TaskMeta(
-                    node_id=manager_node.id,
-                    agent_id=manager_node.agent_id,
-                    index=0,
-                    description=description.replace(self.REQUEST_PLACEHOLDER, request_text),
-                    expected_output=expected_output,
-                )
-            ]
 
         tasks = []
         metas = []

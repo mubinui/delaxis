@@ -1,5 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 const resolveSrc = (path: string) => fileURLToPath(new URL(path, import.meta.url))
@@ -7,6 +7,10 @@ const resolveSrc = (path: string) => fileURLToPath(new URL(path, import.meta.url
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Unit tests live beside the code; e2e/ belongs to Playwright.
+  test: {
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
   // The studio is served at the root of the Delaxis API server, but the
   // GitHub Pages demo lives under /<repo>/ — the workflow sets VITE_BASE_PATH.
   base: process.env.VITE_BASE_PATH ?? '/',

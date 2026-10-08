@@ -80,3 +80,7 @@ video/
 
 # The product film: its sources, renders and the finished video stay local.
 film/
+
+# Playwright output
+workflow-editor/test-results/
+workflow-editor/playwright-report/

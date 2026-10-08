@@ -105,6 +105,12 @@ class SecurityConfig(BaseSettings):
     # Rate limiting
     requests_per_minute: int = Field(default=60, alias="REQUESTS_PER_MINUTE")
     requests_per_hour: int = Field(default=1000, alias="REQUESTS_PER_HOUR")
+    # Reads (GET/HEAD/OPTIONS) have their own, larger budget. The Studio is a
+    # single-page app that fetches six library lists per view; with one shared
+    # budget of 60 a minute, opening it four times in a minute locked the user
+    # out with 429s. Writes and anything that runs a model keep the tight limit.
+    read_requests_per_minute: int = Field(default=600, alias="READ_REQUESTS_PER_MINUTE")
+    read_requests_per_hour: int = Field(default=20000, alias="READ_REQUESTS_PER_HOUR")
     api_key_requests_per_minute: int = Field(default=100, alias="API_KEY_REQUESTS_PER_MINUTE")
     api_key_requests_per_hour: int = Field(default=5000, alias="API_KEY_REQUESTS_PER_HOUR")
 

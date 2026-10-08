@@ -27,6 +27,8 @@ def throttled(monkeypatch):
     settings = rate_limiting_middleware.settings
     monkeypatch.setattr(settings.security, "requests_per_minute", 2, raising=False)
     monkeypatch.setattr(settings.security, "requests_per_hour", 1000, raising=False)
+    monkeypatch.setattr(settings.security, "read_requests_per_minute", 2, raising=False)
+    monkeypatch.setattr(settings.security, "read_requests_per_hour", 1000, raising=False)
 
 
 def exhaust(client, path="/api/v1/tools", attempts=8):
@@ -79,3 +81,34 @@ class TestNormalTraffic:
         # Liveness probes must not be able to throttle themselves out of service.
         for _ in range(12):
             assert client.get("/health").status_code != 429
+
+
+class TestReadsAndWritesHaveSeparateBudgets:
+    """The Studio fetches six lists per view; reads sharing the write budget
+    locked a user out after opening it a few times in a minute."""
+
+    @pytest.fixture
+    def budgets(self, monkeypatch):
+        settings = rate_limiting_middleware.settings
+        monkeypatch.setattr(settings.security, "requests_per_minute", 2, raising=False)
+        monkeypatch.setattr(settings.security, "read_requests_per_minute", 5, raising=False)
+
+    def test_reads_get_the_larger_budget(self, client, budgets):
+        statuses = [client.get("/api/v1/tools").status_code for _ in range(5)]
+        assert 429 not in statuses
+        assert client.get("/api/v1/tools").status_code == 429
+
+    def test_exhausting_reads_leaves_writes_available(self, client, budgets):
+        while client.get("/api/v1/tools").status_code != 429:
+            pass
+        response = client.post(
+            "/api/v1/tools/calculate/execute", json={"args": {"expression": "1+1"}}
+        )
+        assert response.status_code == 200
+
+    def test_writes_keep_the_tight_limit(self, client, budgets):
+        body = {"args": {"expression": "1+1"}}
+        statuses = [
+            client.post("/api/v1/tools/calculate/execute", json=body).status_code for _ in range(3)
+        ]
+        assert statuses[-1] == 429
