@@ -465,7 +465,7 @@ class WorkflowCreateRequest(BaseModel):
     )
     steps: list[WorkflowStepConfig] | None = None
     group_chat: GroupChatConfigModel | None = None
-    nested_chats: list[dict] | None = None
+    nested_chats: list[dict[str, Any]] | None = None
     selector_config: dict[str, Any] | None = Field(
         default=None, description="Selector configuration (for selector pattern)"
     )

@@ -12,6 +12,7 @@ through this router or any other caller.
 from __future__ import annotations
 
 from datetime import UTC
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
@@ -28,6 +29,7 @@ from src.tools.file_analysis import (
     save_uploaded_bytes,
     uploads_dir,
 )
+from src.utils.jsonio import as_object
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/files", tags=["files"])
@@ -118,7 +120,7 @@ async def list_files(
             detail=f"Uploads directory could not be read: {exc}",
         ) from exc
 
-    entries = []
+    entries: list[dict[str, Any]] = []
     for item in candidates:
         if pattern and pattern.lower() not in item.name.lower():
             continue
@@ -138,9 +140,8 @@ async def list_files(
     return {"count": len(entries), "files": entries}
 
 
-def _resolve_upload(name: str):
+def _resolve_upload(name: str) -> Path:
     """Locate an upload by name, refusing anything that is not a direct child."""
-    from pathlib import Path
 
     directory = uploads_dir()
     # Path(name).name discards every directory component, so "../../etc/passwd"
@@ -173,8 +174,8 @@ async def analyse_file(
 
     target = _resolve_upload(name)
     if target.suffix.lower() in IMAGE_SUFFIXES:
-        return json.loads(analyze_image(target.name, question))
-    return json.loads(analyze_file(target.name, max_chars))
+        return as_object(json.loads(analyze_image(target.name, question)), "image analysis")
+    return as_object(json.loads(analyze_file(target.name, max_chars)), "file analysis")
 
 
 @router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)

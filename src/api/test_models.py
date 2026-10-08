@@ -139,7 +139,7 @@ class WorkflowTestRunResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-    def model_post_init(self, __context) -> None:
+    def model_post_init(self, __context: Any) -> None:
         if self.total_tests > 0:
             self.pass_rate = (self.passed_tests / self.total_tests) * 100
 

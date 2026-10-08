@@ -102,7 +102,7 @@ class ResponseValidator:
             - is_fallback: True if fallback was used
             - fallback_reason: The reason for fallback, or None if not a fallback
         """
-        if cls.is_valid_response(response):
+        if response is not None and cls.is_valid_response(response):
             return response, False, None
 
         # Determine the reason for fallback

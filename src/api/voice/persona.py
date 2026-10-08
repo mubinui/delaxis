@@ -12,6 +12,8 @@ backstory fallback the CrewAI runtime uses when it builds that same agent.
 
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -108,7 +110,7 @@ def _entry_agent_persona(workflow_id: str) -> str:
         return ""
 
 
-def _recent_conversation(history: list[dict] | None) -> str:
+def _recent_conversation(history: list[dict[str, Any]] | None) -> str:
     if not history:
         return ""
     lines: list[str] = []
@@ -146,7 +148,7 @@ def build_system_instruction(
     title: str = "this assistant",
     system_prompt: str = "",
     workflow_id: str = "",
-    history: list[dict] | None = None,
+    history: list[dict[str, Any]] | None = None,
 ) -> str:
     """Assemble the realtime system instruction, first non-empty persona wins."""
     persona = (system_prompt or "").strip()

@@ -8,7 +8,7 @@ from typing import Any
 try:
     from ddgs import DDGS
 except ImportError:  # pragma: no cover - legacy fallback
-    from duckduckgo_search import DDGS
+    from duckduckgo_search import DDGS  # type: ignore[assignment]  # same API, older package
 
 
 class DuckDuckGoConnector:

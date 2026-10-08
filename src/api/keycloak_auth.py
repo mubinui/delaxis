@@ -11,6 +11,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from src.config.settings import get_settings
+from src.utils.jsonio import as_object
 
 logger = structlog.get_logger(__name__)
 
@@ -54,7 +55,7 @@ class KeycloakTokenData(BaseModel):
             return self.authorities
         # Fall back to realm_access.roles
         if self.realm_access and "roles" in self.realm_access:
-            return self.realm_access["roles"]
+            return [str(role) for role in self.realm_access["roles"]]
         return []
 
     @property
@@ -93,7 +94,7 @@ async def fetch_jwks() -> dict[str, Any]:
 
     if "jwks" in cache:
         logger.debug("jwks_cache_hit")
-        return cache["jwks"]
+        return as_object(cache["jwks"], "JWKS")
 
     logger.info("fetching_jwks", jwks_uri=settings.keycloak.jwks_uri)
 
@@ -104,7 +105,7 @@ async def fetch_jwks() -> dict[str, Any]:
             jwks_data = response.json()
             cache["jwks"] = jwks_data
             logger.info("jwks_fetched_successfully", key_count=len(jwks_data.get("keys", [])))
-            return jwks_data
+            return as_object(jwks_data, "JWKS")
     except httpx.HTTPError as e:
         logger.error("jwks_fetch_failed", error=str(e))
         raise HTTPException(
@@ -319,7 +320,7 @@ async def get_admin_token() -> str:
             response.raise_for_status()
             token_response = response.json()
             logger.info("admin_token_acquired", client_id=settings.keycloak.admin_client_id)
-            return token_response["access_token"]
+            return str(token_response["access_token"])
 
     except httpx.HTTPError as e:
         logger.error("admin_token_acquisition_failed", error=str(e))

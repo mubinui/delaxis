@@ -32,6 +32,7 @@ from src.api.chatbot_page import (
 )
 from src.audit_logging import get_logger
 from src.config.env_compat import env
+from src.utils.jsonio import as_object
 
 router = APIRouter(prefix="/api/v1/deployments", tags=["deployments"])
 
@@ -133,7 +134,7 @@ def _slug(value: str) -> str:
 def _load_config() -> dict[str, Any]:
     if not CONFIG_PATH.exists():
         return {"version": "1.0", "deployments": []}
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return as_object(json.loads(CONFIG_PATH.read_text(encoding="utf-8")), str(CONFIG_PATH))
 
 
 def _save_config(config: dict[str, Any]) -> None:
@@ -341,7 +342,7 @@ def _deployment_record(deployment_id: str) -> dict[str, Any]:
     record = next((d for d in config.get("deployments", []) if d.get("id") == deployment_id), None)
     if record is None:
         raise HTTPException(status_code=404, detail=f"Deployment not found: {deployment_id}")
-    return record
+    return dict(record)
 
 
 @router.get("/{deployment_id}/integration")

@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from src.api.auth import CurrentUser, get_current_user
 from src.audit_logging import get_logger
 from src.config.config_loader import get_config_loader
+from src.utils.jsonio import as_object
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/rag-service", tags=["rag-service"])
@@ -180,7 +181,7 @@ async def list_rag_collections(
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(f"{base_url}/collections")
             response.raise_for_status()
-            return response.json()
+            return as_object(response.json(), "collections response")
 
     except httpx.HTTPError as e:
         logger.error(

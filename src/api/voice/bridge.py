@@ -17,7 +17,7 @@ import asyncio
 import base64
 import contextlib
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -138,7 +138,7 @@ async def run_bridge(
     system_instruction: str,
     voice_name: str = "",
     tools: list[dict[str, Any]] | None = None,
-    client_receive: Callable[[], Awaitable[dict[str, Any]]],
+    client_receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
     client_send_bytes: Callable[[bytes], Awaitable[None]],
     client_send_json: Callable[[dict[str, Any]], Awaitable[None]],
 ) -> SessionStats:

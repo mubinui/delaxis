@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from src.api.test_models import WorkflowExecuteRequest
 from src.core.workflow_test_runner import get_test_runner
+from src.utils.jsonio import as_object
 
 router = APIRouter(prefix="/api/v1/triggers", tags=["triggers"])
 webhook_router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
@@ -86,7 +87,7 @@ def _slug(value: str) -> str:
 def _load_config() -> dict[str, Any]:
     if not CONFIG_PATH.exists():
         return {"version": "1.0", "triggers": []}
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return as_object(json.loads(CONFIG_PATH.read_text(encoding="utf-8")), str(CONFIG_PATH))
 
 
 def _save_config(config: dict[str, Any]) -> None:

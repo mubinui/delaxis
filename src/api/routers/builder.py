@@ -191,7 +191,7 @@ async def _stream_llm(
     base_url: str,
     api_key: str,
     model_id: str,
-    messages: list[dict],
+    messages: list[dict[str, Any]],
 ) -> AsyncGenerator[str, None]:
     """Stream tokens from an OpenAI-compatible LLM endpoint as SSE data lines."""
     headers = {
@@ -241,7 +241,7 @@ async def _call_llm_sync(
     base_url: str,
     api_key: str,
     model_id: str,
-    messages: list[dict],
+    messages: list[dict[str, Any]],
     max_tokens: int = 4096,
 ) -> tuple[str, bool]:
     """Call an LLM without streaming.
@@ -295,14 +295,16 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
     matches = re.findall(r"```json\s*(.*?)```", text, re.DOTALL)
     if matches:
         try:
-            return json.loads(matches[-1].strip())
+            parsed: dict[str, Any] = json.loads(matches[-1].strip())
+            return parsed
         except json.JSONDecodeError:
             pass
     # Try bare JSON object
     match = re.search(r"(\{[\s\S]*\})", text)
     if match:
         try:
-            return json.loads(match.group(1))
+            found: dict[str, Any] = json.loads(match.group(1))
+            return found
         except json.JSONDecodeError:
             pass
     return None
@@ -312,7 +314,7 @@ def _extract_python_from_text(text: str) -> str | None:
     """Extract the last Python code block from LLM output."""
     matches = re.findall(r"```python\s*(.*?)```", text, re.DOTALL)
     if matches:
-        return matches[-1].strip()
+        return str(matches[-1]).strip()
     return None
 
 
@@ -415,26 +417,21 @@ def _fallback_plan(prompt: str) -> dict[str, Any]:
 
 def _coerce_tool_config(config: dict[str, Any], raw_api: str, specification: str) -> dict[str, Any]:
     """Repair model output into the platform tool schema."""
-    settings = config.get("settings") if isinstance(config.get("settings"), dict) else {}
+    raw_settings = config.get("settings")
+    settings: dict[str, Any] = dict(raw_settings) if isinstance(raw_settings, dict) else {}
+    url_match = re.search(r"https?://[^\s'\"`]+", raw_api)
+    method_match = re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", raw_api, re.I)
     url = (
         settings.get("api_url")
         or config.get("api_url")
         or config.get("url")
-        or (
-            re.search(r"https?://[^\s'\"`]+", raw_api).group(0)
-            if re.search(r"https?://[^\s'\"`]+", raw_api)
-            else ""
-        )
+        or (url_match.group(0) if url_match else "")
     )
     method = (
         settings.get("http_method")
         or config.get("http_method")
         or config.get("method")
-        or (
-            re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", raw_api, re.I).group(1).upper()
-            if re.search(r"\b(GET|POST|PUT|PATCH|DELETE)\b", raw_api, re.I)
-            else "GET"
-        )
+        or (method_match.group(1).upper() if method_match else "GET")
     )
     name = config.get("name") or config.get("operation_id") or "normalized_api_tool"
     tool_id = (
@@ -495,7 +492,7 @@ async def builder_chat(
             detail=f"API key not configured for provider '{body.provider_id}'",
         )
 
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for msg in body.history:
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": body.message})
@@ -543,7 +540,7 @@ async def builder_generate(
         "Output nothing else — just the JSON or Python code block."
     )
 
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
     for msg in body.history:
         messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": finalize_instruction})
@@ -794,7 +791,7 @@ def _render_themed_frontend(
 async def _generate_design(
     base_url: str, api_key: str, body: FrontendGenerateRequest
 ) -> dict[str, Any]:
-    messages: list[dict] = [{"role": "system", "content": DESIGN_SYSTEM_PROMPT}]
+    messages: list[dict[str, Any]] = [{"role": "system", "content": DESIGN_SYSTEM_PROMPT}]
     for history_item in body.history[-6:]:
         messages.append({"role": history_item.role, "content": history_item.content})
     messages.append(
@@ -890,7 +887,7 @@ async def generate_chatbot_frontend(
             design=applied,
         )
 
-    messages: list[dict] = [
+    messages: list[dict[str, Any]] = [
         {
             "role": "system",
             "content": (
@@ -943,11 +940,11 @@ async def generate_chatbot_frontend(
     if truncated:
         return themed_instead("The model ran out of output tokens before finishing the page.")
 
-    html = _extract_html_from_text(raw)
-    if html is None:
+    extracted = _extract_html_from_text(raw)
+    if extracted is None:
         return themed_instead("The model did not return a complete HTML document.")
 
-    html = _ensure_frontend_contract(html)
+    html = _ensure_frontend_contract(extracted)
 
     # The page has to actually function as a chatbot. Custom generation is where
     # dead buttons and chats that never reach the API came from, so a page that
@@ -1034,7 +1031,9 @@ def _normalize_plan(plan: dict[str, Any], prompt: str) -> dict[str, Any]:
     plan = dict(plan or {})
     known_tools = set(_known_tool_ids())
 
-    agents: list[dict] = [dict(a) for a in plan.get("agents") or [] if isinstance(a, dict)]
+    agents: list[dict[str, Any]] = [
+        dict(a) for a in plan.get("agents") or [] if isinstance(a, dict)
+    ]
     planned_tool_ids = {
         _slug(t.get("id") or t.get("name") or "", "tool")
         for t in plan.get("tools") or []
@@ -1103,9 +1102,9 @@ def _normalize_plan(plan: dict[str, Any], prompt: str) -> dict[str, Any]:
         node.setdefault("id", node.get("agent_id"))
         node.setdefault("agent_id", node.get("id"))
         # Mirror the agent's tools onto the node so the canvas can draw them.
-        agent = agents_by_id.get(str(node["agent_id"]))
-        if agent and agent.get("tools") and not node.get("tools"):
-            node["tools"] = list(agent["tools"])
+        owner = agents_by_id.get(str(node["agent_id"]))
+        if owner and owner.get("tools") and not node.get("tools"):
+            node["tools"] = list(owner["tools"])
 
     entry = str(topology.get("entry_node") or workflow.get("entry_agent_id") or "")
     if entry not in {str(n["id"]) for n in nodes}:
@@ -1296,8 +1295,8 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
     for agent in plan.get("agents", []):
         agent_id = agent.get("id")
         try:
-            result = await create_agent_config(request, AgentConfigCreateRequest(**agent))
-            created["agents"].append(result.id)
+            agent_result = await create_agent_config(request, AgentConfigCreateRequest(**agent))
+            created["agents"].append(agent_result.id)
         except Exception as exc:
             if not already_exists(exc):
                 errors.append(f"agent {agent_id}: {exc}")
@@ -1316,8 +1315,8 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
     for tool in plan.get("tools", []):
         tool_id = tool.get("id")
         try:
-            result = await register_tool(request, ToolRegisterRequest(**tool))
-            created["tools"].append(result.id)
+            tool_result = await register_tool(request, ToolRegisterRequest(**tool))
+            created["tools"].append(tool_result.id)
         except Exception as exc:
             if already_exists(exc):
                 updated["tools"].append(str(tool_id))
@@ -1326,8 +1325,10 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
 
     for function in plan.get("functions", []):
         try:
-            result = await create_function_tool(request, FunctionToolCreateRequest(**function))
-            created["functions"].append(result.id)
+            function_result = await create_function_tool(
+                request, FunctionToolCreateRequest(**function)
+            )
+            created["functions"].append(function_result.id)
         except Exception as exc:
             errors.append(f"function {function.get('id')}: {exc}")
 
@@ -1336,9 +1337,9 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
     if workflow:
         workflow_id = str(workflow.get("id") or "")
         try:
-            result = await create_workflow(request, WorkflowCreateRequest(**workflow))
-            created["workflows"].append(result.id)
-            workflow_id = result.id
+            workflow_result = await create_workflow(request, WorkflowCreateRequest(**workflow))
+            created["workflows"].append(workflow_result.id)
+            workflow_id = workflow_result.id
         except Exception as exc:
             if already_exists(exc):
                 try:

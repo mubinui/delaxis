@@ -1,5 +1,8 @@
 """Workflow validation logic for visual builder."""
 
+from collections.abc import Sequence
+from typing import Protocol
+
 from src.api.models import (
     WorkflowConnection,
     WorkflowNode,
@@ -7,7 +10,22 @@ from src.api.models import (
 )
 
 
-def detect_cycles(connections: list[WorkflowConnection]) -> list[list[str]]:
+class NodeLike(Protocol):
+    """What the validators read from a node: canvas shims and WorkflowNode alike."""
+
+    id: str
+    agent_id: str
+
+
+class ConnectionLike(Protocol):
+    """What the validators read from a connection."""
+
+    from_node: str
+    to_node: str
+    type: str
+
+
+def detect_cycles(connections: Sequence[ConnectionLike]) -> list[list[str]]:
     """
     Detect cycles in workflow connections using DFS.
 
@@ -60,7 +78,7 @@ def detect_cycles(connections: list[WorkflowConnection]) -> list[list[str]]:
 
 
 def validate_agent_references(
-    nodes: list[WorkflowNode], available_agents: set[str]
+    nodes: Sequence[NodeLike], available_agents: set[str]
 ) -> list[WorkflowValidationError]:
     """
     Validate that all agent references in nodes exist.
@@ -88,7 +106,7 @@ def validate_agent_references(
 
 
 def validate_connections(
-    nodes: list[WorkflowNode], connections: list[WorkflowConnection]
+    nodes: Sequence[NodeLike], connections: Sequence[ConnectionLike]
 ) -> list[WorkflowValidationError]:
     """
     Validate workflow connections.

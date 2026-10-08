@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict
 
 from src.config.settings import get_settings
-from src.infrastructure.database.config_store import ConfigStore
+from src.infrastructure.database.config_store import ConfigStore, LibraryItem
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
@@ -45,7 +45,9 @@ def get_config_store() -> ConfigStore:
 
 
 @router.get("/{item_type}", response_model=list[LibraryItemResponse])
-def list_library_items(item_type: str, store: ConfigStore = Depends(get_config_store)):
+def list_library_items(
+    item_type: str, store: ConfigStore = Depends(get_config_store)
+) -> list[LibraryItem]:
     """List all items of a specific type (workflow, agent, tool) in the library."""
     if item_type not in ["workflow", "agent", "tool"]:
         raise HTTPException(
@@ -61,7 +63,7 @@ def list_library_items(item_type: str, store: ConfigStore = Depends(get_config_s
 )
 def create_library_item(
     item_type: str, item: LibraryItemCreate, store: ConfigStore = Depends(get_config_store)
-):
+) -> LibraryItem:
     """Create a new item in the library."""
     if item_type not in ["workflow", "agent", "tool"]:
         raise HTTPException(
@@ -86,7 +88,9 @@ def create_library_item(
 
 
 @router.get("/{item_type}/{item_id}", response_model=LibraryItemResponse)
-def get_library_item(item_type: str, item_id: UUID, store: ConfigStore = Depends(get_config_store)):
+def get_library_item(
+    item_type: str, item_id: UUID, store: ConfigStore = Depends(get_config_store)
+) -> LibraryItem:
     """Get a specific library item by ID."""
     if item_type not in ["workflow", "agent", "tool"]:
         raise HTTPException(status_code=400, detail="Invalid item type.")
@@ -103,7 +107,7 @@ def update_library_item(
     item_id: UUID,
     updates: dict[str, Any],
     store: ConfigStore = Depends(get_config_store),
-):
+) -> LibraryItem:
     """Update a library item."""
     if item_type not in ["workflow", "agent", "tool"]:
         raise HTTPException(status_code=400, detail="Invalid item type.")
@@ -117,7 +121,7 @@ def update_library_item(
 @router.delete("/{item_type}/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_library_item(
     item_type: str, item_id: UUID, store: ConfigStore = Depends(get_config_store)
-):
+) -> None:
     """Delete a library item."""
     if item_type not in ["workflow", "agent", "tool"]:
         raise HTTPException(status_code=400, detail="Invalid item type.")

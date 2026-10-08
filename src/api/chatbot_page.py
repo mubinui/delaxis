@@ -1136,8 +1136,7 @@ def page_defects(html: str) -> list[str]:
         defects.append("Still wrapped in markdown code fences.")
 
     # De-duplicate while keeping order, so the CDN scan cannot report twice.
-    seen: set[str] = set()
-    return [d for d in defects if not (d in seen or seen.add(d))]
+    return list(dict.fromkeys(defects))
 
 
 def validate_page(html: str, *, voice_enabled: bool = False) -> list[str]:

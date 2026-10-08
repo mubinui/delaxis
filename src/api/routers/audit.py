@@ -22,6 +22,7 @@ from src.tools.audit_trail import (
     verify_audit_chain,
 )
 from src.tools.security import find_injection_signals, find_secrets, security_scan
+from src.utils.jsonio import as_object
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])
@@ -108,7 +109,7 @@ class ScanRequest(BaseModel):
 @router.post("/scan")
 async def scan(body: ScanRequest) -> dict[str, Any]:
     """Run the security scanner over a piece of text and return the verdict."""
-    result = json.loads(security_scan(body.text, body.checks))
+    result = as_object(json.loads(security_scan(body.text, body.checks)), "security scan")
     if "error" in result:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
     return result

@@ -125,7 +125,7 @@ class SessionManager:
         if not session.active:
             raise ValueError(f"Session is no longer active: {session_id}")
 
-        workflow_id = session.metadata.get("workflow_id")
+        workflow_id = str(session.metadata.get("workflow_id") or "")
         workflow = self.workflow_registry.get_workflow(workflow_id)
         if workflow is None:
             raise ValueError(f"Workflow not found: {workflow_id}")

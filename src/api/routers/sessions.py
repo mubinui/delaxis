@@ -98,7 +98,7 @@ async def create_session(
 @router.get("", response_model=list[SessionResponse])
 async def list_sessions(
     request: Request,
-    user_id: str = None,
+    user_id: str | None = None,
     active_only: bool = True,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[SessionResponse]:
@@ -161,7 +161,7 @@ async def list_sessions(
 @router.get("/chats", response_model=ChatListResponse)
 async def get_user_chats(
     request: Request,
-    user_id: str = None,
+    user_id: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> ChatListResponse:
     """

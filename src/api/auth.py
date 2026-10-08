@@ -1,5 +1,6 @@
 """Authentication and authorization module for Delaxis."""
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
@@ -159,7 +160,7 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
         )
 
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(
+    encoded_jwt: str = jwt.encode(
         to_encode, settings.security.secret_key, algorithm=settings.security.algorithm
     )
     return encoded_jwt
@@ -224,7 +225,8 @@ async def authenticate_api_key(
         )
 
     # Check if key is expired
-    if api_key.expires_at and as_utc(api_key.expires_at) < datetime.now(UTC):
+    expires_at = as_utc(api_key.expires_at)
+    if expires_at is not None and expires_at < datetime.now(UTC):
         logger.warning("api_key_expired", api_key_id=str(api_key.id))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -328,7 +330,7 @@ async def get_current_user(
         return await authenticate_jwt(credentials)
 
 
-def require_role(required_role: UserRole):
+def require_role(required_role: UserRole) -> Callable[..., Awaitable[CurrentUser]]:
     """Dependency factory for role-based access control."""
 
     async def role_checker(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
@@ -337,7 +339,7 @@ def require_role(required_role: UserRole):
             return current_user
 
         # Check specific role requirements
-        if required_role == UserRole.ADMIN and current_user.role != UserRole.ADMIN:
+        if required_role == UserRole.ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
             )

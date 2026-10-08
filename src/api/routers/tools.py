@@ -125,7 +125,7 @@ async def register_tool(
         # branches internally on settings['type'] (function/api/mcp/database/gmail),
         # so every type becomes live immediately, not just function tools.
         tool_type = body.settings.get("type", "function")
-        if body.enabled:
+        if body.enabled and body.entrypoint:
             try:
                 tool_registry = get_tool_registry()
                 tool_registry.register_tool_from_entrypoint(

@@ -62,7 +62,7 @@ def _remember_draft(ticket: str, draft: str) -> None:
 
 
 def _take_draft(ticket: str) -> str:
-    return _drafts.pop(ticket, "")
+    return str(_drafts.pop(ticket, ""))
 
 
 def _semaphore() -> asyncio.Semaphore:

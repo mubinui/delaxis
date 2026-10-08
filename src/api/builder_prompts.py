@@ -16,6 +16,8 @@ registered a minute ago must be usable in the next build.
 
 from __future__ import annotations
 
+from collections.abc import Iterator, KeysView
+
 from src.api.builder_context import TOOL_SELECTION_GUIDANCE, render_capability_brief
 
 # --------------------------------------------------------------------------- #
@@ -263,10 +265,10 @@ class _LazyPrompts:
     def __contains__(self, key: str) -> bool:
         return key in _ROLES
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(_ROLES)
 
-    def keys(self):
+    def keys(self) -> KeysView[str]:
         return _ROLES.keys()
 
 

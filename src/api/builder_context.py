@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from src.audit_logging import get_logger
+from src.utils.jsonio import as_object
 
 logger = get_logger(__name__)
 
@@ -60,7 +61,7 @@ def _config_dir() -> Path:
 def _load(name: str) -> dict[str, Any]:
     path = _config_dir() / name
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return as_object(json.loads(path.read_text(encoding="utf-8")), name)
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("builder_context_config_unreadable", config=name, error=str(exc))
         return {}
