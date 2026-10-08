@@ -45,7 +45,7 @@ def _get_workflows_config_path() -> Path:
     return Path("configs") / "workflows.json"
 
 
-def _load_workflows_config() -> dict:
+def _load_workflows_config() -> dict[str, Any]:
     """Load workflows configuration from file using config loader."""
     try:
         loader = get_config_loader()
@@ -57,7 +57,7 @@ def _load_workflows_config() -> dict:
         return {"version": "1.0", "workflows": []}
 
 
-def _save_workflows_config(config: dict) -> None:
+def _save_workflows_config(config: dict[str, Any]) -> None:
     """Save workflows configuration to file."""
     config_path = _get_workflows_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -709,9 +709,9 @@ async def validate_workflow_config(
 # ============================================================================
 
 # In-memory storage for test cases (will be replaced with DB when migration runs)
-_test_cases: dict[str, dict] = {}
-_test_results: dict[str, dict] = {}
-_test_runs: dict[str, dict] = {}
+_test_cases: dict[str, dict[str, Any]] = {}
+_test_results: dict[str, dict[str, Any]] = {}
+_test_runs: dict[str, dict[str, Any]] = {}
 
 
 @router.post(

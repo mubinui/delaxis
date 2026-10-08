@@ -7,6 +7,7 @@ tool files in src/tools/generated/ and auto-register them in configs/tools.json.
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request, status
@@ -63,7 +64,7 @@ def _validate_id(tool_id: str) -> None:
         )
 
 
-def _load_tools_config() -> dict:
+def _load_tools_config() -> dict[str, Any]:
     try:
         loader = get_config_loader()
         return loader.get_config("tools")
@@ -71,7 +72,7 @@ def _load_tools_config() -> dict:
         return {"version": "1.0", "tools": []}
 
 
-def _save_tools_config(config: dict) -> None:
+def _save_tools_config(config: dict[str, Any]) -> None:
     _TOOLS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(_TOOLS_CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=2)
@@ -86,7 +87,7 @@ def _function_file_path(tool_id: str) -> Path:
     return _GENERATED_DIR / f"{tool_id}.py"
 
 
-def _build_tool_entry(tool_id: str, name: str, description: str) -> dict:
+def _build_tool_entry(tool_id: str, name: str, description: str) -> dict[str, Any]:
     return {
         "id": tool_id,
         "name": name,
@@ -227,7 +228,7 @@ async def get_function_tool(request: Request, tool_id: str) -> FunctionToolRespo
 
 
 @router.get("/{tool_id}/source")
-async def get_function_source(request: Request, tool_id: str) -> dict:
+async def get_function_source(request: Request, tool_id: str) -> dict[str, Any]:
     """Return the Python source code for a generated function tool."""
     _validate_id(tool_id)
     file_path = _function_file_path(tool_id)

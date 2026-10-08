@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -145,7 +146,7 @@ __all__ = [
 credential_manager = get_global_credential_manager()
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
     settings = get_settings()
     to_encode = data.copy()

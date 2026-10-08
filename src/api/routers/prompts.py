@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
@@ -17,15 +17,9 @@ from src.api.models import (
 )
 from src.audit_logging import get_logger
 from src.config.prompt_models import extract_variables
+from src.config.versioned_service import ConfigVersion, VersionedConfigService
 
-# Versioned config service is optional and requires PostgreSQL
-try:
-    from src.config.versioned_service import VersionedConfigService
-
-    VERSIONED_SERVICE_AVAILABLE = True
-except ImportError:
-    VersionedConfigService = None
-    VERSIONED_SERVICE_AVAILABLE = False
+VERSIONED_SERVICE_AVAILABLE = True
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/prompts", tags=["prompts"])
@@ -36,7 +30,7 @@ def _get_prompts_config_path() -> Path:
     return Path("configs") / "prompt_templates.json"
 
 
-def _load_prompts_config() -> dict:
+def _load_prompts_config() -> dict[str, Any]:
     """Load prompts configuration from file."""
     config_path = _get_prompts_config_path()
 
@@ -44,10 +38,11 @@ def _load_prompts_config() -> dict:
         return {"version": "1.0", "contexts": [], "fallbacks": {}}
 
     with open(config_path) as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+    return data
 
 
-def _save_prompts_config(config: dict) -> None:
+def _save_prompts_config(config: dict[str, Any]) -> None:
     """Save prompts configuration to file."""
     config_path = _get_prompts_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,7 +51,7 @@ def _save_prompts_config(config: dict) -> None:
         json.dump(config, f, indent=2)
 
 
-def _get_versioned_service() -> Optional["VersionedConfigService"]:
+def _get_versioned_service() -> VersionedConfigService | None:
     """Get versioned config service if database is configured."""
     if not VERSIONED_SERVICE_AVAILABLE:
         return None
@@ -68,7 +63,9 @@ def _get_versioned_service() -> Optional["VersionedConfigService"]:
     return None
 
 
-def _prompt_to_response(prompt: dict, version_info: tuple | None = None) -> PromptTemplateResponse:
+def _prompt_to_response(
+    prompt: dict[str, Any], version_info: ConfigVersion | None = None
+) -> PromptTemplateResponse:
     """Convert prompt dict to response model."""
     response_data = {
         "id": prompt["id"],

@@ -2,9 +2,11 @@
 
 import logging
 import sys
+from typing import Any
 from uuid import UUID
 
 import structlog
+import structlog.typing
 
 from src.config import get_settings
 
@@ -21,7 +23,7 @@ def configure_logging() -> None:
     settings = get_settings()
 
     # Configure structlog processors
-    processors = [
+    processors: list[structlog.typing.Processor] = [
         # Merge context variables (correlation IDs, etc.)
         structlog.contextvars.merge_contextvars,
         # Add log level
@@ -64,13 +66,14 @@ def get_logger(name: str) -> structlog.BoundLogger:
     Returns:
         Configured structlog logger
     """
-    return structlog.get_logger(name)
+    logger: structlog.BoundLogger = structlog.get_logger(name)
+    return logger
 
 
 def bind_correlation_ids(
     request_id: str | None = None,
     session_id: UUID | None = None,
-    user_id: str | None = None,
+    user_id: str | UUID | None = None,
     workflow_id: str | None = None,
     agent_id: str | None = None,
     node_id: str | None = None,
@@ -98,7 +101,7 @@ def bind_correlation_ids(
     if session_id:
         context["session_id"] = str(session_id)
     if user_id:
-        context["user_id"] = user_id
+        context["user_id"] = str(user_id)
     if workflow_id:
         context["workflow_id"] = workflow_id
     if agent_id:
@@ -127,7 +130,7 @@ def log_agent_decision(
     agent_id: str,
     decision: str,
     reasoning: str | None = None,
-    context: dict | None = None,
+    context: dict[str, Any] | None = None,
 ) -> None:
     """
     Log an agent decision with structured context.
@@ -154,7 +157,7 @@ def log_tool_call(
     logger: structlog.BoundLogger,
     agent_id: str,
     tool_name: str,
-    tool_args: dict,
+    tool_args: dict[str, Any],
     result: str | None = None,
     error: str | None = None,
 ) -> None:
@@ -391,8 +394,8 @@ def log_error_context(
     node_id: str | None = None,
     workflow_id: str | None = None,
     session_id: str | None = None,
-    agent_state: dict | None = None,
-    conversation_history: list | None = None,
+    agent_state: dict[str, Any] | None = None,
+    conversation_history: list[Any] | None = None,
     retry_count: int = 0,
 ) -> None:
     """

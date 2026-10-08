@@ -4,7 +4,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -23,15 +23,9 @@ from src.audit_logging import get_logger
 from src.config.api_provider_models import mask_api_key
 from src.config.provider_registry import key_source, resolve_api_key
 from src.config.provider_secrets import delete_secret, set_secret
+from src.config.versioned_service import ConfigVersion, VersionedConfigService
 
-# Versioned config service is optional and requires PostgreSQL
-try:
-    from src.config.versioned_service import VersionedConfigService
-
-    VERSIONED_SERVICE_AVAILABLE = True
-except ImportError:
-    VersionedConfigService = None
-    VERSIONED_SERVICE_AVAILABLE = False
+VERSIONED_SERVICE_AVAILABLE = True
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/api-providers", tags=["api-providers"])
@@ -42,7 +36,7 @@ def _get_api_providers_config_path() -> Path:
     return Path("configs") / "api_providers.json"
 
 
-def _load_api_providers_config() -> dict:
+def _load_api_providers_config() -> dict[str, Any]:
     """Load API providers configuration from file."""
     config_path = _get_api_providers_config_path()
 
@@ -50,10 +44,11 @@ def _load_api_providers_config() -> dict:
         return {"version": "1.0", "providers": []}
 
     with open(config_path) as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+    return data
 
 
-def _save_api_providers_config(config: dict) -> None:
+def _save_api_providers_config(config: dict[str, Any]) -> None:
     """Save API providers configuration to file."""
     config_path = _get_api_providers_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +57,7 @@ def _save_api_providers_config(config: dict) -> None:
         json.dump(config, f, indent=2)
 
 
-def _get_versioned_service() -> Optional["VersionedConfigService"]:
+def _get_versioned_service() -> VersionedConfigService | None:
     """Get versioned config service if database is configured and available."""
     if not VERSIONED_SERVICE_AVAILABLE:
         return None
@@ -78,7 +73,9 @@ def _get_versioned_service() -> Optional["VersionedConfigService"]:
     return None
 
 
-def _provider_to_response(provider: dict, version_info: tuple | None = None) -> APIProviderResponse:
+def _provider_to_response(
+    provider: dict[str, Any], version_info: ConfigVersion | None = None
+) -> APIProviderResponse:
     """Convert provider dict to response model with masked API key."""
     response_data = {
         "id": provider["id"],
@@ -531,7 +528,7 @@ async def list_provider_models(
     provider_id: str,
     live: bool = True,
     current_user: CurrentUser = Depends(get_current_user),
-) -> dict:
+) -> dict[str, Any]:
     """List a provider's models, querying its live catalogue when possible.
 
     Hardcoded model lists go stale as providers ship new releases, so the
@@ -677,7 +674,7 @@ async def delete_provider_key(
     delete_secret(provider_id)
 
 
-def _find_provider_dict(provider_id: str) -> dict | None:
+def _find_provider_dict(provider_id: str) -> dict[str, Any] | None:
     config = _load_api_providers_config()
     return next((p for p in config.get("providers", []) if p.get("id") == provider_id), None)
 

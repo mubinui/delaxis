@@ -10,15 +10,9 @@ from src.api.auth import CurrentUser, require_admin, require_user
 from src.audit_logging import AuditLogger
 from src.config.config_loader import get_config_loader
 from src.config.settings import get_settings
+from src.config.versioned_service import VersionedConfigService
 
-# Versioned config service is optional and requires PostgreSQL
-try:
-    from src.config.versioned_service import VersionedConfigService
-
-    VERSIONED_SERVICE_AVAILABLE = True
-except ImportError:
-    VersionedConfigService = None
-    VERSIONED_SERVICE_AVAILABLE = False
+VERSIONED_SERVICE_AVAILABLE = True
 
 logger = structlog.get_logger(__name__)
 
@@ -31,7 +25,7 @@ class ConfigResponse(BaseModel):
 
     config_type: str
     config_id: str
-    config_data: dict
+    config_data: dict[str, Any]
     version: int
     etag: str
     last_updated: str
@@ -41,7 +35,7 @@ class ConfigResponse(BaseModel):
 class ConfigUpdateRequest(BaseModel):
     """Configuration update request."""
 
-    config_data: dict = Field(..., description="Updated configuration data")
+    config_data: dict[str, Any] = Field(..., description="Updated configuration data")
     change_summary: str | None = Field(None, description="Summary of changes made")
 
 
@@ -53,7 +47,7 @@ class ConfigHistoryEntry(BaseModel):
     created_at: str
     updated_by: str | None
     change_summary: str | None
-    config_data: dict
+    config_data: dict[str, Any]
 
 
 class ConfigHistoryResponse(BaseModel):
@@ -76,10 +70,10 @@ class ConflictResponse(BaseModel):
     status: str = "conflict"
     current_version: int
     current_etag: str
-    current_config: dict
+    current_config: dict[str, Any]
     provided_version: int | None = None
     provided_etag: str | None = None
-    diff: dict
+    diff: dict[str, Any]
 
 
 # Dependency to get versioned config service
@@ -144,7 +138,7 @@ async def get_config(
             user_id=current_user.user_id,
         )
 
-        if config_data is None:
+        if config_data is None or version_info is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Configuration not found: {config_type}/{config_id}",
@@ -255,6 +249,12 @@ async def update_config(
             config_id=config_id,
             user_id=current_user.user_id,
         )
+        if config_data is None or version_info is None:
+            # The write just succeeded, so a miss here is a storage fault.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Configuration vanished after write: {config_type}/{config_id}",
+            )
 
         logger.info(
             "Updated config",
@@ -413,6 +413,12 @@ async def rollback_config(
             config_id=config_id,
             user_id=current_user.user_id,
         )
+        if config_data is None or version_info is None:
+            # The write just succeeded, so a miss here is a storage fault.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Configuration vanished after write: {config_type}/{config_id}",
+            )
 
         logger.info(
             "Rolled back config",
@@ -529,24 +535,24 @@ async def get_configuration_status(
     try:
         loader = get_config_loader()
 
-        status_info = {
+        configurations: dict[str, dict[str, Any]] = {}
+        status_info: dict[str, Any] = {
             "hot_reload_enabled": loader.enable_hot_reload,
             "config_directory": str(loader.config_dir),
-            "configurations": {},
+            "configurations": configurations,
         }
 
         # Get status for each configuration type
         for config_name in ["agents", "tools", "workflows", "api_providers", "prompt_templates"]:
             if loader.is_loaded(config_name):
-                status_info["configurations"][config_name] = {
+                last_loaded = loader.get_last_loaded(config_name)
+                configurations[config_name] = {
                     "loaded": True,
                     "version": loader.get_config_version(config_name),
-                    "last_loaded": loader.get_last_loaded(config_name).isoformat()
-                    if loader.get_last_loaded(config_name)
-                    else None,
+                    "last_loaded": last_loaded.isoformat() if last_loaded else None,
                 }
             else:
-                status_info["configurations"][config_name] = {"loaded": False}
+                configurations[config_name] = {"loaded": False}
 
         return status_info
 

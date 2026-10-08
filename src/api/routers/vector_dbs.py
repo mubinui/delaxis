@@ -31,7 +31,7 @@ def _get_vector_dbs_config_path() -> Path:
     return Path("configs") / "vector_databases.json"
 
 
-def _load_vector_dbs_config() -> dict:
+def _load_vector_dbs_config() -> dict[str, Any]:
     """Load vector databases configuration from file using config loader."""
     try:
         loader = get_config_loader()
@@ -43,7 +43,7 @@ def _load_vector_dbs_config() -> dict:
         return {}
 
 
-def _save_vector_dbs_config(config: dict) -> None:
+def _save_vector_dbs_config(config: dict[str, Any]) -> None:
     """Save vector databases configuration to file."""
     config_path = _get_vector_dbs_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)

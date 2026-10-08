@@ -4,7 +4,8 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
+from uuid import UUID
 
 from sqlalchemy import delete, desc, inspect, select
 from sqlalchemy.orm import Session
@@ -88,7 +89,7 @@ class VersionedConfigService:
         self,
         config_type: str,
         config_id: str,
-        user_id: str | None = None,
+        user_id: str | UUID | None = None,
     ) -> tuple[dict[str, Any] | None, ConfigVersion | None]:
         """
         Get configuration with version token.
@@ -125,10 +126,10 @@ class VersionedConfigService:
                 return None, None
 
             version_info = ConfigVersion(
-                version=int(snapshot.version),
-                etag=str(snapshot.etag),
-                last_updated=cast(datetime, snapshot.created_at),
-                updated_by=cast(str | None, snapshot.updated_by),
+                version=snapshot.version,
+                etag=snapshot.etag,
+                last_updated=snapshot.created_at,
+                updated_by=snapshot.updated_by,
             )
 
             # Log successful retrieval
@@ -136,11 +137,11 @@ class VersionedConfigService:
                 config_type=config_type,
                 config_id=config_id,
                 user_id=user_id,
-                version=int(snapshot.version),
+                version=snapshot.version,
                 found=True,
             )
 
-            return cast(dict[str, Any], snapshot.config_data), version_info
+            return snapshot.config_data, version_info
 
     def update_config(
         self,
@@ -148,7 +149,7 @@ class VersionedConfigService:
         config_id: str,
         updates: dict[str, Any],
         version_token: str | None = None,
-        user_id: str | None = None,
+        user_id: str | UUID | None = None,
         change_summary: str | None = None,
     ) -> tuple[bool, str | None, dict[str, Any] | None]:
         """
@@ -298,7 +299,7 @@ class VersionedConfigService:
         config_type: str,
         config_id: str,
         limit: int = 10,
-        user_id: str | None = None,
+        user_id: str | UUID | None = None,
     ) -> list[dict[str, Any]]:
         """
         Get configuration change history.
@@ -351,7 +352,7 @@ class VersionedConfigService:
         config_type: str,
         config_id: str,
         target_version: int,
-        user_id: str | None = None,
+        user_id: str | UUID | None = None,
     ) -> tuple[bool, str | None]:
         """
         Rollback configuration to a previous version.
@@ -385,7 +386,7 @@ class VersionedConfigService:
 
             # Create new snapshot with rolled back data
             new_version = current_version.version + 1
-            new_etag = self.generate_etag(cast(dict[str, Any], target_snapshot.config_data))
+            new_etag = self.generate_etag(target_snapshot.config_data)
 
             rollback_snapshot = ConfigSnapshot(
                 config_type=config_type,

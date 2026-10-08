@@ -37,7 +37,7 @@ def _get_tools_config_path() -> Path:
     return Path("configs") / "tools.json"
 
 
-def _load_tools_config() -> dict:
+def _load_tools_config() -> dict[str, Any]:
     """Load tools configuration from file using config loader."""
     try:
         loader = get_config_loader()
@@ -49,7 +49,7 @@ def _load_tools_config() -> dict:
         return {"version": "1.0", "tools": []}
 
 
-def _save_tools_config(config: dict) -> None:
+def _save_tools_config(config: dict[str, Any]) -> None:
     """Save tools configuration to file."""
     config_path = _get_tools_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -67,7 +67,7 @@ class BuilderGenerateRequest(BaseModel):
 
 class BuilderGenerateResponse(BaseModel):
     builder_type: BuilderType
-    config: dict | str = Field(
+    config: dict[str, Any] | str = Field(
         description="Generated config (dict for agent/tool/workflow, str for function code)"
     )
     raw: str = Field(description="Raw LLM output")
@@ -98,7 +98,7 @@ class RawApiNormalizeRequest(BaseModel):
 
 
 class BuilderApplyRequest(BaseModel):
-    plan: dict
+    plan: dict[str, Any]
 
 
 class FrontendChatMessage(BaseModel):
@@ -290,7 +290,7 @@ async def _call_llm_sync(
         return content, truncated
 
 
-def _extract_json_from_text(text: str) -> dict | None:
+def _extract_json_from_text(text: str) -> dict[str, Any] | None:
     """Extract the last JSON code block from LLM output."""
     matches = re.findall(r"```json\s*(.*?)```", text, re.DOTALL)
     if matches:
@@ -361,7 +361,7 @@ def _ensure_frontend_contract(html: str) -> str:
     return ensure_markdown_support(html)
 
 
-def _fallback_plan(prompt: str) -> dict:
+def _fallback_plan(prompt: str) -> dict[str, Any]:
     base_id = re.sub(r"[^a-z0-9_]+", "_", prompt.lower()).strip("_")[:40] or "custom_chatbot"
     agent_id = f"{base_id}_agent"
     return {
@@ -413,7 +413,7 @@ def _fallback_plan(prompt: str) -> dict:
     }
 
 
-def _coerce_tool_config(config: dict, raw_api: str, specification: str) -> dict:
+def _coerce_tool_config(config: dict[str, Any], raw_api: str, specification: str) -> dict[str, Any]:
     """Repair model output into the platform tool schema."""
     settings = config.get("settings") if isinstance(config.get("settings"), dict) else {}
     url = (
@@ -599,7 +599,7 @@ class GraphDigest(BaseModel):
 
 class DiagnosticExplainRequest(BaseModel):
     mode: Literal["explain", "fix", "ask"] = "explain"
-    diagnostic: dict | None = None
+    diagnostic: dict[str, Any] | None = None
     question: str | None = None
     graph: GraphDigest = Field(default_factory=GraphDigest)
     provider_id: str = "gemini"
@@ -1022,7 +1022,7 @@ def _coerce_pattern(value: Any, node_count: int) -> str:
     return "single" if node_count <= 1 else "sequential"
 
 
-def _normalize_plan(plan: dict, prompt: str) -> dict:
+def _normalize_plan(plan: dict[str, Any], prompt: str) -> dict[str, Any]:
     """Repair the plan so it actually applies, instead of failing halfway.
 
     Models reliably get the shape roughly right and the details wrong: an agent
@@ -1034,7 +1034,9 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
     plan = dict(plan or {})
     known_tools = set(_known_tool_ids())
 
-    agents: list[dict] = [dict(a) for a in plan.get("agents") or [] if isinstance(a, dict)]
+    agents: list[dict] = [
+        dict(a) for a in plan.get("agents") or [] if isinstance(a, dict)
+    ]
     planned_tool_ids = {
         _slug(t.get("id") or t.get("name") or "", "tool")
         for t in plan.get("tools") or []
@@ -1144,7 +1146,7 @@ def _normalize_plan(plan: dict, prompt: str) -> dict:
 
 
 @router.post("/plan-chatbot")
-async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
+async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict[str, Any]:
     """Generate a complete chatbot build plan from a natural-language prompt."""
     _resolve_builder_model(body, "plan")
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
@@ -1204,7 +1206,7 @@ async def plan_chatbot(request: Request, body: ChatbotPlanRequest) -> dict:
 
 
 @router.post("/normalize-api")
-async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> dict:
+async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> dict[str, Any]:
     """Turn messy API notes, curl commands, or malformed docs into a platform tool config."""
     _resolve_builder_model(body, "tool")
     base_url, api_key, ready = _get_provider_credentials(body.provider_id)
@@ -1264,7 +1266,7 @@ async def normalize_raw_api(request: Request, body: RawApiNormalizeRequest) -> d
 
 
 @router.post("/apply")
-async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dict:
+async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dict[str, Any]:
     """Apply a generated plan by creating agents, tools, functions, and workflow config."""
     from src.api.models import (
         AgentConfigCreateRequest,
@@ -1332,7 +1334,7 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
             errors.append(f"function {function.get('id')}: {exc}")
 
     workflow = plan.get("workflow")
-    workflow_config: dict | None = None
+    workflow_config: dict[str, Any] | None = None
     if workflow:
         workflow_id = str(workflow.get("id") or "")
         try:
@@ -1361,7 +1363,7 @@ async def apply_builder_plan(request: Request, body: BuilderApplyRequest) -> dic
     return {"created": created, "updated": updated, "errors": errors, "workflow": workflow_config}
 
 
-def _workflow_config_for_canvas(workflow_id: str) -> dict | None:
+def _workflow_config_for_canvas(workflow_id: str) -> dict[str, Any] | None:
     """The saved workflow as a plain dict, for the Studio to render.
 
     The registry caches its config, so a workflow created moments ago is not in

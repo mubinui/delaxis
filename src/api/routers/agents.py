@@ -3,6 +3,7 @@
 import copy
 import json
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
@@ -46,7 +47,7 @@ def _require_instructions(system_message: str | None) -> None:
         )
 
 
-def _load_agents_config() -> dict:
+def _load_agents_config() -> dict[str, Any]:
     """Load agents configuration from file using config loader."""
     try:
         loader = get_config_loader()
@@ -58,7 +59,7 @@ def _load_agents_config() -> dict:
         return {"version": "1.0", "agents": []}
 
 
-def _save_agents_config(config: dict) -> None:
+def _save_agents_config(config: dict[str, Any]) -> None:
     """Save agents configuration to file."""
     config_path = _get_agents_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)

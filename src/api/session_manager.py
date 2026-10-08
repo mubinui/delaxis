@@ -270,7 +270,7 @@ class SessionManager:
                 pending_get.cancel()
 
     @staticmethod
-    def _log_stream_run_failure(task: asyncio.Task) -> None:
+    def _log_stream_run_failure(task: asyncio.Task[Any]) -> None:
         if task.cancelled():
             return
         exc = task.exception()
