@@ -3,7 +3,7 @@
 import re
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 def extract_variables(template: str) -> list[str]:
@@ -100,7 +100,7 @@ class PromptTemplateConfig(BaseModel):
 
     @field_validator("variables")
     @classmethod
-    def validate_variables_match_template(cls, v: list[str], info) -> list[str]:
+    def validate_variables_match_template(cls, v: list[str], info: ValidationInfo) -> list[str]:
         """
         Validate that variables list matches variables in template.
 

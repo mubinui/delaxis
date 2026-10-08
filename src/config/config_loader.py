@@ -2,12 +2,14 @@
 
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from watchdog.events import FileModifiedEvent, FileSystemEventHandler
+from watchdog.events import DirModifiedEvent, FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.api import BaseObserver
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +21,12 @@ class ConfigFileHandler(FileSystemEventHandler):
         """Initialize handler with reference to config loader."""
         self.loader = loader
 
-    def on_modified(self, event: FileModifiedEvent) -> None:
+    def on_modified(self, event: DirModifiedEvent | FileModifiedEvent) -> None:
         """Handle file modification events."""
         if event.is_directory:
             return
 
-        file_path = Path(event.src_path)
+        file_path = Path(os.fsdecode(event.src_path))
         if file_path.suffix == ".json" and file_path.parent.name == "configs":
             logger.info(f"Configuration file modified: {file_path.name}")
             self.loader._reload_single_file(file_path)
@@ -50,7 +52,7 @@ class ConfigLoader:
         self.enable_hot_reload = enable_hot_reload
         self._cache: dict[str, dict[str, Any]] = {}
         self._last_loaded: dict[str, datetime] = {}
-        self._observer: Observer | None = None
+        self._observer: BaseObserver | None = None
 
         # Ensure config directory exists
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -161,10 +163,13 @@ class ConfigLoader:
         self._cache[config_name] = config
         self._last_loaded[config_name] = datetime.now(UTC)
 
+    def _items(self, config_name: str, key: str) -> list[dict[str, Any]]:
+        items = self.get_config(config_name).get(key, [])
+        return list(items) if isinstance(items, list) else []
+
     def get_agents(self) -> list[dict[str, Any]]:
         """Get all agent configurations."""
-        config = self.get_config("agents")
-        return config.get("agents", [])
+        return self._items("agents", "agents")
 
     def get_agent_by_id(self, agent_id: str) -> dict[str, Any] | None:
         """Get agent configuration by ID."""
@@ -172,9 +177,8 @@ class ConfigLoader:
         return next((agent for agent in agents if agent["id"] == agent_id), None)
 
     def get_tools(self) -> list[dict[str, Any]]:
-        """Get all tool configurations."""
-        config = self.get_config("tools")
-        return config.get("tools", [])
+        """Get all tools configurations."""
+        return self._items("tools", "tools")
 
     def get_tool_by_id(self, tool_id: str) -> dict[str, Any] | None:
         """Get tool configuration by ID."""
@@ -182,9 +186,8 @@ class ConfigLoader:
         return next((tool for tool in tools if tool["id"] == tool_id), None)
 
     def get_workflows(self) -> list[dict[str, Any]]:
-        """Get all workflow configurations."""
-        config = self.get_config("workflows")
-        return config.get("workflows", [])
+        """Get all workflows configurations."""
+        return self._items("workflows", "workflows")
 
     def get_workflow_by_id(self, workflow_id: str) -> dict[str, Any] | None:
         """Get workflow configuration by ID."""
@@ -192,9 +195,8 @@ class ConfigLoader:
         return next((wf for wf in workflows if wf["id"] == workflow_id), None)
 
     def get_api_providers(self) -> list[dict[str, Any]]:
-        """Get all API provider configurations."""
-        config = self.get_config("api_providers")
-        return config.get("providers", [])
+        """Get all api providers configurations."""
+        return self._items("api_providers", "providers")
 
     def get_api_provider_by_id(self, provider_id: str) -> dict[str, Any] | None:
         """Get API provider configuration by ID."""
@@ -202,9 +204,8 @@ class ConfigLoader:
         return next((p for p in providers if p["id"] == provider_id), None)
 
     def get_prompts(self) -> list[dict[str, Any]]:
-        """Get all prompt templates."""
-        config = self.get_config("prompt_templates")
-        return config.get("contexts", [])
+        """Get all prompts configurations."""
+        return self._items("prompt_templates", "contexts")
 
     def get_prompt_by_id(self, prompt_id: str) -> dict[str, Any] | None:
         """Get prompt template by ID."""
@@ -229,13 +230,13 @@ class ConfigLoader:
     def get_config_version(self, config_name: str) -> str:
         """Get version string from configuration."""
         config = self.get_config(config_name)
-        return config.get("version", "unknown")
+        return str(config.get("version", "unknown"))
 
     def __enter__(self) -> "ConfigLoader":
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Context manager exit - stop file watcher."""
         self.stop_file_watcher()
 

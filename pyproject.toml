@@ -104,6 +104,45 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+# Third-party packages that ship no type information. Each is used behind an
+# optional feature; mypy must not block on them. Keep the list alphabetical.
+[[tool.mypy.overrides]]
+module = [
+    "azure",
+    "azure.*",
+    "boto3",
+    "boto3.*",
+    "cachetools",
+    "cachetools.*",
+    "google_auth_oauthlib",
+    "google_auth_oauthlib.*",
+    "googleapiclient",
+    "googleapiclient.*",
+    "hvac",
+    "hvac.*",
+    "jose",
+    "jose.*",
+    "jsonschema",
+    "jsonschema.*",
+    "openpyxl",
+    "openpyxl.*",
+    "passlib",
+    "passlib.*",
+    "pinecone",
+    "pinecone.*",
+    "presidio_analyzer",
+    "presidio_analyzer.*",
+    "psycopg2",
+    "psycopg2.*",
+    "pymongo",
+    "pymongo.*",
+    "pypdf",
+    "pypdf.*",
+    "yaml",
+    "yaml.*",
+]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

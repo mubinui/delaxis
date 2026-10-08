@@ -36,7 +36,7 @@ def _load() -> dict[str, Any]:
     if not path.exists():
         return {"version": "1.0", "secrets": {}}
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {"version": "1.0", "secrets": {}}
     if not isinstance(payload.get("secrets"), dict):

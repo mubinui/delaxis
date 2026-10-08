@@ -3,7 +3,7 @@
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class OutputFormatType(StrEnum):
@@ -36,7 +36,7 @@ class OutputFormatConfig(BaseModel):
 
     @field_validator("language")
     @classmethod
-    def validate_language(cls, v: str | None, info) -> str | None:
+    def validate_language(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate language is provided for code output."""
         output_type = info.data.get("type")
         if output_type == OutputFormatType.CODE and v is None:

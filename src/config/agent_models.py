@@ -72,7 +72,9 @@ class LLMConfig(BaseModel):
     seed: int | None = Field(default=None, description="Sampling seed for reproducible output")
     reasoning_effort: Literal["none", "low", "medium", "high"] | None = Field(default=None)
     stop: list[str] | None = Field(default=None, description="Stop sequences")
-    response_format: dict | None = Field(default=None, description='e.g. {"type": "json_object"}')
+    response_format: dict[str, Any] | None = Field(
+        default=None, description='e.g. {"type": "json_object"}'
+    )
 
 
 class AgentRuntimeSettings(BaseModel):
@@ -224,7 +226,7 @@ class AgentConfig(BaseModel):
     is_selector: bool = Field(
         default=False, description="Whether this agent is a selector/router agent"
     )
-    model_config_override: dict | None = Field(
+    model_config_override: dict[str, Any] | None = Field(
         default=None,
         validation_alias=AliasChoices("model_config_override", "model_config"),
         description="Model configuration overrides (temperature, max_tokens, etc.)",
@@ -382,7 +384,7 @@ class AgentConfig(BaseModel):
         if self.model_client_config is not None:
             return self.model_client_config
 
-        if self.llm_config is not None and self.llm_config is not False:
+        if isinstance(self.llm_config, LLMConfig):
             # Convert LLMConfig to ModelClientConfig
             return ModelClientConfig(
                 provider_id=self.llm_config.provider_id,
@@ -409,8 +411,8 @@ class AgentsConfig(BaseModel):
     @model_validator(mode="after")
     def validate_unique_agent_ids(self) -> "AgentsConfig":
         """Reject duplicate agent ids instead of silently shadowing them."""
-        seen: set = set()
-        duplicates: set = set()
+        seen: set[str] = set()
+        duplicates: set[str] = set()
         for agent in self.agents:
             if agent.id in seen:
                 duplicates.add(agent.id)

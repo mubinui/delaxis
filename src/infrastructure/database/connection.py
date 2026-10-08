@@ -3,7 +3,7 @@
 import logging
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -48,7 +48,7 @@ class DatabaseConnectionManager:
         self.echo = echo
 
         self._engine: Engine | None = None
-        self._session_factory: sessionmaker | None = None
+        self._session_factory: sessionmaker[Session] | None = None
 
     @property
     def engine(self) -> Engine:
@@ -62,7 +62,7 @@ class DatabaseConnectionManager:
         return self._engine
 
     @property
-    def session_factory(self) -> sessionmaker:
+    def session_factory(self) -> sessionmaker[Session]:
         """Get or create the session factory.
 
         Returns:
@@ -132,22 +132,24 @@ class DatabaseConnectionManager:
         """
 
         @event.listens_for(engine, "connect")
-        def receive_connect(dbapi_conn, connection_record):
+        def receive_connect(dbapi_conn: Any, connection_record: Any) -> None:
             """Log when a new connection is created."""
             logger.debug("New database connection established")
 
         @event.listens_for(engine, "checkout")
-        def receive_checkout(dbapi_conn, connection_record, connection_proxy):
+        def receive_checkout(
+            dbapi_conn: Any, connection_record: Any, connection_proxy: Any
+        ) -> None:
             """Log when a connection is checked out from the pool."""
             logger.debug("Connection checked out from pool")
 
         @event.listens_for(engine, "checkin")
-        def receive_checkin(dbapi_conn, connection_record):
+        def receive_checkin(dbapi_conn: Any, connection_record: Any) -> None:
             """Log when a connection is returned to the pool."""
             logger.debug("Connection returned to pool")
 
         @event.listens_for(Pool, "invalidate")
-        def receive_invalidate(dbapi_conn, connection_record, exception):
+        def receive_invalidate(dbapi_conn: Any, connection_record: Any, exception: Any) -> None:
             """Log when a connection is invalidated."""
             logger.warning(f"Connection invalidated: {exception}")
 
@@ -187,13 +189,14 @@ class DatabaseConnectionManager:
             logger.error(f"Database health check failed: {e}")
             return False
 
-    def get_pool_status(self) -> dict:
+    def get_pool_status(self) -> dict[str, int]:
         """Get current connection pool status.
 
         Returns:
             Dictionary with pool statistics
         """
-        pool = self.engine.pool
+        # Only QueuePool reports these; SQLite's pools do not, hence the Any.
+        pool: Any = self.engine.pool
         return {
             "size": pool.size(),
             "checked_in": pool.checkedin(),
@@ -210,11 +213,11 @@ class DatabaseConnectionManager:
             self._engine = None
             self._session_factory = None
 
-    def __enter__(self):
+    def __enter__(self) -> "DatabaseConnectionManager":
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Context manager exit with cleanup."""
         self.close()
 

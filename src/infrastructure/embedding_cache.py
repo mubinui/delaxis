@@ -81,7 +81,7 @@ class EmbeddingCache:
                         f"Embedding cache hit: {content_hash[:16]}... "
                         f"(model={model}, length={len(content)})"
                     )
-                    return embedding
+                    return [float(value) for value in embedding]
 
             logger.debug(
                 f"Embedding cache miss: {content_hash[:16]}... "
@@ -154,7 +154,7 @@ class EmbeddingCache:
             data = self.redis_cache.get_json(key)
             if data:
                 logger.debug(f"Embedding cache hit by hash: {content_hash[:16]}...")
-                return data
+                return dict(data)
             return None
         except Exception as e:
             logger.error(f"Failed to get embedding by hash: {e}", exc_info=True)

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 # Import for v0.4 topology support
 try:
@@ -330,7 +330,7 @@ class GroupChatConfig(BaseModel):
 
     @field_validator("speaker_transitions_type")
     @classmethod
-    def validate_transitions_type(cls, v: str | None, info) -> str | None:
+    def validate_transitions_type(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate speaker transitions type."""
         if v is not None and v not in ["allowed", "disallowed"]:
             raise ValueError("speaker_transitions_type must be 'allowed' or 'disallowed'")

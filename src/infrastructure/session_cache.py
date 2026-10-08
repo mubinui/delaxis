@@ -1,6 +1,7 @@
 """Session caching layer using Redis."""
 
 import logging
+from typing import Any
 from uuid import UUID
 
 from src.infrastructure.cache import RedisCache
@@ -41,7 +42,7 @@ class SessionCache:
         """
         return f"session:{session_id}"
 
-    def _serialize_session(self, session: ConversationState) -> dict:
+    def _serialize_session(self, session: ConversationState) -> dict[str, Any]:
         """Serialize session to JSON-compatible dict.
 
         Args:
@@ -66,7 +67,7 @@ class SessionCache:
 
         return data
 
-    def _deserialize_session(self, data: dict) -> ConversationState:
+    def _deserialize_session(self, data: dict[str, Any]) -> ConversationState:
         """Deserialize session from JSON dict.
 
         Args:
@@ -225,7 +226,7 @@ class SessionCache:
             logger.error(f"Failed to clear sessions: {e}", exc_info=True)
             return 0
 
-    def get_session_metadata(self, session_id: UUID) -> dict | None:
+    def get_session_metadata(self, session_id: UUID) -> dict[str, Any] | None:
         """Get only session metadata without full session data.
 
         Args:

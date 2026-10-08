@@ -266,7 +266,7 @@ class ConfigurationLoader:
         Raises:
             ConfigurationError: If validation fails
         """
-        results = {
+        results: dict[str, dict[str, Any]] = {
             "providers": {"valid": False, "errors": []},
             "prompts": {"valid": False, "errors": []},
             "tools": {"valid": False, "errors": []},

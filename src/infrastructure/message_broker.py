@@ -10,8 +10,14 @@ from typing import Any
 from uuid import UUID
 
 import aio_pika
-from aio_pika import Channel, Connection, ExchangeType, Message
-from aio_pika.abc import AbstractIncomingMessage
+from aio_pika import ExchangeType, Message
+from aio_pika.abc import (
+    AbstractChannel,
+    AbstractExchange,
+    AbstractIncomingMessage,
+    AbstractQueue,
+    AbstractRobustConnection,
+)
 from aio_pika.pool import Pool
 
 from src.utils.time import parse_utc
@@ -55,7 +61,7 @@ class AgentTask:
 
 class RabbitMQConnectionPool:
     """
-    Connection pool for RabbitMQ with automatic reconnection.
+    AbstractRobustConnection pool for RabbitMQ with automatic reconnection.
 
     This class manages a pool of RabbitMQ connections and channels,
     providing resilience through automatic reconnection on failures.
@@ -80,11 +86,11 @@ class RabbitMQConnectionPool:
         self.url = url
         self.max_connections = max_connections
         self.max_channels = max_channels
-        self._connection_pool: Pool[Connection] | None = None
-        self._channel_pool: Pool[Channel] | None = None
+        self._connection_pool: Pool[AbstractRobustConnection] | None = None
+        self._channel_pool: Pool[AbstractChannel] | None = None
         self._is_closed = False
 
-    async def _get_connection(self) -> Connection:
+    async def _get_connection(self) -> AbstractRobustConnection:
         """Create a new RabbitMQ connection with reconnection support."""
         connection = await aio_pika.connect_robust(
             self.url,
@@ -94,10 +100,10 @@ class RabbitMQConnectionPool:
         logger.info("Established RabbitMQ connection")
         return connection
 
-    async def _get_channel(self) -> Channel:
+    async def _get_channel(self) -> AbstractChannel:
         """Get a channel from a connection in the pool."""
         if self._connection_pool is None:
-            raise RuntimeError("Connection pool not initialized")
+            raise RuntimeError("AbstractRobustConnection pool not initialized")
 
         async with self._connection_pool.acquire() as connection:
             channel = await connection.channel()
@@ -107,7 +113,7 @@ class RabbitMQConnectionPool:
     async def initialize(self) -> None:
         """Initialize the connection and channel pools."""
         if self._connection_pool is not None:
-            logger.warning("Connection pool already initialized")
+            logger.warning("AbstractRobustConnection pool already initialized")
             return
 
         logger.info(
@@ -128,7 +134,7 @@ class RabbitMQConnectionPool:
 
         logger.info("RabbitMQ connection pool initialized successfully")
 
-    async def get_channel(self) -> Channel:
+    async def get_channel(self) -> AbstractChannel:
         """
         Get a channel from the pool.
 
@@ -139,9 +145,12 @@ class RabbitMQConnectionPool:
             RuntimeError: If the pool is not initialized
         """
         if self._channel_pool is None:
-            raise RuntimeError("Channel pool not initialized. Call initialize() first.")
+            raise RuntimeError("AbstractChannel pool not initialized. Call initialize() first.")
 
-        return await self._channel_pool.acquire()
+        # Pool.acquire() is a context manager, not an awaitable: awaiting it
+        # raised TypeError. The caller owns the channel it is handed here.
+        channel: AbstractChannel = await self._channel_pool.acquire().__aenter__()
+        return channel
 
     async def close(self) -> None:
         """Close all connections and channels in the pool."""
@@ -201,10 +210,10 @@ class MessageBroker:
 
     async def _declare_exchange(
         self,
-        channel: Channel,
+        channel: AbstractChannel,
         exchange_name: str,
         exchange_type: ExchangeType = ExchangeType.TOPIC,
-    ) -> aio_pika.Exchange:
+    ) -> AbstractExchange:
         """Declare an exchange."""
         exchange = await channel.declare_exchange(
             exchange_name,
@@ -215,11 +224,11 @@ class MessageBroker:
 
     async def _declare_queue(
         self,
-        channel: Channel,
+        channel: AbstractChannel,
         queue_name: str,
         dlx_exchange: str | None = None,
         message_ttl: int | None = None,
-    ) -> aio_pika.Queue:
+    ) -> AbstractQueue:
         """
         Declare a queue with optional dead letter exchange.
 
@@ -249,7 +258,7 @@ class MessageBroker:
 
         return queue
 
-    async def setup_infrastructure(self, channel: Channel) -> None:
+    async def setup_infrastructure(self, channel: AbstractChannel) -> None:
         """
         Setup exchanges and queues infrastructure.
 
@@ -290,8 +299,8 @@ class AgentTaskPublisher(MessageBroker):
             dlx_exchange_name: Name of the dead letter exchange
         """
         super().__init__(connection_pool, exchange_name, dlx_exchange_name)
-        self._channel: Channel | None = None
-        self._exchange: aio_pika.Exchange | None = None
+        self._channel: AbstractChannel | None = None
+        self._exchange: AbstractExchange | None = None
 
     async def initialize(self) -> None:
         """Initialize the publisher by setting up infrastructure."""
@@ -440,8 +449,8 @@ class AgentTaskConsumer(MessageBroker):
         self.agent_id = agent_id
         self.task_handler = task_handler
         self.prefetch_count = prefetch_count
-        self._channel: Channel | None = None
-        self._queue: aio_pika.Queue | None = None
+        self._channel: AbstractChannel | None = None
+        self._queue: AbstractQueue | None = None
         self._consumer_tag: str | None = None
         self._is_consuming = False
 
@@ -602,8 +611,8 @@ class DeadLetterQueueHandler(MessageBroker):
         self.max_retries = max_retries
         self.initial_retry_delay = initial_retry_delay
         self.max_retry_delay = max_retry_delay
-        self._channel: Channel | None = None
-        self._dlq: aio_pika.Queue | None = None
+        self._channel: AbstractChannel | None = None
+        self._dlq: AbstractQueue | None = None
         self._is_consuming = False
 
     def _calculate_retry_delay(self, retry_count: int) -> int:
@@ -617,7 +626,7 @@ class DeadLetterQueueHandler(MessageBroker):
             Delay in milliseconds
         """
         delay = self.initial_retry_delay * (2**retry_count)
-        return min(delay, self.max_retry_delay)
+        return int(min(delay, self.max_retry_delay))
 
     async def initialize(self) -> None:
         """Initialize the DLQ handler by setting up infrastructure."""

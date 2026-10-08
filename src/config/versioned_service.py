@@ -4,8 +4,10 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from sqlalchemy import delete, desc, inspect, select
+from sqlalchemy.orm import Session
 
 from src.audit_logging.audit import AuditLogger
 from src.infrastructure.database.connection import DatabaseConnectionManager
@@ -29,10 +31,10 @@ class ConflictResponse:
     status: str = "conflict"
     current_version: int = 0
     current_etag: str = ""
-    current_config: dict = None
+    current_config: dict[str, Any] | None = None
     provided_version: int | None = None
     provided_etag: str | None = None
-    diff: dict = None
+    diff: dict[str, Any] | None = None
 
 
 class VersionedConfigService:
@@ -68,7 +70,7 @@ class VersionedConfigService:
         except Exception:
             return False
 
-    def generate_etag(self, config_data: dict) -> str:
+    def generate_etag(self, config_data: dict[str, Any]) -> str:
         """
         Generate SHA256 hash of configuration content.
 
@@ -87,7 +89,7 @@ class VersionedConfigService:
         config_type: str,
         config_id: str,
         user_id: str | None = None,
-    ) -> tuple[dict | None, ConfigVersion | None]:
+    ) -> tuple[dict[str, Any] | None, ConfigVersion | None]:
         """
         Get configuration with version token.
 
@@ -123,10 +125,10 @@ class VersionedConfigService:
                 return None, None
 
             version_info = ConfigVersion(
-                version=snapshot.version,
-                etag=snapshot.etag,
-                last_updated=snapshot.created_at,
-                updated_by=snapshot.updated_by,
+                version=int(snapshot.version),
+                etag=str(snapshot.etag),
+                last_updated=cast(datetime, snapshot.created_at),
+                updated_by=cast(str | None, snapshot.updated_by),
             )
 
             # Log successful retrieval
@@ -134,21 +136,21 @@ class VersionedConfigService:
                 config_type=config_type,
                 config_id=config_id,
                 user_id=user_id,
-                version=snapshot.version,
+                version=int(snapshot.version),
                 found=True,
             )
 
-            return snapshot.config_data, version_info
+            return cast(dict[str, Any], snapshot.config_data), version_info
 
     def update_config(
         self,
         config_type: str,
         config_id: str,
-        updates: dict,
+        updates: dict[str, Any],
         version_token: str | None = None,
         user_id: str | None = None,
         change_summary: str | None = None,
-    ) -> tuple[bool, str | None, dict | None]:
+    ) -> tuple[bool, str | None, dict[str, Any] | None]:
         """
         Update configuration with optimistic locking.
 
@@ -171,7 +173,7 @@ class VersionedConfigService:
             current_config, current_version = self.get_config(config_type, config_id, user_id)
 
             # Check if config exists
-            if current_config is None:
+            if current_config is None or current_version is None:
                 # Create new config if it doesn't exist
                 new_etag = self.generate_etag(updates)
                 new_snapshot = ConfigSnapshot(
@@ -297,7 +299,7 @@ class VersionedConfigService:
         config_id: str,
         limit: int = 10,
         user_id: str | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """
         Get configuration change history.
 
@@ -383,7 +385,7 @@ class VersionedConfigService:
 
             # Create new snapshot with rolled back data
             new_version = current_version.version + 1
-            new_etag = self.generate_etag(target_snapshot.config_data)
+            new_etag = self.generate_etag(cast(dict[str, Any], target_snapshot.config_data))
 
             rollback_snapshot = ConfigSnapshot(
                 config_type=config_type,
@@ -415,7 +417,7 @@ class VersionedConfigService:
 
             return True, new_etag
 
-    def _compute_diff(self, current: dict, proposed: dict) -> dict:
+    def _compute_diff(self, current: dict[str, Any], proposed: dict[str, Any]) -> dict[str, Any]:
         """
         Compute difference between current and proposed configurations.
 
@@ -426,7 +428,7 @@ class VersionedConfigService:
         Returns:
             Dictionary with added, removed, and modified fields
         """
-        diff = {"added": [], "removed": [], "modified": []}
+        diff: dict[str, list[Any]] = {"added": [], "removed": [], "modified": []}
 
         current_keys = set(current.keys())
         proposed_keys = set(proposed.keys())
@@ -446,7 +448,9 @@ class VersionedConfigService:
 
         return diff
 
-    def _apply_retention_policy(self, db_session, config_type: str, config_id: str) -> None:
+    def _apply_retention_policy(
+        self, db_session: Session, config_type: str, config_id: str
+    ) -> None:
         """
         Apply snapshot retention policy (keep last N versions).
 

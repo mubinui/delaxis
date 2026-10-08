@@ -14,10 +14,10 @@ class DependencyError(Exception):
     def __init__(
         self,
         message: str,
-        missing: list[str] = None,
-        available: list[str] = None,
-        dependents: list[str] = None,
-    ):
+        missing: list[str] | None = None,
+        available: list[str] | None = None,
+        dependents: list[str] | None = None,
+    ) -> None:
         """
         Initialize dependency error.
 
@@ -36,7 +36,7 @@ class DependencyError(Exception):
 class DependencyValidator:
     """Validates dependencies between configuration entities."""
 
-    def __init__(self, config_loader: ConfigurationLoader = None):
+    def __init__(self, config_loader: ConfigurationLoader | None = None) -> None:
         """
         Initialize dependency validator.
 
@@ -291,7 +291,7 @@ class DependencyValidator:
 
 
 # Singleton instance
-_validator: DependencyValidator = None
+_validator: DependencyValidator | None = None
 
 
 def get_validator() -> DependencyValidator:

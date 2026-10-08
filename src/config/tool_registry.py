@@ -10,23 +10,24 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
+    from src.config.loader import ConfigurationLoader
     from src.infrastructure.providers import ProviderAdapter
 
 
 # Lazy import to avoid circular dependency
-def _get_logger():
+def _get_logger() -> Any:
     from src.audit_logging import get_logger
 
     return get_logger(__name__)
 
 
-def _get_loader():
+def _get_loader() -> "ConfigurationLoader":
     from src.config.loader import get_loader
 
     return get_loader()
 
 
-def _get_configuration_error():
+def _get_configuration_error() -> type[Exception]:
     from src.config.loader import ConfigurationError
 
     return ConfigurationError
@@ -38,7 +39,7 @@ class ToolDefinition:
     def __init__(
         self,
         tool_id: str,
-        function: Callable,
+        function: Callable[..., Any],
         name: str | None = None,
         description: str | None = None,
         is_async: bool | None = None,
@@ -66,7 +67,7 @@ class ToolDefinition:
         self.is_async = is_async if is_async is not None else inspect.iscoroutinefunction(function)
         self.factory = factory
 
-    def _extract_description(self, func: Callable) -> str:
+    def _extract_description(self, func: Callable[..., Any]) -> str:
         """
         Extract description from function docstring.
 
@@ -111,7 +112,7 @@ class ToolRegistry:
     def register_tool(
         self,
         tool_id: str,
-        function: Callable,
+        function: Callable[..., Any],
         description: str | None = None,
         name: str | None = None,
         is_async: bool | None = None,
@@ -330,7 +331,7 @@ class ToolRegistry:
     def get_tools_for_crewai_agent(
         self,
         tool_ids: list[str],
-    ) -> list[Callable]:
+    ) -> list[Callable[..., Any]]:
         """
         Get tool functions for a CrewAI agent.
 
@@ -343,7 +344,7 @@ class ToolRegistry:
         Raises:
             ValueError: If a tool is not found
         """
-        tools: list[Callable] = []
+        tools: list[Callable[..., Any]] = []
 
         for tool_id in tool_ids:
             tool_def = self.get_tool(tool_id)
@@ -365,7 +366,7 @@ class ToolRegistry:
 
         return tools
 
-    def get_tools_for_agent(self, tool_ids: list[str]) -> list[Callable]:
+    def get_tools_for_agent(self, tool_ids: list[str]) -> list[Callable[..., Any]]:
         """Get raw callables for a CrewAI agent."""
         return self.get_tools_for_crewai_agent(tool_ids)
 
@@ -389,7 +390,7 @@ class ToolRegistry:
             del self._tools[tool_id]
             _get_logger().info("Unregistered tool", tool_id=tool_id)
 
-    def _validate_function_signature(self, function: Callable) -> None:
+    def _validate_function_signature(self, function: Callable[..., Any]) -> None:
         """
         Validate that a function has a proper signature for tool use.
 
@@ -462,6 +463,12 @@ class ToolRegistry:
 
             # Register enabled tools
             for tool_config in config.get_enabled_tools():
+                if not tool_config.entrypoint:
+                    _get_logger().error(
+                        "Tool has no entrypoint and cannot be registered", tool_id=tool_config.id
+                    )
+                    failed_count += 1
+                    continue
                 try:
                     self.register_tool_from_entrypoint(
                         tool_id=tool_config.id,

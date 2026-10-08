@@ -1,5 +1,6 @@
 """PostgreSQL implementation of ConversationStore."""
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -231,7 +232,7 @@ class PostgreSQLConversationStore(ConversationStore):
         """
         return self.db_manager.health_check()
 
-    def get_pool_status(self) -> dict:
+    def get_pool_status(self) -> dict[str, Any]:
         """Get current connection pool status.
 
         Returns:

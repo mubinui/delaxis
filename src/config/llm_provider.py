@@ -10,6 +10,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from src.config.model_capabilities import ModelCapabilities, infer_model_capabilities
 
@@ -45,18 +46,18 @@ class ProviderConfig:
     openrouter_preset: str | None = None
 
     # OpenRouter Provider Routing (https://openrouter.ai/docs/provider-routing)
-    openrouter_provider_order: list | None = None  # ["Fireworks", "Together", "DeepInfra"]
+    openrouter_provider_order: list[str] | None = None  # ["Fireworks", "Together", "DeepInfra"]
     openrouter_provider_allow_fallbacks: bool = True
     openrouter_provider_require_parameters: bool = False
     openrouter_provider_data_collection: str | None = None  # "allow" or "deny"
-    openrouter_provider_ignore: list | None = None  # Providers to skip
-    openrouter_provider_quantizations: list | None = None  # ["bf16", "fp8", "int4"]
+    openrouter_provider_ignore: list[str] | None = None  # Providers to skip
+    openrouter_provider_quantizations: list[str] | None = None  # ["bf16", "fp8", "int4"]
 
     # OpenRouter Transforms
-    openrouter_transforms: list | None = None  # ["middle-out"] for context compression
+    openrouter_transforms: list[str] | None = None  # ["middle-out"] for context compression
 
     # OpenRouter Multi-model fallback
-    openrouter_fallback_models: list | None = None  # ["openai/gpt-4o", "anthropic/claude-3"]
+    openrouter_fallback_models: list[str] | None = None  # ["openai/gpt-4o", "anthropic/claude-3"]
     openrouter_route: str = "fallback"  # "fallback" for model fallback routing
 
     # vLLM settings
@@ -100,7 +101,7 @@ class ProviderConfig:
                 logger.warning(f"Invalid LLM_FALLBACK_PROVIDER '{fallback_str}', ignoring")
 
         # Helper to parse comma-separated list from env
-        def parse_list(env_var: str) -> list | None:
+        def parse_list(env_var: str) -> list[str] | None:
             val = os.getenv(env_var)
             if val:
                 return [v.strip() for v in val.split(",") if v.strip()]
@@ -168,7 +169,7 @@ class ProviderConfig:
             logger.warning(f"Failed to get gcloud auth token: {e}")
             return None
 
-    def get_model_config(self, provider: ProviderType | None = None) -> dict:
+    def get_model_config(self, provider: ProviderType | None = None) -> dict[str, Any]:
         """
         Get model configuration dictionary for the LLM client.
 
@@ -179,7 +180,7 @@ class ProviderConfig:
             Dictionary with model configuration
         """
         target_provider = provider or self.provider
-        config = {
+        config: dict[str, Any] = {
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             "top_p": self.top_p,
@@ -207,10 +208,10 @@ class ProviderConfig:
                 config["model"] = f"openrouter/{self.model_name}"
 
             # Add OpenRouter settings via extra_body (passed through to OpenRouter API)
-            extra_body = {}
+            extra_body: dict[str, Any] = {}
 
             # Provider routing preferences (can override preset settings)
-            provider_prefs = {}
+            provider_prefs: dict[str, Any] = {}
             if self.openrouter_provider_order:
                 provider_prefs["order"] = self.openrouter_provider_order
             if not self.openrouter_provider_allow_fallbacks:
@@ -270,7 +271,7 @@ class ProviderConfig:
     def get_model_string(self, provider: ProviderType | None = None) -> str:
         """Get the model string for the specified provider."""
         config = self.get_model_config(provider)
-        return config["model"]
+        return str(config["model"])
 
     def get_model_capabilities(
         self,
@@ -283,7 +284,7 @@ class ProviderConfig:
             (provider or self.provider).value,
         )
 
-    def get_openrouter_presets(self) -> dict:
+    def get_openrouter_presets(self) -> dict[str, Any]:
         """
         Get a summary of configured OpenRouter presets.
 
@@ -293,7 +294,7 @@ class ProviderConfig:
         if self.provider != ProviderType.OPENROUTER:
             return {"enabled": False, "reason": "Not using OpenRouter provider"}
 
-        presets = {"enabled": True}
+        presets: dict[str, Any] = {"enabled": True}
 
         if self.openrouter_provider_order:
             presets["provider_order"] = self.openrouter_provider_order
@@ -315,7 +316,7 @@ class ProviderConfig:
 
         return presets
 
-    def configure_cache(self):
+    def configure_cache(self) -> None:
         """Configure caching (placeholder for future implementation)."""
         if not self.enable_cache:
             logger.info("Caching disabled")
@@ -324,7 +325,7 @@ class ProviderConfig:
         # Future: implement caching with Redis or in-memory
         logger.info("Using default in-memory caching")
 
-    def enable_debug(self):
+    def enable_debug(self) -> None:
         """Enable debug mode to see raw API requests."""
         if self.debug_mode:
             logger.info("Debug mode enabled - will log API requests")
@@ -399,7 +400,7 @@ def get_provider_config() -> ProviderConfig:
     return _provider_config
 
 
-def reset_provider_config():
+def reset_provider_config() -> None:
     """Reset the global provider configuration. Useful for testing."""
     global _provider_config
     _provider_config = None

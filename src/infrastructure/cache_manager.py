@@ -68,7 +68,7 @@ class LRUCache:
             max_size: Maximum number of items in cache
         """
         self.max_size = max_size
-        self.cache: OrderedDict = OrderedDict()
+        self.cache: OrderedDict[str, Any] = OrderedDict()
         self.lock = Lock()
 
     def get(self, key: str) -> Any | None:
@@ -174,7 +174,7 @@ class LFUCache:
             else:
                 if len(self.cache) >= self.max_size:
                     # Evict least frequently used
-                    lfu_key = min(self.frequencies, key=self.frequencies.get)
+                    lfu_key = min(self.frequencies, key=lambda k: self.frequencies[k])
                     del self.cache[lfu_key]
                     del self.frequencies[lfu_key]
 
@@ -407,7 +407,7 @@ class CacheManager:
             return False
 
         # Use configured TTL if not overridden
-        effective_ttl = ttl if ttl is not None else layer_config.ttl
+        effective_ttl: int | None = ttl if ttl is not None else layer_config.ttl
         if effective_ttl == 0:
             effective_ttl = None  # No expiration
 
@@ -627,7 +627,7 @@ class CacheManager:
         Returns:
             Dictionary with cache metrics
         """
-        metrics = {
+        metrics: dict[str, Any] = {
             "global_enabled": self.cache_config.global_enabled,
             "layers": {},
             "sessions": {

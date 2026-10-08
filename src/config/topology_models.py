@@ -8,7 +8,7 @@ execution plans while keeping the REST API stable.
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class TopologyType(StrEnum):
@@ -120,7 +120,7 @@ class AgentEdge(BaseModel):
 
     @field_validator("fields")
     @classmethod
-    def validate_fields(cls, v: list[str] | None, info) -> list[str] | None:
+    def validate_fields(cls, v: list[str] | None, info: ValidationInfo) -> list[str] | None:
         """Validate fields are required for selective strategy."""
         context_strategy = info.data.get("context_strategy")
         if context_strategy == ContextStrategy.SELECTIVE and not v:
@@ -136,7 +136,7 @@ class TerminationCondition(BaseModel):
 
     @field_validator("value")
     @classmethod
-    def validate_value(cls, v: Any, info) -> Any:
+    def validate_value(cls, v: Any, info: ValidationInfo) -> Any:
         """Validate value based on condition type."""
         condition_type = info.data.get("type")
 
@@ -171,7 +171,7 @@ class TopologyConfig(BaseModel):
 
     @field_validator("entry_node")
     @classmethod
-    def validate_entry_node(cls, v: str, info) -> str:
+    def validate_entry_node(cls, v: str, info: ValidationInfo) -> str:
         """Validate entry node exists in nodes list."""
         nodes = info.data.get("nodes", [])
         node_ids = [node.id for node in nodes]
@@ -181,7 +181,7 @@ class TopologyConfig(BaseModel):
 
     @field_validator("edges")
     @classmethod
-    def validate_edges(cls, v: list[AgentEdge], info) -> list[AgentEdge]:
+    def validate_edges(cls, v: list[AgentEdge], info: ValidationInfo) -> list[AgentEdge]:
         """Validate edges reference existing nodes."""
         nodes = info.data.get("nodes", [])
         node_ids = {node.id for node in nodes}
@@ -204,7 +204,7 @@ class TopologyConfig(BaseModel):
         errors = []
 
         # Build adjacency list
-        adjacency = {node.id: [] for node in self.nodes}
+        adjacency: dict[str, list[str]] = {node.id: [] for node in self.nodes}
         for edge in self.edges:
             adjacency[edge.from_node].append(edge.to_node)
 

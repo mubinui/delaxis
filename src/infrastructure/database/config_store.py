@@ -1,15 +1,15 @@
 """PostgreSQL implementation of ConfigStore for Library (Workflows, Agents, Tools)."""
 
-from typing import TypeVar
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import CursorResult, delete, select, update
 
 from src.infrastructure.database import schema
 from src.infrastructure.database.connection import DatabaseConnectionManager
 from src.utils.time import utc_now_naive
 
-T = TypeVar("T", bound=schema.Base)
+LibraryItem = schema.WorkflowDefinition | schema.AgentDefinition | schema.ToolDefinition
 
 
 class ConfigStore:
@@ -40,7 +40,7 @@ class ConfigStore:
             pool_recycle=pool_recycle,
         )
 
-    def _get_model_class(self, item_type: str) -> type[T]:
+    def _get_model_class(self, item_type: str) -> type[LibraryItem]:
         """Get SQLAlchemy model class based on item type."""
         if item_type == "workflow":
             return schema.WorkflowDefinition
@@ -52,8 +52,13 @@ class ConfigStore:
             raise ValueError(f"Unknown item type: {item_type}")
 
     def create_item(
-        self, item_type: str, name: str, config: dict, description: str | None = None, **kwargs
-    ) -> T:
+        self,
+        item_type: str,
+        name: str,
+        config: dict[str, Any],
+        description: str | None = None,
+        **kwargs: Any,
+    ) -> LibraryItem:
         """Create a new library item."""
         model_class = self._get_model_class(item_type)
 
@@ -71,23 +76,25 @@ class ConfigStore:
             session.refresh(item)
             return item
 
-    def get_item(self, item_type: str, item_id: UUID) -> T | None:
+    def get_item(self, item_type: str, item_id: UUID) -> LibraryItem | None:
         """Get a library item by ID."""
         model_class = self._get_model_class(item_type)
 
         with self.db_manager.get_session() as session:
             stmt = select(model_class).where(model_class.id == item_id)
-            return session.execute(stmt).scalar_one_or_none()
+            return cast(LibraryItem | None, session.execute(stmt).scalar_one_or_none())
 
-    def list_items(self, item_type: str) -> list[T]:
+    def list_items(self, item_type: str) -> list[LibraryItem]:
         """List all library items of a specific type."""
         model_class = self._get_model_class(item_type)
 
         with self.db_manager.get_session() as session:
             stmt = select(model_class).order_by(model_class.updated_at.desc())
-            return session.execute(stmt).scalars().all()
+            return cast(list[LibraryItem], list(session.execute(stmt).scalars().all()))
 
-    def update_item(self, item_type: str, item_id: UUID, updates: dict) -> T | None:
+    def update_item(
+        self, item_type: str, item_id: UUID, updates: dict[str, Any]
+    ) -> LibraryItem | None:
         """Update a library item."""
         model_class = self._get_model_class(item_type)
 
@@ -101,7 +108,7 @@ class ConfigStore:
             )
             result = session.execute(stmt)
             session.commit()
-            return result.scalar_one_or_none()
+            return cast(LibraryItem | None, result.scalar_one_or_none())
 
     def delete_item(self, item_type: str, item_id: UUID) -> bool:
         """Delete a library item."""
@@ -109,7 +116,7 @@ class ConfigStore:
 
         with self.db_manager.get_session() as session:
             stmt = delete(model_class).where(model_class.id == item_id)
-            result = session.execute(stmt)
+            result = cast(CursorResult[Any], session.execute(stmt))
             session.commit()
             return result.rowcount > 0
 

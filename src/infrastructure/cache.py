@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 import redis
 from redis.connection import ConnectionPool
@@ -71,7 +71,7 @@ class RedisCache:
             True if connection is alive, False otherwise
         """
         try:
-            return self.client.ping()
+            return bool(self.client.ping())
         except (ConnectionError, TimeoutError, RedisError) as e:
             logger.error(f"Redis ping failed: {e}")
             return False
@@ -86,7 +86,7 @@ class RedisCache:
             Cached value or None if not found
         """
         try:
-            value = self.client.get(key)
+            value = cast(str | None, self.client.get(key))
             if value:
                 logger.debug(f"Cache hit: {key}")
             else:
@@ -225,7 +225,7 @@ class RedisCache:
             New value after increment or None on error
         """
         try:
-            result = self.client.incrby(key, amount)
+            result = cast(int, self.client.incrby(key, amount))
             logger.debug(f"Cache increment: {key} by {amount}")
             return result
         except (ConnectionError, TimeoutError, RedisError) as e:
@@ -243,7 +243,7 @@ class RedisCache:
             New value after decrement or None on error
         """
         try:
-            result = self.client.decrby(key, amount)
+            result = cast(int, self.client.decrby(key, amount))
             logger.debug(f"Cache decrement: {key} by {amount}")
             return result
         except (ConnectionError, TimeoutError, RedisError) as e:
@@ -261,7 +261,8 @@ class RedisCache:
         """
         try:
             return [
-                key.decode() if isinstance(key, bytes) else key for key in self.client.keys(pattern)
+                key.decode() if isinstance(key, bytes) else str(key)
+                for key in cast(list[Any], self.client.keys(pattern))
             ]
         except (ConnectionError, TimeoutError, RedisError) as e:
             logger.error(f"Redis keys failed for pattern '{pattern}': {e}")

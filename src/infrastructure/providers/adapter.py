@@ -63,10 +63,10 @@ class ProviderAdapter:
         self.watch_interval_seconds = watch_interval_seconds
 
         # Client caches with TTL
-        self._llm_clients: dict[str, tuple[Any, datetime]] = {}
+        self._llm_clients: dict[str, tuple[httpx.AsyncClient, datetime]] = {}
         self._vector_db_clients: dict[str, tuple[Any, datetime]] = {}
         self._search_clients: dict[str, tuple[Any, datetime]] = {}
-        self._api_clients: dict[str, tuple[Any, datetime]] = {}
+        self._api_clients: dict[str, tuple[httpx.AsyncClient, datetime]] = {}
 
         # Configuration caches
         self._providers: dict[str, ProviderConfig] = {}
@@ -394,7 +394,7 @@ class ProviderAdapter:
         timeout = provider.request_defaults.timeout_seconds if provider.request_defaults else 120
 
         return httpx.AsyncClient(
-            base_url=provider.base_url,
+            base_url=provider.base_url or "",
             headers=headers,
             timeout=timeout,
         )
@@ -474,7 +474,7 @@ class ProviderAdapter:
         timeout = provider.request_defaults.timeout_seconds if provider.request_defaults else 30
 
         return httpx.AsyncClient(
-            base_url=provider.base_url,
+            base_url=provider.base_url or "",
             headers=headers,
             timeout=timeout,
         )

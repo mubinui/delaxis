@@ -2,12 +2,14 @@
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
-from watchdog.events import FileModifiedEvent, FileSystemEventHandler
+from watchdog.events import DirModifiedEvent, FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.api import BaseObserver
 
 from src.audit_logging import get_logger
 from src.config.agent_models import AgentConfig, AgentsConfig
@@ -48,14 +50,14 @@ class ConfigFileHandler(FileSystemEventHandler):
 
     def __init__(self, manager: "ConfigurationManager"):
         self.manager = manager
-        self._debounce_timers: dict[str, asyncio.Task] = {}
+        self._debounce_timers: dict[str, asyncio.Task[None]] = {}
 
-    def on_modified(self, event: FileModifiedEvent):
+    def on_modified(self, event: DirModifiedEvent | FileModifiedEvent) -> None:
         """Handle file modification events."""
         if event.is_directory:
             return
 
-        file_path = Path(event.src_path)
+        file_path = Path(os.fsdecode(event.src_path))
         if file_path.suffix != ".json":
             return
 
@@ -70,7 +72,7 @@ class ConfigFileHandler(FileSystemEventHandler):
         task = loop.create_task(self._debounced_reload(file_path))
         self._debounce_timers[str(file_path)] = task
 
-    async def _debounced_reload(self, file_path: Path):
+    async def _debounced_reload(self, file_path: Path) -> None:
         """Reload configuration after debounce delay."""
         await asyncio.sleep(0.5)  # 500ms debounce
         try:
@@ -98,7 +100,7 @@ class ConfigurationManager:
             config_dir: Directory containing configuration files
         """
         self.config_dir = Path(config_dir)
-        self._observer: Observer | None = None
+        self._observer: BaseObserver | None = None
         self._watching = False
 
         # Configuration caches
@@ -354,14 +356,11 @@ class ConfigurationManager:
             elif config_type == "cache":
                 CacheConfig(**data)
             elif config_type == "agents":
-                config = AgentsConfig(**data)
-                config.validate_all()
+                AgentsConfig(**data).validate_all()
             elif config_type == "workflows":
-                config = WorkflowsConfig(**data)
-                config.validate_all()
+                WorkflowsConfig(**data).validate_all()
             elif config_type == "topology":
-                config = TopologyConfig(**data)
-                errors = config.validate_topology()
+                errors = TopologyConfig(**data).validate_topology()
                 if errors:
                     result.valid = False
                     result.errors = errors
@@ -409,7 +408,7 @@ class ConfigurationManager:
 
         return result
 
-    async def reload_config_file(self, file_path: Path):
+    async def reload_config_file(self, file_path: Path) -> None:
         """
         Reload a specific configuration file.
 
@@ -474,7 +473,7 @@ class ConfigurationManager:
             logger.error(f"Failed to reload configuration {file_path}: {e}")
             raise ConfigurationError(f"Reload failed: {e}") from e
 
-    def start_watching(self):
+    def start_watching(self) -> None:
         """Start watching configuration files for changes."""
         if self._watching:
             logger.warning("Already watching configuration files")
@@ -490,7 +489,7 @@ class ConfigurationManager:
 
         logger.info(f"Started watching configuration directory: {self.config_dir}")
 
-    def stop_watching(self):
+    def stop_watching(self) -> None:
         """Stop watching configuration files."""
         if not self._watching or self._observer is None:
             return
@@ -501,7 +500,7 @@ class ConfigurationManager:
 
         logger.info("Stopped watching configuration files")
 
-    def reload_all(self):
+    def reload_all(self) -> None:
         """Reload all configurations, bypassing cache."""
         logger.info("Reloading all configurations")
 

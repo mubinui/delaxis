@@ -1,11 +1,13 @@
 """File system watcher for hot reloading configurations."""
 
+import os
 import time
 from collections.abc import Callable
 from pathlib import Path
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.api import BaseObserver
 
 from src.audit_logging import get_logger
 
@@ -39,7 +41,7 @@ class ConfigFileEventHandler(FileSystemEventHandler):
             return
 
         # Only watch JSON files
-        if not event.src_path.endswith(".json"):
+        if not os.fsdecode(event.src_path).endswith(".json"):
             return
 
         logger.debug("Configuration file modified", file=event.src_path)
@@ -87,7 +89,7 @@ class ConfigWatcher:
         self.on_reload = on_reload
         self.debounce_seconds = debounce_seconds
 
-        self._observer: Observer | None = None
+        self._observer: BaseObserver | None = None
         self._event_handler: ConfigFileEventHandler | None = None
 
     def start(self) -> None:

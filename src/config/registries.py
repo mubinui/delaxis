@@ -150,7 +150,7 @@ class ProviderRegistry:
         timeout = provider.request_defaults.timeout_seconds if provider.request_defaults else 120
 
         return httpx.AsyncClient(
-            base_url=provider.base_url,
+            base_url=provider.base_url or "",
             headers=headers,
             timeout=timeout,
         )

@@ -3,6 +3,7 @@
 import os
 import time
 from abc import ABC, abstractmethod
+from typing import Any
 
 import structlog
 from cryptography.fernet import Fernet
@@ -71,9 +72,9 @@ class AWSSecretsManager(SecretManager):
 
     def __init__(self, region_name: str = "us-east-1"):
         self.region_name = region_name
-        self._client = None
+        self._client: Any = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """Get AWS Secrets Manager client."""
         if self._client is None:
             try:
@@ -89,7 +90,8 @@ class AWSSecretsManager(SecretManager):
         try:
             client = self._get_client()
             response = client.get_secret_value(SecretId=secret_name)
-            return response.get("SecretString")
+            value = response.get("SecretString")
+            return str(value) if value is not None else None
         except Exception as e:
             logger.error("aws_secrets_manager_get_failed", secret_name=secret_name, error=str(e))
             return None
@@ -135,9 +137,9 @@ class AzureKeyVaultManager(SecretManager):
 
     def __init__(self, vault_url: str):
         self.vault_url = vault_url
-        self._client = None
+        self._client: Any = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """Get Azure Key Vault client."""
         if self._client is None:
             try:
@@ -157,7 +159,7 @@ class AzureKeyVaultManager(SecretManager):
         try:
             client = self._get_client()
             secret = client.get_secret(secret_name)
-            return secret.value
+            return str(secret.value) if secret.value is not None else None
         except Exception as e:
             logger.error("azure_keyvault_get_failed", secret_name=secret_name, error=str(e))
             return None
@@ -200,9 +202,9 @@ class HashiCorpVaultManager(SecretManager):
         self.vault_url = vault_url
         self.vault_token = vault_token
         self.mount_point = mount_point
-        self._client = None
+        self._client: Any = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """Get HashiCorp Vault client."""
         if self._client is None:
             try:
@@ -220,7 +222,8 @@ class HashiCorpVaultManager(SecretManager):
             response = client.secrets.kv.v2.read_secret_version(
                 path=secret_name, mount_point=self.mount_point
             )
-            return response["data"]["data"].get("value")
+            value = response["data"]["data"].get("value")
+            return str(value) if value is not None else None
         except Exception as e:
             logger.error("hashicorp_vault_get_failed", secret_name=secret_name, error=str(e))
             return None
@@ -254,7 +257,7 @@ class HashiCorpVaultManager(SecretManager):
         try:
             client = self._get_client()
             response = client.secrets.kv.v2.list_secrets(mount_point=self.mount_point)
-            return response["data"]["keys"]
+            return [str(key) for key in response["data"]["keys"]]
         except Exception as e:
             logger.error("hashicorp_vault_list_failed", error=str(e))
             return []
@@ -265,51 +268,51 @@ class CredentialManager:
 
     def __init__(self, secret_manager: SecretManager | None = None):
         self.secret_manager = secret_manager or EnvironmentSecretManager()
-        self._encryption_key = None
+        self._encryption_key: bytes | None = None
 
     def _get_encryption_key(self) -> bytes:
         """Get or generate encryption key."""
-        if self._encryption_key is None:
-            settings = get_settings()
-            key = getattr(settings.security, "encryption_key", None)
+        if self._encryption_key is not None:
+            return self._encryption_key
 
-            if key:
-                if isinstance(key, str):
-                    key = key.encode()
-                self._encryption_key = key
-            else:
-                # Try to get from secret manager
-                key_from_secret = None
-                try:
-                    import asyncio
+        settings = get_settings()
+        configured = getattr(settings.security, "encryption_key", None)
+        if configured:
+            self._encryption_key = (
+                configured.encode() if isinstance(configured, str) else bytes(configured)
+            )
+            return self._encryption_key
 
-                    key_from_secret = asyncio.run(self.secret_manager.get_secret("ENCRYPTION_KEY"))
-                except Exception:
-                    pass
+        # Try to get from secret manager
+        key_from_secret: str | None = None
+        try:
+            import asyncio
 
-                if key_from_secret:
-                    self._encryption_key = key_from_secret.encode()
-                else:
-                    # Generate new key and store it
-                    self._encryption_key = Fernet.generate_key()
-                    logger.warning(
-                        "generated_new_encryption_key",
-                        message="Generated new encryption key. Store ENCRYPTION_KEY securely.",
-                    )
+            key_from_secret = asyncio.run(self.secret_manager.get_secret("ENCRYPTION_KEY"))
+        except Exception:
+            pass
 
-                    # Try to store the key
-                    try:
-                        import asyncio
+        if key_from_secret:
+            self._encryption_key = key_from_secret.encode()
+            return self._encryption_key
 
-                        asyncio.run(
-                            self.secret_manager.set_secret(
-                                "ENCRYPTION_KEY", self._encryption_key.decode()
-                            )
-                        )
-                    except Exception as e:
-                        logger.error("failed_to_store_encryption_key", error=str(e))
+        # Generate new key and store it
+        generated = Fernet.generate_key()
+        self._encryption_key = generated
+        logger.warning(
+            "generated_new_encryption_key",
+            message="Generated new encryption key. Store ENCRYPTION_KEY securely.",
+        )
 
-        return self._encryption_key
+        # Try to store the key
+        try:
+            import asyncio
+
+            asyncio.run(self.secret_manager.set_secret("ENCRYPTION_KEY", generated.decode()))
+        except Exception as e:
+            logger.error("failed_to_store_encryption_key", error=str(e))
+
+        return generated
 
     def encrypt_credential(self, credential: str) -> str:
         """Encrypt a credential."""

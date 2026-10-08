@@ -213,7 +213,7 @@ def get_openai_provider_config() -> OpenAIProviderConfig:
     return _openai_provider_config
 
 
-def reset_openai_provider_config():
+def reset_openai_provider_config() -> None:
     """Reset the global provider configuration. Useful for testing."""
     global _openai_provider_config
     _openai_provider_config = None

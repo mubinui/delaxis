@@ -108,14 +108,14 @@ class CacheConfig(BaseModel):
             agent_override = self.agent_overrides[agent_id]
             layer_override = getattr(agent_override, cache_type.value, None)
             if layer_override is not None:
-                return layer_override.enabled
+                return bool(layer_override.enabled)
 
         # Check workflow override
         if workflow_id and workflow_id in self.workflow_overrides:
             workflow_override = self.workflow_overrides[workflow_id]
             layer_override = getattr(workflow_override, cache_type.value, None)
             if layer_override is not None:
-                return layer_override.enabled
+                return bool(layer_override.enabled)
 
         # Fall back to global layer config
         if cache_type in self.layers:

@@ -9,30 +9,15 @@ from src.infrastructure.llm_cache import (
     LLMCacheMonitor,
     get_llm_cache_monitor,
 )
+from src.infrastructure.message_broker import (
+    AgentTask,
+    AgentTaskConsumer,
+    AgentTaskPublisher,
+    DeadLetterQueueHandler,
+    MessageBroker,
+    RabbitMQConnectionPool,
+)
 from src.infrastructure.session_cache import SessionCache
-
-# Import message broker modules (requires aio_pika)
-try:
-    from src.infrastructure.async_processor import AsyncAgentTaskProcessor
-    from src.infrastructure.message_broker import (
-        AgentTask,
-        AgentTaskConsumer,
-        AgentTaskPublisher,
-        DeadLetterQueueHandler,
-        MessageBroker,
-        RabbitMQConnectionPool,
-    )
-
-    _MESSAGE_BROKER_AVAILABLE = True
-except ImportError:
-    _MESSAGE_BROKER_AVAILABLE = False
-    AgentTask = None
-    AgentTaskConsumer = None
-    AgentTaskPublisher = None
-    DeadLetterQueueHandler = None
-    MessageBroker = None
-    RabbitMQConnectionPool = None
-    AsyncAgentTaskProcessor = None
 
 __all__ = [
     # Cache modules
@@ -44,12 +29,11 @@ __all__ = [
     "CacheManager",
     "get_llm_cache_monitor",
     "get_cache_manager",
-    # Message broker modules (may be None if not available)
+    # Message broker modules
     "AgentTask",
     "AgentTaskConsumer",
     "AgentTaskPublisher",
     "DeadLetterQueueHandler",
     "MessageBroker",
     "RabbitMQConnectionPool",
-    "AsyncAgentTaskProcessor",
 ]

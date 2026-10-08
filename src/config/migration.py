@@ -133,7 +133,7 @@ def convert_agent_config_v02_to_v04(
 
     # Convert LLM config to model client config
     model_client_config = None
-    if agent_config.llm_config is not None and agent_config.llm_config is not False:
+    if isinstance(agent_config.llm_config, LLMConfig):
         model_client_config = convert_llm_config_to_model_client_config(agent_config.llm_config)
         warnings.append(f"Agent {agent_config.id}: Converted llm_config to model_client_config")
 
