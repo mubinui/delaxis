@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from pydantic import ValidationError
 
 from src.audit_logging import get_logger
@@ -15,8 +15,10 @@ from src.config.tool_models import ToolsConfig
 
 logger = get_logger(__name__)
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from the .env in the working directory: the one the
+# settings read. A bare load_dotenv() searches up from this file instead, so a
+# server started elsewhere (a test run, a container) picked up the repository's.
+load_dotenv(find_dotenv(usecwd=True))
 
 
 class ConfigurationError(Exception):

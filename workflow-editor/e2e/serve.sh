@@ -18,6 +18,18 @@ mkdir -p "$WORK/data"
 cd "$WORK"
 export ENVIRONMENT=development
 export REDIS_URL=""
+# No model is called: a workflow run fails fast and is recorded as failed.
+# Keys the developer saved in the Studio live in the repository's data/ unless
+# DELAXIS_DATA_DIR says otherwise. Keys in the repository's .env are set empty
+# rather than unset: CrewAI calls a bare load_dotenv(), which finds that .env
+# from inside .venv, and load_dotenv never overrides a variable that exists.
+export DELAXIS_DATA_DIR="$WORK/data"
+export DATABASE_URL="sqlite:///$WORK/data/delaxis.db"
+for key in ANTHROPIC_API_KEY DASHSCOPE_API_KEY DEEPSEEK_API_KEY GEMINI_API_KEY GROQ_API_KEY \
+  LLM_API_KEY MISTRAL_API_KEY MOONSHOT_API_KEY OPENAI_API_KEY OPENROUTER_API_KEY \
+  XAI_API_KEY ZHIPUAI_API_KEY; do
+  export "$key="
+done
 export LOG_LEVEL=WARNING
 # One browser replaying every page several times a minute is not a user; the
 # limiter's behaviour is covered by tests/unit/test_rate_limit_response.py.

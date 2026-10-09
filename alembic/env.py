@@ -13,8 +13,9 @@ from src.infrastructure.database.schema import Base
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url from environment variable if present
-database_url = os.getenv("DATABASE_URL")
+# The URL to migrate: the one the application passed in (its own, so the app
+# and its migrations can never disagree), else DATABASE_URL, else alembic.ini.
+database_url = config.attributes.get("database_url") or os.getenv("DATABASE_URL")
 if database_url:
     # Convert async database URLs to sync for Alembic migrations
     # Alembic doesn't support async drivers
@@ -77,9 +78,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

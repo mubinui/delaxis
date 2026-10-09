@@ -61,9 +61,10 @@ def ensure_redis_or_disable(*, force: bool = False) -> bool:
     # The value usually comes from .env; load it now (without overriding real
     # process variables) so the decision sees what the settings will see.
     try:
-        from dotenv import load_dotenv
+        from dotenv import find_dotenv, load_dotenv
 
-        load_dotenv(override=False)
+        # The working directory's .env, as the settings read it (see config.loader).
+        load_dotenv(find_dotenv(usecwd=True), override=False)
     except ImportError:
         pass
 

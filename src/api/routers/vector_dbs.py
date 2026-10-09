@@ -162,7 +162,10 @@ async def list_rag_collections(
     """
     List available collections in the RAG service.
 
-    Returns list of collections available for querying and ingestion.
+    Returns list of collections available for querying and ingestion. The
+    service is optional and often not running: then the answer is an empty list
+    with ``available: false`` and the reason, not a server error, so the Studio
+    can say the service is unreachable rather than that it has no collections.
     """
     request_id = getattr(request.state, "request_id", None)
 
@@ -182,18 +185,21 @@ async def list_rag_collections(
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(f"{base_url}/collections")
             response.raise_for_status()
-            return as_object(response.json(), "collections response")
+            return {"available": True, **as_object(response.json(), "collections response")}
 
     except httpx.HTTPError as e:
-        logger.error(
-            "Failed to list RAG collections",
+        logger.warning(
+            "RAG service unreachable",
             request_id=request_id,
+            base_url=base_url,
             error=str(e),
         )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"RAG service unavailable: {str(e)}",
-        ) from e
+        return {
+            "available": False,
+            "base_url": base_url,
+            "error": f"RAG service unavailable: {e}",
+            "collections": [],
+        }
     except Exception as e:
         logger.error(
             "Failed to list RAG collections",

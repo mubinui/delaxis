@@ -741,7 +741,12 @@ export const LibraryModal = ({ tab }: { tab: ResourceTab }) => {
                                                     <div className="figure"><b>{pct(m.error_rate)}</b><span>Errors</span></div>
                                                 </div>
                                                 <Section title="Retrieval collections">
-                                                    {collections.length === 0 ? (
+                                                    {(ragCollections as JsonObject | undefined)?.available === false ? (
+                                                        <p className="hint">
+                                                            The retrieval service at <span className="mono">{String((ragCollections as JsonObject).base_url ?? '')}</span> is not reachable.
+                                                            Start it, or set <span className="mono">RAG_PIPELINE_BASE_URL</span> to where it runs.
+                                                        </p>
+                                                    ) : collections.length === 0 ? (
                                                         <p className="hint">No collections yet. Upload documents through the RAG API to create one.</p>
                                                     ) : (
                                                         <div className="table-box">

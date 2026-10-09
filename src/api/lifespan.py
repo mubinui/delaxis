@@ -69,6 +69,9 @@ def _run_database_migrations() -> None:
         url = url.replace("sqlite+aiosqlite://", "sqlite://", 1)
         _warn_on_legacy_database_file(url)
         alembic_cfg.set_main_option("sqlalchemy.url", url)
+        # alembic/env.py prefers this over DATABASE_URL: migrate the database
+        # the app reads, even when the process environment says otherwise.
+        alembic_cfg.attributes["database_url"] = url
 
         command.upgrade(alembic_cfg, "head")
         logger.info("database_migrations_applied", database=url.split("@")[-1])
