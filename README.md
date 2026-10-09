@@ -460,6 +460,27 @@ Each carries `metadata.setup` listing exactly what it needs beyond an API key.
 
 A run streams Server-Sent Events back to the canvas, so the timeline and node badges update live. Event types: `start`, `token`, `reasoning_delta`, `node_started`, `node_input`, `node_output`, `tool_call_start`, `tool_call_args`, `tool_call_result`, `agent_transfer`, `citation`, `error`, `done`.
 
+### Run history
+
+Every run is recorded, whatever started it: the test chat, a live run on the
+canvas, a deployed page, a test case or the API. A record keeps the request,
+the answer or the error, the agents and tools that ran, token usage, and every
+event the run streamed. The **Runs** page in the Studio lists them, newest
+first, filtered by workflow and status. From a run you can:
+
+- **Play on canvas** — open its workflow and play the recorded events through
+  the timeline and the node badges, at their real pace with long waits shortened.
+- **Replay** — send the same request to the workflow as it is now, in a fresh
+  session. The new run links back to the original, so you can see what a change
+  to an agent or a prompt did.
+- **Delete** it.
+
+Runs live in the SQL database (`workflow_runs`). The newest
+`DELAXIS_RUN_HISTORY_LIMIT` are kept (5000 by default; `0` turns recording
+off). A run still marked running when the server starts is marked failed, since
+the process that ran it is gone. Recording never blocks a run: if the database
+cannot be written, the run goes ahead and the failure is logged.
+
 ## Configuration reference
 
 All settings come from environment variables (see [.env.example](.env.example)). Everything has a sensible default except the LLM API key.
@@ -483,6 +504,7 @@ All settings come from environment variables (see [.env.example](.env.example)).
 | `FRONTEND_URL` | `*` | Comma-separated allowed CORS origins |
 | `DELAXIS_CONFIG_DIR` | `configs` | Where agent, tool and workflow configs are read and saved. The Docker image sets `/app/data/configs` so Studio edits survive the container; it is filled from the bundled configs on first boot and never overwritten |
 | `DELAXIS_MAX_CONCURRENT_RUNS` | `10` | Runs of one workflow that execute at once; further runs wait their turn |
+| `DELAXIS_RUN_HISTORY_LIMIT` | `5000` | Runs kept in the run history, newest first; `0` turns recording off |
 | `REQUESTS_PER_MINUTE` / `REQUESTS_PER_HOUR` | `60` / `1000` | Per-client limit for writes and anything that runs a model |
 | `READ_REQUESTS_PER_MINUTE` / `READ_REQUESTS_PER_HOUR` | `600` / `20000` | Per-client limit for reads (GET), so the Studio's page loads do not use up the write budget |
 
@@ -540,6 +562,13 @@ curl -X POST localhost:8000/api/v1/sessions/<session_id>/messages \
 curl -N -X POST localhost:8000/api/v1/workflows/support_triage/execute/stream \
   -H 'Content-Type: application/json' \
   -d '{"message": "What is (12 + 8) * 3?"}'
+```
+
+```bash
+# Run history: list (filter by workflow_id, status, source), inspect, replay
+curl 'localhost:8000/api/v1/runs?workflow_id=support_triage&status=failed'
+curl localhost:8000/api/v1/runs/<run_id>
+curl -X POST localhost:8000/api/v1/runs/<run_id>/replay
 ```
 
 Plus full CRUD for agents, workflows, tools (with Swagger import), prompts, providers, triggers/webhooks, deployments, and workflow test cases.

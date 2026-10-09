@@ -95,6 +95,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _run_database_migrations()
 
     try:
+        from src.infrastructure.database.run_store import get_run_store
+
+        interrupted = get_run_store().mark_interrupted()
+        if interrupted:
+            logger.warning("run_history_interrupted_runs", count=interrupted)
+    except Exception as exc:
+        logger.warning("run_history_unavailable", error=str(exc))
+
+    try:
         from src.api.auth import bootstrap_admin_user
 
         bootstrap_admin_user()

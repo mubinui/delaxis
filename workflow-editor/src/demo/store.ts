@@ -26,6 +26,8 @@ export interface DemoState {
     deployments: Json[];
     apiKeys: Json[];
     sessions: Record<string, { workflow_id: string; messages: Json[] }>;
+    /** Run history, newest first, in the shape GET /runs returns. */
+    runs: Json[];
     health: Json;
     metrics: Json;
     ragService: Json;
@@ -67,6 +69,7 @@ const build = (): DemoState => ({
         },
     ],
     sessions: {},
+    runs: [],
     health: clone(seed.health),
     metrics: clone(seed.metrics),
     ragService: clone(seed.ragService),

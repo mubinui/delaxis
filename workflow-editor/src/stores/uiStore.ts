@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type Screen = 'landing' | 'studio' | 'tester' | 'deploy' | 'library';
+export type Screen = 'landing' | 'studio' | 'tester' | 'deploy' | 'runs' | 'library';
 export type LibraryTab = 'browse' | 'tools' | 'agents' | 'functions' | 'prompts' | 'providers' | 'ops';
 
 /** The Studio's floating panes. Builder and Help share the right edge, so only one is open. */

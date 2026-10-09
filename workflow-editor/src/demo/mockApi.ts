@@ -221,6 +221,56 @@ const DEMO_THEMES = [
     }
 ];
 
+/**
+ * Record a scripted run the way the API records a real one, so the Runs page
+ * has history to show. Frame timestamps follow the scripted delays, so a
+ * playback on the canvas paces like the live run did.
+ */
+const recordRun = (
+    workflowId: string,
+    message: string,
+    sessionId: string,
+    source: string,
+    frames: StreamFrame[],
+    replayOf: string | null = null,
+): Json => {
+    const started = Date.now();
+    let elapsed = 0;
+    const events = frames.map(({ delayMs, ...frame }) => {
+        elapsed += delayMs;
+        return { type: frame.type, payload: frame.payload, agent_id: frame.agent_id, sequence: frame.sequence, timestamp: new Date(started + elapsed).toISOString() };
+    });
+    const done = frames.find((frame) => frame.type === 'done');
+    const plan = frames.filter((frame) => frame.type === 'node_started').map((frame) => String(frame.agent_id));
+    const tools = frames.filter((frame) => frame.type === 'tool_call_start').map((frame) => String(frame.payload.name));
+    const run: Json = {
+        id: crypto.randomUUID(),
+        workflow_id: workflowId,
+        session_id: sessionId,
+        user_id: 'demo',
+        source,
+        status: 'succeeded',
+        message,
+        response: done?.payload.result?.response ?? '',
+        error: null,
+        agents_called: plan,
+        tools_called: tools,
+        usage: { total_tokens: 214 },
+        cost_usd: 0,
+        replay_of: replayOf,
+        started_at: new Date(started).toISOString(),
+        finished_at: new Date(started + elapsed).toISOString(),
+        duration_ms: elapsed,
+        event_count: events.length,
+        metadata: { demo: true },
+        events,
+    };
+    state.runs.unshift(run);
+    return run;
+};
+
+const runSummary = (run: Json): Json => Object.fromEntries(Object.entries(run).filter(([key]) => key !== 'events'));
+
 const routes: [string, RegExp, Handler][] = [
     // ---- workflows ----
     ['GET', /^\/workflows$/, () => json(state.workflows)],
@@ -262,7 +312,13 @@ const routes: [string, RegExp, Handler][] = [
         });
     }],
     ['POST', /^\/workflows\/([^/]+)\/execute\/stream$/, (m, body) => {
-        const { frames } = buildExecutionFrames(m[1], String(body.message ?? ''), `demo-session-${Date.now()}`);
+        const sessionId = `demo-session-${Date.now()}`;
+        const message = String(body.message ?? '');
+        const { frames } = buildExecutionFrames(m[1], message, sessionId);
+        const metadata = (body.metadata ?? {}) as Json;
+        const run = recordRun(m[1], message, sessionId, String(metadata.source ?? 'workflow_live_run'), frames, metadata.replay_of ?? null);
+        const done = frames.find((frame) => frame.type === 'done');
+        if (done) done.payload.metadata = { ...done.payload.metadata, run_id: run.id };
         return sseResponse(frames);
     }],
 
@@ -456,6 +512,32 @@ const routes: [string, RegExp, Handler][] = [
     }],
     ['DELETE', /^\/deployments\/([^/]+)$/, (m) => (remove(state.deployments, m[1]) ? json(null, 204) : notFound('Deployment'))],
 
+    // ---- run history ----
+    ['GET', /^\/runs$/, (_m, _body, init) => {
+        const params = new URL((init as Json).__url).searchParams;
+        const matching = state.runs.filter((run) =>
+            (!params.get('workflow_id') || run.workflow_id === params.get('workflow_id')) &&
+            (!params.get('status') || run.status === params.get('status')) &&
+            (!params.get('source') || run.source === params.get('source')));
+        const limit = Number(params.get('limit') ?? 50);
+        const offset = Number(params.get('offset') ?? 0);
+        return json({ items: matching.slice(offset, offset + limit).map(runSummary), total: matching.length, limit, offset });
+    }],
+    ['GET', /^\/runs\/([^/]+)$/, (m) => {
+        const run = state.runs.find((item) => item.id === m[1]);
+        return run ? json(run) : notFound('Run');
+    }],
+    ['POST', /^\/runs\/([^/]+)\/replay$/, async (m, body) => {
+        const original = state.runs.find((item) => item.id === m[1]);
+        if (!original) return notFound('Run');
+        await settle(700);
+        const message = String(body.message ?? original.message);
+        const sessionId = `demo-session-${Date.now()}`;
+        const { frames } = buildExecutionFrames(String(original.workflow_id), message, sessionId);
+        return json(recordRun(String(original.workflow_id), message, sessionId, 'replay', frames, String(original.id)));
+    }],
+    ['DELETE', /^\/runs\/([^/]+)$/, (m) => (remove(state.runs, m[1]) ? json(null, 204) : notFound('Run'))],
+
     // ---- sessions / chat ----
     ['POST', /^\/sessions$/, (_m, body) => {
         const sessionId = `demo-${Math.random().toString(36).slice(2, 11)}`;
@@ -467,13 +549,15 @@ const routes: [string, RegExp, Handler][] = [
         if (!session) return json({ detail: 'Session not found' }, 404);
         await settle(850);
         const message = String(body.message ?? '');
-        const { routed, nodeIo, toolIo } = buildExecutionFrames(session.workflow_id, message, m[1]);
+        const { frames, routed, nodeIo, toolIo } = buildExecutionFrames(session.workflow_id, message, m[1]);
+        const metadata = (body.metadata ?? {}) as Json;
+        const run = recordRun(session.workflow_id, message, m[1], String(metadata.source ?? 'chat'), frames);
         session.messages.push({ role: 'user', content: message }, { role: 'assistant', content: routed.response });
         return json({
             session_id: m[1],
             response: routed.response,
             status: 'completed',
-            metadata: { node_io: nodeIo, tool_io: toolIo, agent_id: routed.agentId, demo: true },
+            metadata: { node_io: nodeIo, tool_io: toolIo, agent_id: routed.agentId, demo: true, run_id: run.id },
         });
     }],
 

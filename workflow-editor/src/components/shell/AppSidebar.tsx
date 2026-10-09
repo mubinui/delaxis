@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-    Activity, Bot, Code2, Gauge, LayoutGrid, MessageSquareText, Send, ServerCog, User, Workflow, Wrench,
+    Activity, Bot, Code2, Gauge, History, LayoutGrid, MessageSquareText, Send, ServerCog, User, Workflow, Wrench,
 } from 'lucide-react';
 import { DelaxisLogo } from '../DelaxisLogo';
 import { StatusGlyph } from './StatusGlyph';
@@ -37,6 +37,7 @@ export const AppSidebar = () => {
             places: [
                 { id: 'studio', label: 'Studio', icon: Workflow, hue: 'var(--hue-4)', screen: 'studio' },
                 { id: 'tester', label: 'Model tester', icon: Gauge, hue: 'var(--hue-6)', screen: 'tester' },
+                { id: 'runs', label: 'Runs', icon: History, hue: 'var(--hue-7)', screen: 'runs' },
                 { id: 'deploy', label: 'Deployments', icon: Send, hue: 'var(--hue-2)', screen: 'deploy', count: deployments.length || undefined },
             ],
         },

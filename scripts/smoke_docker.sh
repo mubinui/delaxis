@@ -53,6 +53,7 @@ expect 200 "deployments"             "$base/api/v1/deployments"
 expect 200 "rag collections"         "$base/api/v1/rag/collections"
 expect 200 "audit verify"            "$base/api/v1/audit/verify"
 expect 200 "studio state"            "$base/api/v1/studio/state"
+expect 200 "run history"             "$base/api/v1/runs"
 expect 200 "validate starter workflow" -X POST "$base/api/v1/workflows/assistant_chat/validate"
 expect 200 "deployment preview" -X POST "$base/api/v1/deployments/preview" \
   -H 'Content-Type: application/json' -d '{"workflow_id":"assistant_chat","name":"smoke"}'

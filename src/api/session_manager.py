@@ -18,9 +18,30 @@ from src.config.workflow_registry import get_workflow_registry
 from src.core.events import ResponseDelta, ResponseDeltaType, StreamEventBuilder
 from src.crewai_runtime import CrewAIWorkflowRuntime
 from src.crewai_runtime.execution_events import EventSink
+from src.infrastructure.database.run_store import RunRecorder, get_run_store
 from src.memory.models import ConversationState, MessageRole
 
 logger = structlog.get_logger(__name__)
+
+# Trim the run history to its limit once every this many recorded runs.
+_PRUNE_EVERY = 50
+
+
+def _as_uuid(value: Any) -> UUID | None:
+    try:
+        return UUID(str(value)) if value else None
+    except ValueError:
+        return None
+
+
+def _run_source(metadata: dict[str, Any], session_metadata: dict[str, Any]) -> str:
+    """Name what started a run, for filtering the run history."""
+    if metadata.get("test_case_id"):
+        return "test"
+    if session_metadata.get("deployment"):
+        return "deployment"
+    explicit = metadata.get("source") or session_metadata.get("source")
+    return str(explicit)[:50] if explicit else "chat"
 
 
 class SessionManager:
@@ -42,6 +63,8 @@ class SessionManager:
         self._run_slots: dict[str, asyncio.Semaphore] = {}
         self._active_runs: dict[str, int] = {}
         self._waiting_runs: dict[str, int] = {}
+        self.run_history_limit = settings.app.run_history_limit
+        self._runs_since_prune = 0
         self._load_sessions()
         logger.info(
             "crewai_session_manager_initialized",
@@ -157,15 +180,39 @@ class SessionManager:
             override = deployment_model_override(str(deployment_ref))
             if override:
                 run_metadata["model_override"] = override
-        async with self._run_slot(str(workflow_id)):
-            result = await self.runtime.run_message(
-                workflow=workflow,
-                message=message,
-                session_id=str(session_id),
-                user_id=session.metadata.get("user_id", "default_user"),
-                metadata=run_metadata,
-                event_sink=event_sink,
-            )
+        user_id = session.metadata.get("user_id", "default_user")
+        record = await self._start_run_record(
+            workflow_id, session_id, user_id, message, metadata or {}, session.metadata
+        )
+        sink = event_sink
+        if record is not None:
+            recorder = record[1]
+
+            def sink(event_type: str, payload: dict[str, Any], agent_id: str | None = None) -> None:
+                recorder.record(event_type, payload, agent_id)
+                if event_sink is not None:
+                    event_sink(event_type, payload, agent_id)
+
+        try:
+            async with self._run_slot(str(workflow_id)):
+                result = await self.runtime.run_message(
+                    workflow=workflow,
+                    message=message,
+                    session_id=str(session_id),
+                    user_id=user_id,
+                    metadata=run_metadata,
+                    event_sink=sink,
+                )
+        except BaseException as exc:
+            if record is not None:
+                cancelled = isinstance(exc, asyncio.CancelledError)
+                error = "The run was cancelled." if cancelled else str(exc) or type(exc).__name__
+                record[1].record(
+                    "error", {"error_type": type(exc).__name__, "error_message": error}
+                )
+                # Synchronous: a cancelled task cannot reliably await again.
+                self._finish_run_record(record, status="failed", error=error)
+            raise
 
         response_text = result.response or "I could not generate a response."
         session.add_message(
@@ -179,9 +226,98 @@ class SessionManager:
         session.updated_at = datetime.now(UTC)
         self._save_sessions()
 
-        return self._response(
-            session, response_text, {**result.metadata, "trace_steps": result.trace_steps}
-        )
+        response_metadata = {**result.metadata, "trace_steps": result.trace_steps}
+        if record is not None:
+            record[1].record("token", {"text": response_text})
+            record[1].record(
+                "done",
+                {
+                    "runtime": "crewai",
+                    "turn_count": session.turn_count,
+                    "metadata": {"runtime": "crewai", **response_metadata},
+                },
+            )
+            await asyncio.to_thread(
+                self._finish_run_record,
+                record,
+                status="succeeded",
+                response=response_text,
+                run_metadata=result.metadata,
+            )
+            response_metadata["run_id"] = str(record[0])
+
+        return self._response(session, response_text, response_metadata)
+
+    async def _start_run_record(
+        self,
+        workflow_id: str,
+        session_id: UUID,
+        user_id: str,
+        message: str,
+        metadata: dict[str, Any],
+        session_metadata: dict[str, Any],
+    ) -> tuple[UUID, RunRecorder] | None:
+        """Open a run-history record; None when recording is off or the store fails.
+
+        Run history is a record of the work, not part of it: a database problem
+        is logged and the run goes ahead unrecorded.
+        """
+        if self.run_history_limit <= 0:
+            return None
+        replay_of = _as_uuid(metadata.get("replay_of"))
+        source = "replay" if replay_of else _run_source(metadata, session_metadata)
+        try:
+            run_id = await asyncio.to_thread(
+                get_run_store().start,
+                workflow_id=workflow_id,
+                message=message,
+                session_id=str(session_id),
+                user_id=user_id,
+                source=source,
+                replay_of=replay_of,
+                metadata={
+                    key: value
+                    for key, value in metadata.items()
+                    if key in ("source", "replay_of", "test_run_id", "test_case_id")
+                },
+            )
+        except Exception as exc:
+            logger.warning("run_history_start_failed", workflow_id=workflow_id, error=str(exc))
+            return None
+        recorder = RunRecorder()
+        recorder.record("start", {"runtime": "crewai", "message": message, "source": source})
+        return run_id, recorder
+
+    def _finish_run_record(
+        self,
+        record: tuple[UUID, RunRecorder],
+        *,
+        status: str,
+        response: str | None = None,
+        error: str | None = None,
+        run_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        run_id, recorder = record
+        meta = run_metadata or {}
+        store = get_run_store()
+        try:
+            store.finish(
+                run_id,
+                status=status,
+                events=recorder.events,
+                response=response,
+                error=error,
+                agents_called=[str(name) for name in meta.get("agents_called", [])],
+                tools_called=[str(name) for name in meta.get("tools_called", [])],
+                usage=meta.get("usage") if isinstance(meta.get("usage"), dict) else {},
+                cost_usd=meta.get("cost_usd"),
+            )
+            self._runs_since_prune += 1
+            if self._runs_since_prune >= _PRUNE_EVERY:
+                self._runs_since_prune = 0
+                store.prune(self.run_history_limit)
+        except Exception as exc:
+            logger.warning("run_history_finish_failed", run_id=str(run_id), error=str(exc))
 
     @contextlib.asynccontextmanager
     async def _run_slot(self, workflow_id: str) -> AsyncIterator[None]:

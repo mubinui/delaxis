@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import os
+import tempfile
 import time
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
@@ -28,15 +29,35 @@ os.environ["REDIS_URL"] = ""
 # out a flush to a collector that is not there.
 for _signal in ("TRACES", "METRICS", "LOGS"):
     os.environ[f"OTEL_{_signal}_EXPORTER"] = "none"
+# Nor write to the developer's database: runs are recorded on every message.
+_TEST_DATA_DIR = tempfile.mkdtemp(prefix="delaxis-tests-")
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DATA_DIR}/delaxis.db"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_database() -> Iterator[None]:
+    """Create every table in the suite's own SQLite database."""
+    from src.infrastructure.database.connection import get_db_manager
+    from src.infrastructure.database.schema import Base
+
+    Base.metadata.create_all(get_db_manager().engine)
+    yield
 
 
 @pytest.fixture
 async def async_client() -> AsyncIterator[Any]:
-    """An httpx client bound to the app, with an admin user for authenticated routes."""
+    """An httpx client bound to the app, with an admin user for authenticated routes.
+
+    Every client starts with a fresh rate-limit budget: all tests share one
+    client address, so otherwise a test's 429s depend on what ran before it.
+    """
     from httpx import ASGITransport, AsyncClient
 
     from src.api.auth import CurrentUser, UserRole, get_current_user
     from src.api.main import app
+    from src.api.rate_limiting import rate_limiting_middleware
+
+    rate_limiting_middleware._rate_limit_store.clear()
 
     admin = CurrentUser(
         user_id=UUID("00000000-0000-0000-0000-0000000000ad"),

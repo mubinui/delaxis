@@ -15,6 +15,7 @@ import { LandingPage } from './components/LandingPage';
 import { AuthModal } from './components/AuthModal';
 import { LiveLlmTester } from './components/LiveLlmTester';
 import { DeploymentManager } from './components/DeploymentManager';
+import { RunHistory } from './components/RunHistory';
 import { AppSidebar } from './components/shell/AppSidebar';
 import { useUiStore } from './stores/uiStore';
 import { LibraryModalContext } from './contexts/libraryModal';
@@ -73,6 +74,7 @@ function App() {
                                 {screen === 'studio' && <StudioScreen />}
                                 {screen === 'tester' && <LiveLlmTester />}
                                 {screen === 'deploy' && <DeploymentManager />}
+                                {screen === 'runs' && <RunHistory />}
                                 {/* Keyed by section, so each one opens with an empty editor. */}
                                 {screen === 'library' && <LibraryModal key={libraryTab} tab={libraryTab} />}
                             </main>

@@ -37,5 +37,5 @@ def test_migrations_target_the_apps_database(
             "SELECT name FROM sqlite_master WHERE type = 'table'"
         )
     }
-    assert {"sessions", "integration_credentials", "alembic_version"} <= tables
+    assert {"sessions", "integration_credentials", "workflow_runs", "alembic_version"} <= tables
     assert not stray_db.exists() or stray_db.stat().st_size == 0

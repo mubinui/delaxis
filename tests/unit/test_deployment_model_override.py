@@ -109,6 +109,7 @@ class TestClientCannotForceRouting:
         manager._save_sessions = lambda: None
         manager.max_concurrent_runs = 10
         manager._run_slots, manager._active_runs, manager._waiting_runs = {}, {}, {}
+        manager.run_history_limit = 0  # no run history in this unit test
         manager._response = lambda session, text, meta: {"response": text}
 
         session = SimpleNamespace(

@@ -18,6 +18,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -375,4 +376,44 @@ class WorkflowTestRun(Base):
     # Relationships
     results: Mapped[list["WorkflowTestResult"]] = relationship(
         "WorkflowTestResult", back_populates="test_run"
+    )
+
+
+class WorkflowRun(Base):
+    """One execution of a workflow: what was asked, what ran, and every event it streamed.
+
+    ``events`` holds the run's frames in the same shape the streaming endpoint
+    sends them, so the Studio can play a recorded run back on the canvas through
+    the code path it uses for a live one.
+    """
+
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    workflow_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # chat, stream, test, deployment, replay, ...: who started the run.
+    source: Mapped[str] = mapped_column(String(50), nullable=False, default="chat")
+    # running, succeeded or failed.
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    agents_called: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    tools_called: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    usage: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    events: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    replay_of: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    meta_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    __table_args__ = (
+        Index("idx_workflow_runs_workflow_started", "workflow_id", "started_at"),
+        Index("idx_workflow_runs_started_at", "started_at"),
+        Index("idx_workflow_runs_status", "status"),
+        Index("idx_workflow_runs_session_id", "session_id"),
     )

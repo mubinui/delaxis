@@ -41,6 +41,12 @@ class ApplicationConfig(BaseSettings):
         alias="DELAXIS_MAX_CONCURRENT_RUNS",
         description="Runs of one workflow that execute at once; later runs wait their turn",
     )
+    run_history_limit: int = Field(
+        default=5000,
+        ge=0,
+        alias="DELAXIS_RUN_HISTORY_LIMIT",
+        description="Runs kept in the run history, newest first; 0 turns recording off",
+    )
 
 
 class MemoryConfig(BaseSettings):

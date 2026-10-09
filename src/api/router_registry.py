@@ -23,6 +23,7 @@ def register_routers(app: FastAPI) -> None:
         library,
         prompts,
         rag,
+        runs,
         sessions,
         studio,
         tools,
@@ -59,4 +60,5 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(rag.router)
     app.include_router(documents.router)
     app.include_router(audit.router)
+    app.include_router(runs.router)
     app.include_router(health.router)
