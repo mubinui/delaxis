@@ -235,3 +235,60 @@ def read_email(account_email: str, message_id: str) -> str:
             "body": body,
         }
     )
+
+
+def reply_to_thread(account_email: str, message_id: str, body: str, cc: str = "") -> str:
+    """Reply to a message in its own thread, to its sender (or Reply-To)."""
+    service = _gmail_service(account_email)
+    original = (
+        service.users()
+        .messages()
+        .get(
+            userId="me",
+            id=message_id,
+            format="metadata",
+            metadataHeaders=["From", "Reply-To", "Subject", "Message-ID", "References"],
+        )
+        .execute()
+    )
+    headers = original.get("payload", {}).get("headers", [])
+    recipient = _header(headers, "Reply-To") or _header(headers, "From")
+    if not recipient:
+        return json.dumps({"error": f"Message {message_id} has no sender to reply to."})
+    subject = _header(headers, "Subject")
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}".strip()
+    original_id = _header(headers, "Message-ID")
+    references = " ".join(part for part in (_header(headers, "References"), original_id) if part)
+
+    message = EmailMessage()
+    message["To"] = recipient
+    message["From"] = account_email
+    message["Subject"] = subject
+    if cc:
+        message["Cc"] = cc
+    if original_id:
+        message["In-Reply-To"] = original_id
+        message["References"] = references
+    message.set_content(body)
+
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    thread_id = original.get("threadId")
+    result = (
+        service.users()
+        .messages()
+        .send(userId="me", body={"raw": raw, "threadId": thread_id})
+        .execute()
+    )
+    logger.info("gmail_reply_sent", account_email=account_email, thread_id=thread_id)
+    return json.dumps(
+        {"status": "sent", "message_id": result.get("id"), "thread_id": thread_id, "to": recipient}
+    )
+
+
+def list_new_messages(
+    account_email: str, since_epoch: int, query: str = "", max_results: int = 20
+) -> str:
+    """Messages received after ``since_epoch`` (seconds), optionally narrowed by a Gmail query."""
+    full_query = f"after:{int(since_epoch)} {query}".strip()
+    return search_emails(account_email, query=full_query, max_results=max_results)
