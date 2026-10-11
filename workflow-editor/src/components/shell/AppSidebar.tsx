@@ -1,13 +1,14 @@
 import type { CSSProperties } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
-    Activity, Bot, Code2, Gauge, History, LayoutGrid, MessageSquareText, Send, ServerCog, User, Workflow, Wrench,
+    Activity, Bot, Code2, Gauge, History, LayoutGrid, MessageSquareText, Plug, Send, ServerCog, User, Workflow, Wrench,
 } from 'lucide-react';
 import { DelaxisLogo } from '../DelaxisLogo';
 import { StatusGlyph } from './StatusGlyph';
 import { useUiStore } from '../../stores/uiStore';
 import type { LibraryTab, Screen } from '../../stores/uiStore';
 import { useLibraryStore } from '../../stores/libraryStore';
+import { useConnectorStore } from '../../stores/connectorStore';
 import { useBackendStatus } from '../../hooks/useBackendStatus';
 
 interface Place {
@@ -30,6 +31,7 @@ export const AppSidebar = () => {
     const rail = (sidebarRail ?? screen === 'studio') && !navDrawerOpen;
     const { savedAgents, savedTools, savedWorkflows, functions, prompts, providers, deployments } = useLibraryStore();
     const backend = useBackendStatus();
+    const connections = useConnectorStore((state) => state.connections);
 
     const groups: Array<{ label: string; places: Place[] }> = [
         {
@@ -50,6 +52,7 @@ export const AppSidebar = () => {
                 { id: 'functions', label: 'Functions', icon: Code2, hue: 'var(--hue-7)', screen: 'library', tab: 'functions', count: functions.length || undefined },
                 { id: 'prompts', label: 'Prompts', icon: MessageSquareText, hue: 'var(--hue-8)', screen: 'library', tab: 'prompts', count: prompts.length || undefined },
                 { id: 'providers', label: 'Providers', icon: ServerCog, hue: 'var(--hue-9)', screen: 'library', tab: 'providers', count: providers.length || undefined },
+                { id: 'connections', label: 'Connections', icon: Plug, hue: 'var(--hue-2)', screen: 'connections', count: connections.length || undefined },
             ],
         },
         {
