@@ -538,6 +538,10 @@ const routes: [string, RegExp, Handler][] = [
     }],
     ['DELETE', /^\/runs\/([^/]+)$/, (m) => (remove(state.runs, m[1]) ? json(null, 204) : notFound('Run'))],
 
+    // ---- connectors (the demo offers none; the palette shows MCP only) ----
+    ['GET', /^\/integrations\/connectors$/, () => json({ connectors: [] })],
+    ['GET', /^\/integrations\/connections$/, () => json({ connections: [] })],
+
     // ---- sessions / chat ----
     ['POST', /^\/sessions$/, (_m, body) => {
         const sessionId = `demo-${Math.random().toString(36).slice(2, 11)}`;

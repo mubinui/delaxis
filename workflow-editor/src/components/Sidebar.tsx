@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
     Bot, Wrench, Play, GitBranch, Flag, MessageSquare, Link, Settings, Plus, Brain,
-    FileSearch, ShieldCheck, ListChecks, FolderOpen, X, Server, Database, Mail, Search,
+    FileSearch, ShieldCheck, ListChecks, FolderOpen, X, Server, Database, Search,
     FileUp, ScanEye, ScrollText, Network, EyeOff,
 } from 'lucide-react';
 import type { NodeType } from '../types/workflow';
@@ -13,6 +13,8 @@ import { ResourceCard } from './studio/ResourceCard';
 import type { ResourceTone } from './studio/ResourceCard';
 import { getAgentSummary, getToolSummary, getWorkflowSummary } from '../utils/studioDerivedState';
 import type { JsonObject } from '../types/json';
+import { useConnectorStore } from '../stores/connectorStore';
+import { connectorTiles } from '../utils/connectorPalette';
 
 interface PaletteItem {
     type: NodeType;
@@ -86,7 +88,6 @@ const PALETTE_GROUPS: PaletteGroup[] = [
         label: 'Connect',
         items: [
             { type: 'tool', label: 'MCP server', icon: Server, tone: 'connect', hint: 'Attach an MCP server and its tools', config: { type: 'mcp', transport: 'stdio', command: '', args: [], tool_filter: [] } },
-            { type: 'tool', label: 'Gmail', icon: Mail, tone: 'connect', hint: 'Send, search, and read email', config: { type: 'gmail', account_email: '', capabilities: ['send', 'search', 'read'], max_results: 10 } },
         ],
     },
     {
@@ -182,10 +183,26 @@ export const Sidebar = () => {
     // Searching the palette filters within groups and drops groups that end up
     // empty, so the rail collapses to just the matches rather than to a list of
     // empty headings.
+    const connectors = useConnectorStore((state) => state.connectors);
+    const connectorsLoaded = useConnectorStore((state) => state.loaded);
+    const refreshConnectors = useConnectorStore((state) => state.refresh);
+    useEffect(() => {
+        if (!connectorsLoaded) void refreshConnectors();
+    }, [connectorsLoaded, refreshConnectors]);
+
+    // The Connect group is MCP plus one tile per connector the server offers,
+    // so a connector added on the server appears without a Studio release.
+    const paletteGroups = useMemo<PaletteGroup[]>(
+        () => PALETTE_GROUPS.map((group) => (
+            group.id === 'integrations' ? { ...group, items: [...group.items, ...connectorTiles(connectors)] } : group
+        )),
+        [connectors],
+    );
+
     const visibleGroups = useMemo(() => {
         const needle = query.trim().toLowerCase();
-        if (!needle) return PALETTE_GROUPS;
-        return PALETTE_GROUPS
+        if (!needle) return paletteGroups;
+        return paletteGroups
             .map((group) => ({
                 ...group,
                 items: group.items.filter(
@@ -196,7 +213,7 @@ export const Sidebar = () => {
                 ),
             }))
             .filter((group) => group.items.length > 0);
-    }, [query]);
+    }, [query, paletteGroups]);
 
     // --- Helpers to resolve nested references for the library flyout ---
     const findAgentById = (id: string) => savedAgents.find(a => a.id === id || a.name === id || a.config?.id === id);
