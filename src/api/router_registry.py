@@ -13,6 +13,7 @@ def register_routers(app: FastAPI) -> None:
         builder,
         chat_stream,
         configs,
+        connections,
         crewai_config,
         deployments,
         documents,
@@ -42,6 +43,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(agents.router)
     app.include_router(tools.router)
     app.include_router(integrations.router)
+    app.include_router(connections.router)
     app.include_router(workflows.router)
     app.include_router(topologies.router)
     app.include_router(prompts.router)
