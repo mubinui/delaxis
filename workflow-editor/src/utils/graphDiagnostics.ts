@@ -1,4 +1,5 @@
 import type { ApiProvider, LibraryItem } from '../api/backendTypes';
+import type { Connection } from '../api/connectors';
 import type { VisualEdge, VisualNode } from '../types/workflow';
 import { isValidConnection } from './connectionRules';
 import { getNodeSummary } from './studioDerivedState';
@@ -28,6 +29,8 @@ export interface DiagnosticsInput {
     agents?: LibraryItem[];
     tools?: LibraryItem[];
     providers?: ApiProvider[];
+    /** Known connections; when absent, the connection check is skipped. */
+    connections?: Connection[];
 }
 
 const label = (node: VisualNode) => String(node.data?.label ?? node.id);
@@ -368,6 +371,39 @@ export function diagnoseWorkflow(input: DiagnosticsInput): Diagnostic[] {
             });
         }
     });
+
+    // Connector nodes: an account to act as, and something the agent may do.
+    for (const node of nodes) {
+        const config = (node.data?.config ?? {}) as JsonObject;
+        if (node.type !== 'tool' || config.type !== 'connector') continue;
+        const actions = Array.isArray(config.actions) ? config.actions : [];
+        if (actions.length === 0) {
+            push({
+                code: 'connector_no_actions',
+                severity: 'error',
+                title: 'No actions ticked',
+                detail: `${label(node)} lets its agent do nothing. Tick at least one action in its inspector.`,
+                nodeId: node.id,
+                nodeLabel: label(node),
+                component: 'tool',
+            });
+        }
+        if (!input.connections) continue;
+        const chosen = String(config.connection_id ?? '');
+        if (!chosen || !input.connections.some((connection) => connection.id === chosen)) {
+            push({
+                code: 'connection_missing',
+                severity: 'error',
+                title: chosen ? 'Connection removed' : 'No connection chosen',
+                detail: chosen
+                    ? `${label(node)} uses a connection that no longer exists. Pick another account in its inspector.`
+                    : `${label(node)} has no account to act as. Pick one in its inspector, or add one on the Connections page.`,
+                nodeId: node.id,
+                nodeLabel: label(node),
+                component: 'tool',
+            });
+        }
+    }
 
     return findings;
 }

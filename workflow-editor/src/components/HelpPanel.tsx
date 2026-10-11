@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { useShallow } from 'zustand/react/shallow';
 import { API_BASE_URL } from '../api/client';
 import { useLibraryStore } from '../stores/libraryStore';
+import { useConnectorStore } from '../stores/connectorStore';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { ALL_COMPONENT_HELP, helpForDiagnostic } from '../utils/componentHelp';
 import { diagnoseWorkflow, summarizeDiagnostics } from '../utils/graphDiagnostics';
@@ -68,9 +69,14 @@ export const HelpPanel = ({ onClose }: { onClose: () => void }) => {
         void fetchLibraryItems().catch(() => undefined);
     }, [fetchLibraryItems]);
 
+    const connections = useConnectorStore((state) => state.connections);
+    const connectorsLoaded = useConnectorStore((state) => state.loaded);
     const diagnostics = useMemo(
-        () => diagnoseWorkflow({ nodes, edges, agents: savedAgents, tools: savedTools, providers }),
-        [nodes, edges, savedAgents, savedTools, providers],
+        () => diagnoseWorkflow({
+            nodes, edges, agents: savedAgents, tools: savedTools, providers,
+            connections: connectorsLoaded ? connections : undefined,
+        }),
+        [nodes, edges, savedAgents, savedTools, providers, connections, connectorsLoaded],
     );
     const summary = useMemo(() => summarizeDiagnostics(diagnostics), [diagnostics]);
 

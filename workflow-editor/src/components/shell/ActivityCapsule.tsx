@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../../stores/workflowStore';
 import type { VisualNode } from '../../types/workflow';
 import { useLibraryStore } from '../../stores/libraryStore';
+import { useConnectorStore } from '../../stores/connectorStore';
 import { useUiStore } from '../../stores/uiStore';
 import { diagnoseWorkflow, summarizeDiagnostics } from '../../utils/graphDiagnostics';
 import { StatusGlyph } from './StatusGlyph';
@@ -45,9 +46,14 @@ export const ActivityCapsule = ({ editable = false, onOpenWorkflow, onNewWorkflo
     const { savedAgents, savedTools, providers, savedWorkflows, fetchLibraryItems } = useLibraryStore();
     const { testRunning, go, screen } = useUiStore();
 
+    const connections = useConnectorStore((state) => state.connections);
+    const connectorsLoaded = useConnectorStore((state) => state.loaded);
     const summary = useMemo(
-        () => summarizeDiagnostics(diagnoseWorkflow({ nodes, edges, agents: savedAgents, tools: savedTools, providers })),
-        [nodes, edges, savedAgents, savedTools, providers],
+        () => summarizeDiagnostics(diagnoseWorkflow({
+            nodes, edges, agents: savedAgents, tools: savedTools, providers,
+            connections: connectorsLoaded ? connections : undefined,
+        })),
+        [nodes, edges, savedAgents, savedTools, providers, connections, connectorsLoaded],
     );
 
     const running = testRunning || liveRunActive;

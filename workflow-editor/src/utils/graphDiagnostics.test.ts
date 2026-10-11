@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ApiProvider, LibraryItem } from '../api/backendTypes';
+import type { Connection } from '../api/connectors';
 import type { VisualEdge, VisualNode } from '../types/workflow';
 import { diagnoseWorkflow, summarizeDiagnostics } from './graphDiagnostics';
 import type { JsonObject } from '../types/json';
@@ -289,5 +290,38 @@ describe('summarizeDiagnostics', () => {
         );
         expect(summary.errors).toBeGreaterThan(0);
         expect(summary.tone).toBe('error');
+    });
+});
+
+const connectorNode = (config: Record<string, unknown>): VisualNode => ({
+    id: 'jira-1', type: 'tool', position: { x: 0, y: 0 }, data: { label: 'Jira', config: { type: 'connector', connector: 'jira', ...config } },
+});
+const connection: Connection = {
+    id: 'c1', connector: 'jira', account_label: 'Ops', base_url: null, auth_kind: 'token', options: {},
+    created_at: null, last_status: 'ok', last_error: null, last_verified_at: null,
+};
+const connectorCodes = (node: VisualNode, connections?: Connection[]) =>
+    diagnoseWorkflow({ nodes: [node], edges: [], connections }).map((d) => d.code);
+
+describe('connector diagnostics', () => {
+    it('flags a node with no connection chosen', () => {
+        expect(connectorCodes(connectorNode({ connection_id: '', actions: ['search_issues'] }), [connection])).toContain('connection_missing');
+    });
+
+    it('flags a node whose connection was removed', () => {
+        const found = diagnoseWorkflow({ nodes: [connectorNode({ connection_id: 'gone', actions: ['x'] })], edges: [], connections: [connection] })
+            .find((d) => d.code === 'connection_missing');
+        expect(found?.detail).toMatch(/no longer exists/);
+    });
+
+    it('flags a node with no actions ticked', () => {
+        expect(connectorCodes(connectorNode({ connection_id: 'c1', actions: [] }), [connection])).toContain('connector_no_actions');
+    });
+
+    it('is quiet when the node is complete, and skips the connection check when connections are unknown', () => {
+        const complete = connectorCodes(connectorNode({ connection_id: 'c1', actions: ['search_issues'] }), [connection]);
+        expect(complete).not.toContain('connection_missing');
+        expect(complete).not.toContain('connector_no_actions');
+        expect(connectorCodes(connectorNode({ connection_id: 'gone', actions: ['x'] }))).not.toContain('connection_missing');
     });
 });
