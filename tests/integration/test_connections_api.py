@@ -143,3 +143,42 @@ async def test_delete(async_client: AsyncClient, fake_gitlab: list[httpx.Request
     assert (await async_client.delete(url)).status_code == 204
     assert (await async_client.delete(url)).status_code == 404
     assert (await async_client.post(f"{url}/test")).status_code == 404
+
+
+async def test_connections_require_authentication_and_admin_for_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outside development, anonymous callers are refused and only admins change connections."""
+    from httpx import ASGITransport
+
+    from src.api.auth import CurrentUser, UserRole, get_current_user
+    from src.api.main import app
+    from src.config.settings import get_settings
+
+    monkeypatch.setattr(get_settings().app, "environment", "production")
+    base = "/api/v1/integrations"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as anon:
+        assert (await anon.get(f"{base}/connectors")).status_code == 401
+        assert (await anon.get(f"{base}/connections")).status_code == 401
+        created = await anon.post(f"{base}/connections", json={"connector": "gitlab", "token": "t"})
+        assert created.status_code == 401
+
+    user = CurrentUser(
+        user_id="00000000-0000-0000-0000-0000000000ee",  # type: ignore[arg-type]
+        username="builder",
+        role=UserRole.USER,
+        auth_method="jwt",
+    )
+    app.dependency_overrides[get_current_user] = lambda: user
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            assert (await client.get(f"{base}/connections")).status_code == 200
+            refused = await client.post(
+                f"{base}/connections", json={"connector": "gitlab", "token": "t"}
+            )
+            assert refused.status_code == 403
+            missing = "00000000-0000-0000-0000-000000000000"
+            assert (await client.delete(f"{base}/connections/{missing}")).status_code == 403
+            assert (await client.post(f"{base}/connections/{missing}/test")).status_code == 403
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)

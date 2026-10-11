@@ -10,9 +10,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
+from src.api.auth import CurrentUser, get_current_user, require_admin
 from src.audit_logging import get_logger
 from src.connectors.base import (
     ConnectionSecrets,
@@ -25,7 +26,14 @@ from src.connectors.registry import all_connectors, get_connector
 from src.connectors.store import ConnectionStore
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"])
+# Every route needs a signed-in caller (the auth middleware does not refuse
+# anonymous requests on its own); changing connections needs an admin, because
+# a connection is a stored credential and a URL the server will call.
+router = APIRouter(
+    prefix="/api/v1/integrations",
+    tags=["integrations"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 class ConnectionCreate(BaseModel):
@@ -76,7 +84,9 @@ async def list_connections(connector: str | None = None) -> dict[str, Any]:
 
 
 @router.post("/connections", status_code=status.HTTP_201_CREATED)
-async def create_connection(body: ConnectionCreate) -> dict[str, Any]:
+async def create_connection(
+    body: ConnectionCreate, admin: CurrentUser = Depends(require_admin)
+) -> dict[str, Any]:
     connector = get_connector(body.connector)
     if connector is None:
         raise HTTPException(status_code=404, detail=f"Unknown connector: {body.connector}")
@@ -123,13 +133,15 @@ async def create_connection(body: ConnectionCreate) -> dict[str, Any]:
     _audit(
         "connection.created",
         f"connection:{connection.id}",
-        {"connector": connector.id, "account": account_label},
+        {"connector": connector.id, "account": account_label, "by": admin.username},
     )
     return connection.to_dict()
 
 
 @router.post("/connections/{connection_id}/test")
-async def test_connection(connection_id: str) -> dict[str, Any]:
+async def test_connection(
+    connection_id: str, admin: CurrentUser = Depends(require_admin)
+) -> dict[str, Any]:
     store = ConnectionStore()
     connection = await asyncio.to_thread(store.get, connection_id)
     if connection is None:
@@ -150,10 +162,12 @@ async def test_connection(connection_id: str) -> dict[str, Any]:
 
 
 @router.delete("/connections/{connection_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_connection(connection_id: str) -> Response:
+async def delete_connection(
+    connection_id: str, admin: CurrentUser = Depends(require_admin)
+) -> Response:
     if not await asyncio.to_thread(ConnectionStore().delete, connection_id):
         raise HTTPException(status_code=404, detail="Connection not found")
-    _audit("connection.deleted", f"connection:{connection_id}", {})
+    _audit("connection.deleted", f"connection:{connection_id}", {"by": admin.username})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
