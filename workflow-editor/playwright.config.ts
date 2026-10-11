@@ -21,10 +21,19 @@ export default defineConfig({
         viewport: { width: 1512, height: 900 },
     },
     projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1512, height: 900 } } }],
-    webServer: {
-        command: `npm run build && E2E_PORT=${PORT} ./e2e/serve.sh`,
-        url: `http://127.0.0.1:${PORT}/health`,
-        reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
-    },
+    webServer: [
+        {
+            command: `npm run build && E2E_PORT=${PORT} ./e2e/serve.sh`,
+            url: `http://127.0.0.1:${PORT}/health`,
+            reuseExistingServer: !process.env.CI,
+            timeout: 180_000,
+        },
+        // A stand-in GitLab and Jira, so the connector tests need no account.
+        {
+            command: 'uv run --project .. --no-sync uvicorn --app-dir ../scripts fake_forge:app --host 127.0.0.1 --port 8797',
+            url: 'http://127.0.0.1:8797/health',
+            reuseExistingServer: !process.env.CI,
+            timeout: 60_000,
+        },
+    ],
 });

@@ -18,7 +18,7 @@ export const kindForTool = (config: JsonObject | undefined): NodeKind => {
     const type = String(config?.type ?? 'function');
     if (type === 'memory' || type === 'knowledge') return 'logic';
     if (type === 'sql' || type === 'database' || type === 'mongodb') return 'data';
-    if (type === 'mcp' || type === 'gmail') return 'connect';
+    if (type === 'mcp' || type === 'gmail' || type === 'connector') return 'connect';
     const ids: string[] = Array.isArray(config?.tool_ids) ? config.tool_ids.map(String) : [];
     if (ids.length && ids.every((id) => TRUST_TOOLS.includes(id))) return 'trust';
     if (ids.length && ids.every((id) => DATA_TOOLS.includes(id))) return 'data';

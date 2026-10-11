@@ -412,6 +412,29 @@ These raise the cost of an attack and give a workflow something concrete to
 branch on. They do not make an agent safe to point at hostile input on their
 own.
 
+### Connectors
+
+Ready-made integrations for **Jira** (Cloud and Data Center), **GitLab**
+(gitlab.com or self-hosted) and **Gmail**. Add an account once on the
+**Connections** page: paste a token (Jira, GitLab) or sign in (Gmail). The
+token is checked against the service before it is saved, and stored encrypted
+with `ENCRYPTION_KEY`.
+
+Drop a connector tile from the palette's **Connect** group onto the canvas,
+choose the account, and tick what the agent may do. Read actions start ticked;
+write actions — create, comment, transition, assign, label — stay off until
+you tick them. The inspector's **Test** runs any ticked action for real.
+
+| Connector | Read | Write |
+|---|---|---|
+| Jira | search (JQL), get issue, projects, transitions | create, update, comment, transition, assign |
+| GitLab | projects, merge requests, MR diff, issues, files, pipelines | create/update issue, comment on MR or issue, set MR labels |
+| Gmail | search, read, new mail since a time | send, reply in thread |
+
+Nothing approves or merges a merge request, triggers a pipeline, or deletes
+anything. A workflow whose connection has been removed fails with the node's
+name rather than running without its tools.
+
 ## Core concepts
 
 | Concept | What it is |
@@ -569,6 +592,14 @@ curl -N -X POST localhost:8000/api/v1/workflows/support_triage/execute/stream \
 curl 'localhost:8000/api/v1/runs?workflow_id=support_triage&status=failed'
 curl localhost:8000/api/v1/runs/<run_id>
 curl -X POST localhost:8000/api/v1/runs/<run_id>/replay
+```
+
+```bash
+# Connectors and connections
+curl localhost:8000/api/v1/integrations/connectors
+curl -X POST localhost:8000/api/v1/integrations/connections \
+  -H 'Content-Type: application/json' \
+  -d '{"connector": "gitlab", "token": "glpat-…"}'
 ```
 
 Plus full CRUD for agents, workflows, tools (with Swagger import), prompts, providers, triggers/webhooks, deployments, and workflow test cases.

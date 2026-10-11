@@ -37,6 +37,8 @@ export REQUESTS_PER_MINUTE=100000
 export REQUESTS_PER_HOUR=1000000
 export READ_REQUESTS_PER_MINUTE=100000
 export READ_REQUESTS_PER_HOUR=1000000
+# Connections are stored encrypted; a throwaway key for a throwaway database.
+export ENCRYPTION_KEY="$(uv run --project "$REPO" --no-sync python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
 export DELAXIS_STATIC_DIR="$REPO/workflow-editor/dist"
 export PYTHONPATH="$REPO"
 exec uv run --project "$REPO" --no-sync uvicorn src.api.main:app --host 127.0.0.1 --port "${E2E_PORT:-8799}"

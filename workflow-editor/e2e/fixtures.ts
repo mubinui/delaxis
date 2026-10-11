@@ -6,7 +6,12 @@ import { test as base, expect } from '@playwright/test';
  * alert/confirm dialogs (the Studio still uses them for save results) are
  * recorded and accepted.
  */
-export const test = base.extend<{ dialogs: string[] }>({
+export const test = base.extend<{ dialogs: string[]; allowConsole: RegExp[] }>({
+    /** Patterns a test expects in the console, such as the 400 a deliberately wrong token gets. */
+    // eslint-disable-next-line no-empty-pattern
+    allowConsole: async ({}, use) => {
+        await use([]);
+    },
     dialogs: async ({ page }, use) => {
         const dialogs: string[] = [];
         page.on('dialog', async (dialog) => {
@@ -15,7 +20,7 @@ export const test = base.extend<{ dialogs: string[] }>({
         });
         await use(dialogs);
     },
-    page: async ({ page }, use) => {
+    page: async ({ page, allowConsole }, use) => {
         const problems: string[] = [];
         page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
         page.on('console', (message) => {
@@ -23,6 +28,7 @@ export const test = base.extend<{ dialogs: string[] }>({
             const text = message.text();
             // The browser logs failed favicon fetches itself; they are not app errors.
             if (/favicon/i.test(text)) return;
+            if (allowConsole.some((pattern) => pattern.test(text))) return;
             problems.push(`console.error: ${text}`);
         });
         await use(page);
