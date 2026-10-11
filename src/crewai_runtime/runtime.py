@@ -27,6 +27,7 @@ from src.config.loader import load_agents_config
 from src.config.provider_capabilities import AGENT_PARAMS, filter_llm_params
 from src.config.tool_registry import ToolDefinition, get_tool_registry
 from src.config.workflow_models import WorkflowConfig
+from src.connectors.base import ConnectorError
 from src.crewai_runtime.execution_events import EventSink, ExecutionEventEmitter, TaskMeta
 
 logger = structlog.get_logger(__name__)
@@ -928,7 +929,14 @@ class CrewAIWorkflowRuntime:
                 cache = run_tool_cache if run_tool_cache is not None else {}
                 if tool_id not in cache:
                     try:
-                        cache[tool_id] = factory.build(stack)
+                        if getattr(factory, "accepts_emitter", False):
+                            cache[tool_id] = factory.build(stack, emitter=emitter)
+                        else:
+                            cache[tool_id] = factory.build(stack)
+                    except ConnectorError:
+                        # A connector without its connection must fail the run,
+                        # not leave the agent silently without its tools.
+                        raise
                     except Exception as e:
                         logger.error("crewai_tool_factory_failed", tool_id=tool_id, error=str(e))
                         cache[tool_id] = []

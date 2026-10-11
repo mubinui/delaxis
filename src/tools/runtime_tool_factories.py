@@ -328,10 +328,11 @@ class GmailToolFactory(RuntimeToolFactory):
 
 
 def _database_factories() -> dict[str, type[RuntimeToolFactory]]:
-    """Imported lazily: database_factories imports this module for the base class."""
+    """Imported lazily: these modules import this one for the base class."""
+    from src.connectors.tool_factory import ConnectorToolFactory
     from src.tools.database_factories import MongoToolFactory, SqlToolFactory
 
-    return {"sql": SqlToolFactory, "mongodb": MongoToolFactory}
+    return {"sql": SqlToolFactory, "mongodb": MongoToolFactory, "connector": ConnectorToolFactory}
 
 
 _FACTORY_TYPES: dict[str, type[RuntimeToolFactory]] = {

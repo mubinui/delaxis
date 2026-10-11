@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-VALID_TOOL_TYPES = {"function", "api", "mcp", "database", "sql", "mongodb", "gmail"}
+VALID_TOOL_TYPES = {"function", "api", "mcp", "database", "sql", "mongodb", "gmail", "connector"}
 MCP_TRANSPORTS = {"stdio", "sse", "streamable-http"}
 GMAIL_CAPABILITIES = {"send", "search", "read"}
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -91,6 +91,8 @@ class ToolConfig(BaseModel):
             self._validate_mongo_settings()
         elif tool_type == "gmail":
             self._validate_gmail_settings()
+        elif tool_type == "connector":
+            self._validate_connector_settings()
         else:
             # Function tool validation
             if not self.entrypoint:
@@ -100,6 +102,29 @@ class ToolConfig(BaseModel):
                 )
 
         return self
+
+    def _validate_connector_settings(self) -> None:
+        from src.connectors.registry import connector_ids, get_connector
+
+        name = str(self.settings.get("connector", ""))
+        connector = get_connector(name)
+        if connector is None:
+            raise ValueError(
+                f"Tool '{self.id}': unknown connector '{name}'. Known: {', '.join(connector_ids())}"
+            )
+        if not str(self.settings.get("connection_id") or "").strip():
+            raise ValueError(
+                f"Tool '{self.id}': pick a {connector.name} connection (settings.connection_id)."
+            )
+        actions = self.settings.get("actions")
+        if not isinstance(actions, list) or not actions:
+            raise ValueError(f"Tool '{self.id}': tick at least one {connector.name} action.")
+        known = {action.id for action in connector.actions}
+        unknown = [str(action) for action in actions if action not in known]
+        if unknown:
+            raise ValueError(
+                f"Tool '{self.id}': {connector.name} has no action {', '.join(unknown)}."
+            )
 
     def _validate_mcp_settings(self) -> None:
         transport = self.settings.get("transport")
