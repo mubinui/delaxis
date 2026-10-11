@@ -34,6 +34,9 @@ for _signal in ("TRACES", "METRICS", "LOGS"):
 from cryptography.fernet import Fernet  # noqa: E402
 
 os.environ["ENCRYPTION_KEY"] = Fernet.generate_key().decode()
+# Building a CrewAI agent needs a provider key even though no test calls a model.
+# A placeholder, so the suite neither depends on nor uses the developer's real key.
+os.environ["OPENROUTER_API_KEY"] = "test-placeholder-not-a-real-key"
 # Nor write to the developer's database: runs are recorded on every message.
 _TEST_DATA_DIR = tempfile.mkdtemp(prefix="delaxis-tests-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DATA_DIR}/delaxis.db"
