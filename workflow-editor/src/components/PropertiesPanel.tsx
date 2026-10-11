@@ -1,36 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, Save, ChevronDown, ChevronRight, Check, Activity, ArrowLeftRight, FlaskConical, Gauge, Cpu, Wrench, Layers, Mail, Server, BookmarkPlus, ExternalLink, Bot, Play, GitBranch, Workflow, Flag } from 'lucide-react';
+import { X, Trash2, Save, ChevronDown, ChevronRight, Check, Activity, ArrowLeftRight, FlaskConical, Gauge, Cpu, Wrench, Layers, Server, BookmarkPlus, Bot, Play, GitBranch, Workflow, Flag } from 'lucide-react';
 import { useStoreWithEqualityFn } from 'zustand/traditional';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { useLibraryStore } from '../stores/libraryStore';
 import { InspectorTabs } from './studio/InspectorTabs';
-import { StatusBadge } from './studio/StatusBadge';
 import { StatusGlyph } from './shell/StatusGlyph';
 import { useUiStore } from '../stores/uiStore';
 import { kindForTool, laneStyle } from '../utils/nodeTheme';
 import type { NodeKind } from '../utils/nodeTheme';
+import { ConnectorForm } from './inspector/ConnectorForm';
+import { useConnectorStore } from '../stores/connectorStore';
+import { upgradeLegacyGmail } from '../utils/connectorPalette';
 import { DataPreview } from './studio/DataPreview';
 import { getAgentSummary, getToolSummary } from '../utils/studioDerivedState';
 import { api } from '../api/client';
 import type { FieldSpec } from '../constants/agentOptions';
 import { AGENT_SETTING_FIELDS, AGENT_TYPES, HUMAN_INPUT_MODES, LLM_PARAM_FIELDS, fieldsForProvider, unsupportedFields } from '../constants/agentOptions';
 import type { JsonObject } from '../types/json';
-
-interface GmailStatus {
-    configured: boolean;
-    connected: boolean;
-    accounts: Array<{ account_email: string }>;
-}
-
-// CrewAI & Model Definitions
-const fetchGmailStatus = async (): Promise<GmailStatus | null> => {
-    try {
-        return await api<GmailStatus>('/api/v1/integrations/gmail/status');
-    } catch {
-        return null;
-    }
-};
 
 export const PropertiesPanel = () => {
     // Custom equality (not just useShallow) because a node being *dragged* gets a new
@@ -55,19 +42,10 @@ export const PropertiesPanel = () => {
     const [capabilities, setCapabilities] = useState<JsonObject>({});
     const [loadingModels, setLoadingModels] = useState(false);
 
-    // Integration state (gmail tools)
-    const [gmailStatus, setGmailStatus] = useState<GmailStatus | null>(null);
-    const [gmailConnecting, setGmailConnecting] = useState(false);
     // MCP inspection + library persistence state
     const [mcpInspection, setMcpInspection] = useState<string>('');
     const [isInspecting, setIsInspecting] = useState(false);
     const [librarySaveState, setLibrarySaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-
-    const refreshGmailStatus = async () => {
-        const status = await fetchGmailStatus();
-        setGmailStatus(status);
-        return status;
-    };
 
     // Core State
     const [label, setLabel] = useState('');
@@ -102,14 +80,20 @@ export const PropertiesPanel = () => {
         setLibrarySaveState('idle');
     }
 
-    // Gmail nodes show whether an account is connected.
-    const isGmailNode = config.type === 'gmail';
+    const connectors = useConnectorStore((state) => state.connectors);
+    const connections = useConnectorStore((state) => state.connections);
+    const connectorsLoaded = useConnectorStore((state) => state.loaded);
+    const refreshConnectors = useConnectorStore((state) => state.refresh);
     useEffect(() => {
-        if (!selectedNodeId || !isGmailNode) return;
-        let cancelled = false;
-        void fetchGmailStatus().then((status) => { if (!cancelled) setGmailStatus(status); });
-        return () => { cancelled = true; };
-    }, [selectedNodeId, isGmailNode]);
+        if (!connectorsLoaded) void refreshConnectors();
+    }, [connectorsLoaded, refreshConnectors]);
+    // A node saved with the old Gmail tool becomes a Gmail connector node on the
+    // same account the first time it is opened; the next save stores the new shape.
+    const legacyGmail = selectedNode?.type === 'tool' && config.type === 'gmail';
+    useEffect(() => {
+        if (!legacyGmail || !connectorsLoaded || !selectedNode) return;
+        updateNodeData(selectedNode.id, { config: upgradeLegacyGmail(config, connections) });
+    }, [legacyGmail, connectorsLoaded, connections, selectedNode, config, updateNodeData]);
 
     // Which sampling fields are worth showing depends on the route that will
     // actually run. Must sit above the early return — hooks cannot be conditional.
@@ -177,31 +161,6 @@ export const PropertiesPanel = () => {
     };
 
     // --- New tool-type integrations -------------------------------------------
-
-    const connectGmail = async () => {
-        setGmailConnecting(true);
-        try {
-            const { auth_url } = await api<{ auth_url: string }>('/api/v1/integrations/gmail/auth-url');
-            window.open(auth_url, '_blank', 'noopener,width=520,height=680');
-            // Poll until the callback lands (or give up after ~2 minutes).
-            for (let attempt = 0; attempt < 40; attempt++) {
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-                const status = await refreshGmailStatus();
-                if (status?.connected) {
-                    // Convenience: adopt the first connected account if none typed yet.
-                    if (!config.account_email && status.accounts[0]) {
-                        updateConfig('account_email', status.accounts[0].account_email);
-                    }
-                    break;
-                }
-            }
-        } catch (error) {
-            setGmailStatus(null);
-            console.error('Gmail connect failed', error);
-        } finally {
-            setGmailConnecting(false);
-        }
-    };
 
     const inspectMcpServer = async () => {
         setIsInspecting(true);
@@ -919,7 +878,6 @@ export const PropertiesPanel = () => {
                             <option value="api">REST API</option>
                             <option value="mcp">MCP Server</option>
                             <option value="database">Database (NL2SQL)</option>
-                            <option value="gmail">Gmail</option>
                         </select>
                     </div>
 
@@ -980,9 +938,9 @@ export const PropertiesPanel = () => {
 
                     {config.type === 'mcp' && renderMcpConfig()}
                     {config.type === 'database' && renderDatabaseConfig()}
-                    {config.type === 'gmail' && renderGmailConfig()}
+                    {config.type === 'connector' && <ConnectorForm config={config} onChange={updateConfig} />}
 
-                    {['mcp', 'database', 'gmail'].includes(config.type) && (
+                    {['mcp', 'database', 'connector'].includes(config.type) && (
                         <button
                             onClick={saveToolToLibrary}
                             disabled={librarySaveState === 'saving'}
@@ -1146,101 +1104,6 @@ export const PropertiesPanel = () => {
         );
     }
 
-    function renderGmailConfig() {
-        const connectedAccounts = gmailStatus?.accounts ?? [];
-        const isAccountConnected = connectedAccounts.some((a) => a.account_email === config.account_email);
-        const capabilities: string[] = config.capabilities || ['send', 'search', 'read'];
-        const toggleCapability = (cap: string) => {
-            const next = capabilities.includes(cap) ? capabilities.filter((c) => c !== cap) : [...capabilities, cap];
-            if (next.length > 0) updateConfig('capabilities', next);
-        };
-
-        return (
-            <div className="space-y-4">
-                {/* Connection state */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                        <span className="field-label !mb-0">Google account</span>
-                        {gmailStatus === null ? (
-                            <StatusBadge tone="muted" label="Status unknown" compact />
-                        ) : !gmailStatus.configured ? (
-                            <StatusBadge tone="error" label="Not configured" compact />
-                        ) : isAccountConnected ? (
-                            <StatusBadge tone="ready" label="Connected" compact />
-                        ) : (
-                            <StatusBadge tone="warning" label="Not connected" compact />
-                        )}
-                    </div>
-
-                    {gmailStatus !== null && !gmailStatus.configured ? (
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                            Set <code className="font-mono">GOOGLE_OAUTH_CLIENT_ID</code>, <code className="font-mono">GOOGLE_OAUTH_CLIENT_SECRET</code> and{' '}
-                            <code className="font-mono">ENCRYPTION_KEY</code> in the backend .env, then restart the API.
-                        </p>
-                    ) : (
-                        <button
-                            onClick={connectGmail}
-                            disabled={gmailConnecting}
-                            type="button"
-                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] py-2 text-xs font-bold text-white transition-all disabled:opacity-60"
-                        >
-                            <Mail size={13} />
-                            {gmailConnecting ? 'Waiting for Google consent…' : isAccountConnected ? 'Reconnect account' : 'Connect Gmail'}
-                            <ExternalLink size={11} />
-                        </button>
-                    )}
-
-                    {connectedAccounts.length > 0 && (
-                        <div className="space-y-1">
-                            {connectedAccounts.map((account) => (
-                                <button
-                                    key={account.account_email}
-                                    onClick={() => updateConfig('account_email', account.account_email)}
-                                    type="button"
-                                    className={`w-full truncate rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-mono transition-colors ${config.account_email === account.account_email
-                                        ? 'border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400'
-                                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                        }`}
-                                >
-                                    {account.account_email}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="space-y-1.5">
-                    <label className={labelCls}>Account email</label>
-                    <input type="text" value={config.account_email || ''} onChange={(e) => updateConfig('account_email', e.target.value)} className={`${fieldCls} font-mono`} placeholder="support@yourdomain.com" />
-                </div>
-
-                <div className="space-y-1.5">
-                    <label className={labelCls}>Capabilities</label>
-                    <div className="flex gap-2">
-                        {['send', 'search', 'read'].map((cap) => (
-                            <button
-                                key={cap}
-                                onClick={() => toggleCapability(cap)}
-                                type="button"
-                                className={`flex-1 rounded-lg border py-2 text-xs font-bold capitalize transition-colors ${capabilities.includes(cap)
-                                    ? 'border-blue-500/50 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400'
-                                    : 'border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900'
-                                    }`}
-                            >
-                                {cap}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="space-y-1.5">
-                    <label className={labelCls}>Max search results</label>
-                    <input type="number" value={config.max_results || 10} onChange={(e) => updateConfig('max_results', parseInt(e.target.value) || 10)} className={fieldCls} />
-                </div>
-            </div>
-        );
-    }
-
     const kind: NodeKind =
         selectedNode.type === 'agent' ? 'agent'
             : selectedNode.type === 'tool' ? kindForTool(config)
@@ -1256,6 +1119,8 @@ export const PropertiesPanel = () => {
                         : Flag;
     const kindLabel = selectedNode.type === 'agent'
         ? `Agent · ${String(config.type ?? 'LlmAgent')}`
+        : selectedNode.type === 'tool' && config.type === 'connector'
+            ? `Connector · ${connectors.find((item) => item.id === config.connector)?.name ?? String(config.connector ?? '')}`
         : selectedNode.type === 'tool' ? `Tool · ${String(config.type ?? 'function')}`
             : String(selectedNode.type).replace(/^./, (c) => c.toUpperCase());
 
@@ -1304,7 +1169,7 @@ export const PropertiesPanel = () => {
                             disabled:
                                 selectedNode.type === 'output' ||
                                 selectedNode.type === 'router' ||
-                                (selectedNode.type === 'tool' && ['memory', 'knowledge'].includes(config.type)),
+                                (selectedNode.type === 'tool' && ['memory', 'knowledge', 'connector'].includes(config.type)),
                         },
                     ]}
                 />
@@ -1347,7 +1212,7 @@ export const PropertiesPanel = () => {
                     {selectedNode.type === 'tool' && activeInspectorTab === 'tools' && (
                         ['memory', 'knowledge'].includes(config.type) ? renderAttachmentConfig() : renderToolConfig()
                     )}
-                    {selectedNode.type === 'tool' && activeInspectorTab === 'test' && !['memory', 'knowledge'].includes(config.type) && renderToolTest()}
+                    {selectedNode.type === 'tool' && activeInspectorTab === 'test' && !['memory', 'knowledge', 'connector'].includes(config.type) && renderToolTest()}
                     {selectedNode.type === 'trigger' && activeInspectorTab === 'runtime' && renderTriggerConfig()}
                     {selectedNode.type === 'router' && (activeInspectorTab === 'tools' || activeInspectorTab === 'runtime') && renderRouterConfig()}
 
