@@ -269,7 +269,16 @@ class IntegrationCredential(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="gmail")
-    account_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # A connection's display name: the GitLab username, the Jira display name,
+    # the Gmail address. account_email stays for Gmail rows.
+    account_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    auth_kind: Mapped[str] = mapped_column(String(20), nullable=False, default="oauth")
+    options: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    last_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     user_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

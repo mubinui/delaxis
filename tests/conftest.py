@@ -29,6 +29,11 @@ os.environ["REDIS_URL"] = ""
 # out a flush to a collector that is not there.
 for _signal in ("TRACES", "METRICS", "LOGS"):
     os.environ[f"OTEL_{_signal}_EXPORTER"] = "none"
+# Credentials are Fernet-encrypted; the suite must not depend on the key in a
+# developer's .env being valid (or present). A fresh key per run.
+from cryptography.fernet import Fernet  # noqa: E402
+
+os.environ["ENCRYPTION_KEY"] = Fernet.generate_key().decode()
 # Nor write to the developer's database: runs are recorded on every message.
 _TEST_DATA_DIR = tempfile.mkdtemp(prefix="delaxis-tests-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DATA_DIR}/delaxis.db"
